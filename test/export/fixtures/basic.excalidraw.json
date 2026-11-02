@@ -1,0 +1,27 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "blueprint",
+  "elements": [
+    { "id": "fr1", "type": "frame", "x": 0, "y": 0, "width": 400, "height": 300, "name": "Backend" },
+    { "id": "r1", "type": "rectangle", "x": 20, "y": 40, "width": 120, "height": 60, "frameId": "fr1", "boundElements": [{ "id": "r1-label", "type": "text" }, { "id": "a1", "type": "arrow" }, { "id": "a2", "type": "arrow" }] },
+    { "id": "r1-label", "type": "text", "x": 50, "y": 60, "width": 40, "height": 20, "text": "API", "containerId": "r1", "frameId": "fr1" },
+    { "id": "r2", "type": "rectangle", "x": 240, "y": 40, "width": 120, "height": 60, "frameId": "fr1", "boundElements": [{ "id": "r2-label", "type": "text" }, { "id": "a1", "type": "arrow" }, { "id": "a3", "type": "arrow" }] },
+    { "id": "r2-label", "type": "text", "x": 260, "y": 60, "width": 80, "height": 20, "text": "Postgres", "containerId": "r2", "frameId": "fr1" },
+    { "id": "e1", "type": "ellipse", "x": -300, "y": 40, "width": 120, "height": 60, "boundElements": [{ "id": "e1-label", "type": "text" }, { "id": "a2", "type": "arrow" }] },
+    { "id": "e1-label", "type": "text", "x": -280, "y": 60, "width": 80, "height": 20, "text": "Browser", "containerId": "e1" },
+    { "id": "a1", "type": "arrow", "x": 140, "y": 70, "width": 100, "height": 0, "startBinding": { "elementId": "r1", "focus": 0, "gap": 4 }, "endBinding": { "elementId": "r2", "focus": 0, "gap": 4 }, "startArrowhead": null, "endArrowhead": "arrow", "boundElements": [{ "id": "a1-label", "type": "text" }] },
+    { "id": "a1-label", "type": "text", "x": 175, "y": 60, "width": 30, "height": 20, "text": "SQL", "containerId": "a1" },
+    { "id": "a2", "type": "arrow", "x": -180, "y": 70, "width": 200, "height": 0, "startBinding": { "elementId": "e1", "focus": 0, "gap": 4 }, "endBinding": { "elementId": "r1", "focus": 0, "gap": 4 }, "startArrowhead": null, "endArrowhead": "arrow", "boundElements": [{ "id": "a2-label", "type": "text" }] },
+    { "id": "a2-label", "type": "text", "x": -100, "y": 60, "width": 50, "height": 20, "text": "HTTPS", "containerId": "a2" },
+    { "id": "a3", "type": "arrow", "x": 300, "y": 100, "width": 0, "height": 120, "startBinding": { "elementId": "r2", "focus": 0, "gap": 4 }, "endBinding": null, "startArrowhead": null, "endArrowhead": "arrow" },
+    { "id": "t1", "type": "text", "x": 0, "y": 360, "width": 200, "height": 20, "text": "Open question: auth?", "containerId": null },
+    { "id": "img1", "type": "image", "x": 500, "y": 0, "width": 160, "height": 120, "fileId": "f1" },
+    { "id": "d1", "type": "freedraw", "x": 500, "y": 200, "width": 80, "height": 40 },
+    { "id": "r9", "type": "rectangle", "x": 600, "y": 400, "width": 100, "height": 50, "isDeleted": true }
+  ],
+  "appState": {},
+  "files": {
+    "f1": { "id": "f1", "mimeType": "image/png", "created": 1793500000000, "asset": "assets/abc.png" }
+  }
+}
