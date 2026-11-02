@@ -49,7 +49,7 @@ Anti-goals, which would make the MVP a failure even if it worked:
 ## 3. Constraints
 
 - Platforms: macOS and Linux first, wherever Claude Code runs. Windows is untested in the MVP.
-- Runtime: Node 20 or later. The Agent SDK bundles its own Claude Code binary, which is the default; a setting points Blueprint at the user's installed one instead. `[my call]`
+- Runtime: Node 22 or later, the active LTS line; Node 20 reached end of life in April 2026 and the current toolchain (Vitest, jsdom, chokidar) requires 22. The Agent SDK bundles its own Claude Code binary, which is the default; a setting points Blueprint at the user's installed one instead. `[my call]`
 - Licenses: Excalidraw and its Mermaid importer are MIT. The Agent SDK is under Anthropic's commercial terms. The product must not be branded as Claude Code; "Claude Agent" or "powered by Claude" are allowed.
 - One Blueprint process serves one repository, started from that repository's root.
 - Plan data must be plain files in the repository so git, teammates, and other tools can read them.
