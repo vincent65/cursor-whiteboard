@@ -27,9 +27,9 @@ const EXTENSIONS: Record<string, string> = {
   "image/svg+xml": "svg",
   "image/webp": "webp",
 };
-// Canonical base64 only: Buffer.from silently drops malformed trailing data.
-const DATA_URL =
-  /^data:([a-z]+\/[a-z0-9.+-]+);base64,((?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?)$/;
+// Linear character classes only: a repeated-group pattern overflows V8's
+// stack on multi-MB payloads. Canonical form is enforced after decoding.
+const DATA_URL = /^data:([a-z]+\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/;
 const ASSET_FILE = new RegExp(
   `^[0-9a-f]{64}\\.(${Object.values(EXTENSIONS).join("|")})$`,
 );
@@ -134,9 +134,11 @@ export class FileStore {
       const ext = match && EXTENSIONS[match[1]];
       if (!match || !ext || match[1] !== mimeType)
         throw new InvalidSceneError(`file ${key} has an unsupported dataURL`);
+      // Buffer.from silently drops malformed trailing data, so a payload is
+      // valid only if it re-encodes to itself (this also rejects zero bytes).
       const bytes = Buffer.from(match[2], "base64");
-      if (bytes.length === 0)
-        throw new InvalidSceneError(`file ${key} has an empty dataURL`);
+      if (bytes.toString("base64") !== match[2])
+        throw new InvalidSceneError(`file ${key} has malformed base64`);
       const sha = createHash("sha256").update(bytes).digest("hex");
       assets.set(`${sha}.${ext}`, bytes);
       files[key] = { id, mimeType, created, asset: `assets/${sha}.${ext}` };

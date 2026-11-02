@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -109,6 +109,31 @@ test("writeBoard extracts a dataURL image to assets by sha256 and rewrites the r
   );
   expect(await readFile(boardPath, "utf8")).not.toContain("base64");
   expect(await store.readAsset(`${sha}.png`)).toEqual(png);
+});
+
+test("writeBoard extracts a large image whose payload exceeds 5 MB", async () => {
+  await store.init();
+  await store.createBoard("main");
+  const bytes = randomBytes(4 * 1024 * 1024);
+  const payload = bytes.toString("base64");
+  expect(payload.length).toBeGreaterThanOrEqual(5 * 1024 * 1024);
+  const stored = await store.writeBoard(
+    "main",
+    scene({
+      files: {
+        f1: {
+          id: "f1",
+          mimeType: "image/png",
+          created: 1,
+          dataURL: `data:image/png;base64,${payload}`,
+        },
+      },
+    }),
+  );
+  const sha = createHash("sha256").update(bytes).digest("hex");
+  expect(stored.files.f1.asset).toBe(`assets/${sha}.png`);
+  const written = await readFile(join(store.dir, "assets", `${sha}.png`));
+  expect(createHash("sha256").update(written).digest("hex")).toBe(sha);
 });
 
 test("writeBoard keeps existing asset references and element ids untouched", async () => {
