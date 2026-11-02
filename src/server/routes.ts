@@ -13,6 +13,9 @@ const CONTENT_TYPES: Record<string, string> = {
   gif: "image/gif",
   svg: "image/svg+xml",
   webp: "image/webp",
+  bmp: "image/bmp",
+  avif: "image/avif",
+  ico: "image/x-icon",
 };
 
 async function nameFromBody(c: Context): Promise<string> {
@@ -73,6 +76,10 @@ export function routes(store: FileStore): Hono {
         const ext = file.slice(file.lastIndexOf(".") + 1);
         return c.body(new Uint8Array(bytes), 200, {
           "Content-Type": CONTENT_TYPES[ext],
+          // Assets are user-pasted: an SVG opened directly must not run
+          // script in this origin, where it could call the write API.
+          "Content-Security-Policy": "default-src 'none'; sandbox",
+          "X-Content-Type-Options": "nosniff",
         });
       })
       // Hono cannot match a literal suffix after a param, so the suffix is part

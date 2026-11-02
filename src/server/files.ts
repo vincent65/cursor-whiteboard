@@ -20,12 +20,19 @@ export class InvalidSceneError extends Error {}
 
 const SUBDIRS = ["boards", "docs", "assets", "tasks", "export", "worktrees"];
 const GITIGNORE_LINES = [".blueprint/export/", ".blueprint/worktrees/"];
+// Every image type Excalidraw accepts on paste or drop; one it accepts that
+// is missing here fails every save of the board until reload.
 const EXTENSIONS: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
+  // JFIF is JPEG data, so it is stored and served as one.
+  "image/jfif": "jpg",
   "image/gif": "gif",
   "image/svg+xml": "svg",
   "image/webp": "webp",
+  "image/bmp": "bmp",
+  "image/avif": "avif",
+  "image/x-icon": "ico",
 };
 // Linear character classes only: a repeated-group pattern overflows V8's
 // stack on multi-MB payloads. Canonical form is enforced after decoding.

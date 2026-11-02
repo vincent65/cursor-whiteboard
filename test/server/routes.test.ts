@@ -274,33 +274,43 @@ test("docs lifecycle with text/markdown content type", async () => {
   expect(await got.text()).toBe("# Plan\n\nShip it.\n");
 });
 
-test("assets are served with the right content type and 404 otherwise", async () => {
+test("assets are served sandboxed with the right content type and 404 otherwise", async () => {
   await app.request("/api/boards", post({ name: "main" }));
-  const types = {
-    png: "image/png",
-    jpg: "image/jpeg",
-    gif: "image/gif",
-    svg: "image/svg+xml",
-    webp: "image/webp",
-  };
+  // Every image type Excalidraw accepts: [uploaded as, stored as, served as].
+  const types = [
+    ["image/png", "png", "image/png"],
+    ["image/jpeg", "jpg", "image/jpeg"],
+    ["image/gif", "gif", "image/gif"],
+    ["image/svg+xml", "svg", "image/svg+xml"],
+    ["image/webp", "webp", "image/webp"],
+    ["image/bmp", "bmp", "image/bmp"],
+    ["image/avif", "avif", "image/avif"],
+    ["image/jfif", "jpg", "image/jpeg"],
+    ["image/x-icon", "ico", "image/x-icon"],
+  ];
   const files: IncomingScene["files"] = {};
-  for (const [ext, mimeType] of Object.entries(types))
-    files[ext] = {
-      id: ext,
+  for (const [mimeType] of types)
+    files[mimeType] = {
+      id: mimeType,
       mimeType,
       created: 1,
-      dataURL: `data:${mimeType};base64,${Buffer.from(ext).toString("base64")}`,
+      dataURL: `data:${mimeType};base64,${Buffer.from(mimeType).toString("base64")}`,
     };
   expect(
     (await putScene("main", { elements: [], appState: {}, files })).status,
   ).toBe(200);
 
-  for (const [ext, mimeType] of Object.entries(types)) {
-    const sha = createHash("sha256").update(ext).digest("hex");
+  for (const [mimeType, ext, served] of types) {
+    const sha = createHash("sha256").update(mimeType).digest("hex");
     const res = await app.request(`/api/assets/${sha}.${ext}`);
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toBe(mimeType);
-    expect(Buffer.from(await res.arrayBuffer()).toString()).toBe(ext);
+    expect(res.status, mimeType).toBe(200);
+    expect(res.headers.get("content-type")).toBe(served);
+    // An SVG opened directly must not run script in the app's origin.
+    expect(res.headers.get("content-security-policy")).toBe(
+      "default-src 'none'; sandbox",
+    );
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(Buffer.from(await res.arrayBuffer()).toString()).toBe(mimeType);
   }
   for (const path of [
     `/api/assets/${"0".repeat(64)}.png`,
