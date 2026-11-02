@@ -46,7 +46,13 @@ const buttonStyle = {
   cursor: "pointer",
 };
 
-export function DocView({ name }: { name: string }) {
+export function DocView({
+  name,
+  onConflictChange,
+}: {
+  name: string;
+  onConflictChange(open: boolean): void;
+}) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   // Unsaved edits exist; a ref so typing does not re-render.
@@ -54,6 +60,11 @@ export function DocView({ name }: { name: string }) {
   // Disk text of an external change that collided with unsaved edits.
   const [conflict, setConflict] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onConflictChange(conflict !== null);
+    return () => onConflictChange(false);
+  }, [conflict, onConflictChange]);
 
   const persist = (text: string) =>
     api.saveDoc(name, text).then(

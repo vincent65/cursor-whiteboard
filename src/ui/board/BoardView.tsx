@@ -62,7 +62,13 @@ async function load(board: BoardFile): Promise<Scene> {
   };
 }
 
-export function BoardView({ name }: { name: string }) {
+export function BoardView({
+  name,
+  onConflictChange,
+}: {
+  name: string;
+  onConflictChange(open: boolean): void;
+}) {
   const [initial, setInitial] = useState<Scene | null>(null);
   // The disk changed while the editor had unsaved edits; saves wait for the
   // user to pick a side so neither version is silently overwritten.
@@ -77,6 +83,11 @@ export function BoardView({ name }: { name: string }) {
   const inFlight = useRef(new Set<SaveState>());
   // Saves run one at a time so a slow write cannot land after a newer one.
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+
+  useEffect(() => {
+    onConflictChange(conflict);
+    return () => onConflictChange(false);
+  }, [conflict, onConflictChange]);
 
   const persist = (s: Scene) => {
     const state = saveState(s.elements, s.appState);

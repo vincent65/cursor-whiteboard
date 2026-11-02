@@ -1,29 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as api from "./api";
 import { BoardView } from "./board/BoardView";
 import { DocView } from "./docs/DocView";
+import { useHashRoute } from "./hooks/useHashRoute";
 import { Sidebar } from "./nav/Sidebar";
 
-type Route = { kind: "board" | "doc"; name: string } | null;
-
-function parseRoute(hash: string): Route {
-  const m = /^#\/(boards|docs)\/([^/]+)$/.exec(hash);
-  if (!m) return null;
-  return { kind: m[1] === "boards" ? "board" : "doc", name: m[2] };
-}
-
-function useHashRoute(): Route {
-  const [route, setRoute] = useState(() => parseRoute(location.hash));
-  useEffect(() => {
-    const onChange = () => setRoute(parseRoute(location.hash));
-    window.addEventListener("hashchange", onChange);
-    return () => window.removeEventListener("hashchange", onChange);
-  }, []);
-  return route;
-}
-
 export function App() {
-  const route = useHashRoute();
+  // Set by the open view while a disk conflict holds its saves back, so
+  // leaving it would drop the edits.
+  const conflictOpen = useRef(false);
+  const route = useHashRoute(useCallback(() => conflictOpen.current, []));
+  const onConflictChange = useCallback((open: boolean) => {
+    conflictOpen.current = open;
+  }, []);
   const [boards, setBoards] = useState<string[] | null>(null);
   const [docs, setDocs] = useState<string[]>([]);
 
@@ -63,10 +52,18 @@ export function App() {
       />
       <main className="main">
         {route?.kind === "board" && (
-          <BoardView key={route.name} name={route.name} />
+          <BoardView
+            key={route.name}
+            name={route.name}
+            onConflictChange={onConflictChange}
+          />
         )}
         {route?.kind === "doc" && (
-          <DocView key={route.name} name={route.name} />
+          <DocView
+            key={route.name}
+            name={route.name}
+            onConflictChange={onConflictChange}
+          />
         )}
         {!route && boards?.length === 0 && (
           <p className="empty">No boards yet. Create one from the sidebar.</p>
