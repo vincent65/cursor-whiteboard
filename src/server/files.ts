@@ -27,7 +27,9 @@ const EXTENSIONS: Record<string, string> = {
   "image/svg+xml": "svg",
   "image/webp": "webp",
 };
-const DATA_URL = /^data:([a-z]+\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]+=*)$/;
+// Canonical base64 only: Buffer.from silently drops malformed trailing data.
+const DATA_URL =
+  /^data:([a-z]+\/[a-z0-9.+-]+);base64,((?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?)$/;
 const ASSET_FILE = new RegExp(
   `^[0-9a-f]{64}\\.(${Object.values(EXTENSIONS).join("|")})$`,
 );

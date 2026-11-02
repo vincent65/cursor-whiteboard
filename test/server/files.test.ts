@@ -159,9 +159,10 @@ test("writeBoard rejects a malformed dataURL and writes nothing", async () => {
   await expect(bad("data:image/png;base64,***")).rejects.toThrow(
     InvalidSceneError,
   );
-  await expect(bad("data:image/png;base64,A")).rejects.toThrow(
-    InvalidSceneError,
-  );
+  for (const payload of ["A", "AAAAA", "AAAA==", "AAAA=====", "AB"])
+    await expect(bad(`data:image/png;base64,${payload}`)).rejects.toThrow(
+      InvalidSceneError,
+    );
   await expect(
     bad("data:image/tiff;base64,AAAA", "image/tiff"),
   ).rejects.toThrow(InvalidSceneError);
