@@ -47,6 +47,75 @@ test("rectangle with bound text becomes a box node with the text as label", () =
   ]);
 });
 
+test("text with a live containerId labels the container even without boundElements", () => {
+  const g = excalidrawToBoardGraph(
+    board([
+      el({ id: "r1", type: "rectangle" }),
+      el({ id: "t1", type: "text", text: "API", containerId: "r1" }),
+    ]),
+    "main",
+  );
+  expect(g.nodes).toEqual([
+    expect.objectContaining({ id: "r1", kind: "box", label: "API" }),
+  ]);
+});
+
+test("text listed in boundElements but with no containerId stays a standalone node", () => {
+  const g = excalidrawToBoardGraph(
+    board([
+      el({
+        id: "r1",
+        type: "rectangle",
+        boundElements: [{ id: "t1", type: "text" }],
+      }),
+      el({ id: "t1", type: "text", text: "API", containerId: null }),
+    ]),
+    "main",
+  );
+  expect(g.nodes).toEqual([
+    expect.objectContaining({ id: "r1", kind: "box", label: "" }),
+    expect.objectContaining({ id: "t1", kind: "text", label: "API" }),
+  ]);
+});
+
+test("a stale boundElements entry does not borrow another container's text", () => {
+  const g = excalidrawToBoardGraph(
+    board([
+      el({
+        id: "r1",
+        type: "rectangle",
+        boundElements: [{ id: "t2", type: "text" }],
+      }),
+      el({
+        id: "r2",
+        type: "rectangle",
+        boundElements: [{ id: "t2", type: "text" }],
+      }),
+      el({ id: "t2", type: "text", text: "DB", containerId: "r2" }),
+    ]),
+    "main",
+  );
+  expect(g.nodes.map((n) => [n.id, n.label])).toEqual([
+    ["r1", ""],
+    ["r2", "DB"],
+  ]);
+});
+
+test("text whose container is deleted or missing stays a standalone node", () => {
+  const g = excalidrawToBoardGraph(
+    board([
+      el({ id: "r9", type: "rectangle", isDeleted: true }),
+      el({ id: "t1", type: "text", text: "kept", containerId: "r9" }),
+      el({ id: "t2", type: "text", text: "also kept", containerId: "nope" }),
+    ]),
+    "main",
+  );
+  expect(g.nodes.map((n) => [n.id, n.kind, n.label])).toEqual([
+    ["t1", "text", "kept"],
+    ["t2", "text", "also kept"],
+  ]);
+});
+
 test("arrow bound at both ends becomes an edge with label and arrowheads", () => {
   const g = excalidrawToBoardGraph(
     board([

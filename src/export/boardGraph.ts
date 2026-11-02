@@ -29,10 +29,21 @@ export function excalidrawToBoardGraph(
     loose: [],
   };
 
-  const boundText = (e: ExcalidrawElement): string => {
-    const ref = e.boundElements?.find((b) => b.type === "text");
-    return (ref && byId.get(ref.id)?.text?.trim()) ?? "";
-  };
+  // A text's own containerId is the single source of truth for bindings;
+  // the container's boundElements may be stale or one-sided.
+  const textByContainer = new Map<string, ExcalidrawElement>();
+  for (const e of live) {
+    if (
+      e.type === "text" &&
+      e.containerId &&
+      byId.has(e.containerId) &&
+      !textByContainer.has(e.containerId)
+    ) {
+      textByContainer.set(e.containerId, e);
+    }
+  }
+  const boundText = (e: ExcalidrawElement): string =>
+    textByContainer.get(e.id)?.text?.trim() ?? "";
   const liveId = (id: string | undefined): string | null =>
     id !== undefined && byId.has(id) ? id : null;
 
@@ -56,7 +67,7 @@ export function excalidrawToBoardGraph(
     }
     const kind = NODE_KINDS[e.type];
     // Text bound to a live container is that container's label, not a node.
-    if (!kind || (kind === "text" && liveId(e.containerId ?? undefined))) {
+    if (!kind || (e.containerId && textByContainer.get(e.containerId) === e)) {
       continue;
     }
     const node: BoardNode = {
