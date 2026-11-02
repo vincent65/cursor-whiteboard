@@ -1,0 +1,266 @@
+import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Hono } from "hono";
+import { createApp } from "../../src/server/app.js";
+import { FileStore } from "../../src/server/files.js";
+import type { IncomingScene } from "../../src/shared/types.js";
+
+let root: string;
+let store: FileStore;
+let app: Hono;
+
+beforeEach(async () => {
+  root = await mkdtemp(join(tmpdir(), "blueprint-routes-"));
+  store = new FileStore(root);
+  await store.init();
+  app = createApp(store);
+});
+
+afterEach(async () => {
+  await rm(root, { recursive: true, force: true });
+});
+
+const json = { "Content-Type": "application/json" };
+const post = (body: unknown): RequestInit => ({
+  method: "POST",
+  body: JSON.stringify(body),
+  headers: json,
+});
+const putScene = (name: string, scene: unknown) =>
+  app.request(`/api/boards/${name}`, {
+    method: "PUT",
+    body: JSON.stringify(scene),
+    headers: json,
+  });
+
+const box = (id: string, arrow: string) => ({
+  id,
+  type: "rectangle",
+  x: 0,
+  y: 0,
+  width: 100,
+  height: 50,
+  boundElements: [{ id: arrow, type: "arrow" }],
+});
+const sceneWithTwoBoxesAndArrow: IncomingScene = {
+  elements: [
+    box("r1", "a1"),
+    box("r2", "a1"),
+    {
+      id: "a1",
+      type: "arrow",
+      x: 100,
+      y: 25,
+      width: 100,
+      height: 0,
+      startBinding: { elementId: "r1" },
+      endBinding: { elementId: "r2" },
+      startArrowhead: null,
+      endArrowhead: "arrow",
+    },
+  ],
+  appState: {},
+  files: {},
+};
+
+test("board lifecycle: create, list, get, put, export", async () => {
+  expect(
+    (await app.request("/api/boards", post({ name: "main" }))).status,
+  ).toBe(201);
+  expect(await (await app.request("/api/boards")).json()).toEqual([
+    expect.objectContaining({ name: "main" }),
+  ]);
+  const got = await app.request("/api/boards/main");
+  expect(got.status).toBe(200);
+  expect(await got.json()).toMatchObject({ type: "excalidraw", elements: [] });
+
+  const put = await putScene("main", sceneWithTwoBoxesAndArrow);
+  expect(put.status).toBe(200);
+  expect((await put.json()).elements).toHaveLength(3);
+
+  const exported = await app.request("/api/export/boards/main.md");
+  expect(exported.status).toBe(200);
+  expect(exported.headers.get("content-type")).toMatch(/^text\/markdown/);
+  const md = await exported.text();
+  expect(md).toContain("flowchart LR");
+  const onDisk = join(store.dir, "export/boards/main.md");
+  expect(existsSync(onDisk)).toBe(true);
+  expect(await readFile(onDisk, "utf8")).toBe(md);
+});
+
+test("invalid names are rejected with 400 and nothing is written", async () => {
+  for (const name of ["Main", "a b", "..", "a/b"]) {
+    expect((await app.request("/api/boards", post({ name }))).status).toBe(400);
+    expect((await app.request("/api/docs", post({ name }))).status).toBe(400);
+    const res = await app.request(`/api/docs/${encodeURIComponent(name)}`, {
+      method: "PUT",
+      body: "x",
+    });
+    // The URL parser resolves a ".." segment (encoded or not) before routing,
+    // so "/api/docs/.." becomes "/api/" and never reaches a handler.
+    expect(res.status).toBe(name === ".." ? 404 : 400);
+  }
+  for (const body of [{}, { name: 42 }])
+    expect((await app.request("/api/boards", post(body))).status).toBe(400);
+  expect(
+    (
+      await app.request("/api/boards", {
+        method: "POST",
+        body: "{",
+        headers: json,
+      })
+    ).status,
+  ).toBe(400);
+  expect(
+    (await app.request("/api/boards/Main/png", { method: "POST", body: "x" }))
+      .status,
+  ).toBe(400);
+  expect((await app.request("/api/export/boards/Main.md")).status).toBe(400);
+  expect(await readdir(join(store.dir, "boards"))).toEqual([]);
+  expect(await readdir(join(store.dir, "docs"))).toEqual([]);
+  expect(await readdir(join(store.dir, "export"))).toEqual([]);
+});
+
+test("duplicate create returns 409", async () => {
+  for (const kind of ["boards", "docs"]) {
+    expect(
+      (await app.request(`/api/${kind}`, post({ name: "main" }))).status,
+    ).toBe(201);
+    const dup = await app.request(`/api/${kind}`, post({ name: "main" }));
+    expect(dup.status).toBe(409);
+    expect(await dup.json()).toEqual({ error: expect.any(String) });
+  }
+});
+
+test("missing board or doc returns 404 with { error }", async () => {
+  const requests: [string, RequestInit?][] = [
+    ["/api/boards/nope"],
+    [
+      "/api/boards/nope",
+      {
+        method: "PUT",
+        body: JSON.stringify(sceneWithTwoBoxesAndArrow),
+        headers: json,
+      },
+    ],
+    ["/api/boards/nope", { method: "PUT", body: "not json", headers: json }],
+    ["/api/docs/nope"],
+    ["/api/docs/nope", { method: "PUT", body: "x" }],
+    ["/api/export/boards/nope.md"],
+  ];
+  for (const [path, init] of requests) {
+    const res = await app.request(path, init);
+    expect(res.status, path).toBe(404);
+    expect(await res.json()).toEqual({ error: expect.any(String) });
+  }
+  await app.request("/api/boards", post({ name: "main" }));
+  expect((await app.request("/api/export/boards/main.txt")).status).toBe(404);
+});
+
+test("malformed scene returns 400", async () => {
+  await app.request("/api/boards", post({ name: "main" }));
+  const before = await readFile(
+    join(store.dir, "boards/main.excalidraw.json"),
+    "utf8",
+  );
+  const bad = await putScene("main", {
+    ...sceneWithTwoBoxesAndArrow,
+    files: {
+      f1: {
+        id: "f1",
+        mimeType: "image/png",
+        created: 1,
+        dataURL: "data:image/png;base64,***",
+      },
+    },
+  });
+  expect(bad.status).toBe(400);
+  expect(await bad.json()).toEqual({ error: expect.any(String) });
+  expect((await putScene("main", { elements: "nope" })).status).toBe(400);
+  expect(
+    (
+      await app.request("/api/boards/main", {
+        method: "PUT",
+        body: "{",
+        headers: json,
+      })
+    ).status,
+  ).toBe(400);
+  expect(
+    await readFile(join(store.dir, "boards/main.excalidraw.json"), "utf8"),
+  ).toBe(before);
+  expect(existsSync(join(store.dir, "export/boards/main.md"))).toBe(false);
+});
+
+test("png upload writes export/boards/<name>.png", async () => {
+  await app.request("/api/boards", post({ name: "main" }));
+  const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 255]);
+  const res = await app.request("/api/boards/main/png", {
+    method: "POST",
+    body: bytes,
+    headers: { "Content-Type": "image/png" },
+  });
+  expect(res.status).toBe(204);
+  expect(await readFile(join(store.dir, "export/boards/main.png"))).toEqual(
+    Buffer.from(bytes),
+  );
+});
+
+test("docs lifecycle with text/markdown content type", async () => {
+  expect((await app.request("/api/docs", post({ name: "plan" }))).status).toBe(
+    201,
+  );
+  expect(await (await app.request("/api/docs")).json()).toEqual([
+    expect.objectContaining({ name: "plan", updatedAt: expect.any(String) }),
+  ]);
+  const put = await app.request("/api/docs/plan", {
+    method: "PUT",
+    body: "# Plan\n\nShip it.\n",
+  });
+  expect(put.status).toBe(204);
+  const got = await app.request("/api/docs/plan");
+  expect(got.status).toBe(200);
+  expect(got.headers.get("content-type")).toMatch(/^text\/markdown/);
+  expect(await got.text()).toBe("# Plan\n\nShip it.\n");
+});
+
+test("assets are served with the right content type and 404 otherwise", async () => {
+  await app.request("/api/boards", post({ name: "main" }));
+  const types = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    gif: "image/gif",
+    svg: "image/svg+xml",
+    webp: "image/webp",
+  };
+  const files: IncomingScene["files"] = {};
+  for (const [ext, mimeType] of Object.entries(types))
+    files[ext] = {
+      id: ext,
+      mimeType,
+      created: 1,
+      dataURL: `data:${mimeType};base64,${Buffer.from(ext).toString("base64")}`,
+    };
+  expect(
+    (await putScene("main", { elements: [], appState: {}, files })).status,
+  ).toBe(200);
+
+  for (const [ext, mimeType] of Object.entries(types)) {
+    const sha = createHash("sha256").update(ext).digest("hex");
+    const res = await app.request(`/api/assets/${sha}.${ext}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe(mimeType);
+    expect(Buffer.from(await res.arrayBuffer()).toString()).toBe(ext);
+  }
+  for (const path of [
+    `/api/assets/${"0".repeat(64)}.png`,
+    "/api/assets/nope.exe",
+  ]) {
+    const res = await app.request(path);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: expect.any(String) });
+  }
+});
