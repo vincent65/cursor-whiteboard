@@ -1,0 +1,54 @@
+flowchart LR
+  subgraph Client["Browser - Next.js app"]
+    direction TB
+    Nav["Projects + plan pages"]
+    Doc["Doc editor (Tiptap)"]
+    Board["Whiteboard (tldraw)"]
+    Dash["Agent dashboard"]
+  end
+
+  subgraph Web["Web backend - Next.js route handlers on Vercel"]
+    direction TB
+    PagesAPI["Pages + Assets API"]
+    Assist["AI Assist (selection-scoped)"]
+    Compiler["Context Compiler"]
+    Splitter["Task Splitter"]
+    RunAPI["Launch + Run API"]
+  end
+
+  subgraph Runner["Agent Runner service - Fly.io"]
+    direction TB
+    Orch["Run orchestrator"]
+    SB["E2B sandbox per task<br/>Claude Agent SDK or Codex CLI"]
+  end
+
+  subgraph Supa["Supabase"]
+    direction TB
+    Auth["Auth (GitHub OAuth)"]
+    PG[("Postgres + RLS")]
+    Store["Storage (images, files)"]
+    RT["Realtime"]
+  end
+
+  LLM{{"Anthropic API<br/>claude-opus-5-5"}}
+  GH["GitHub repo + PRs"]
+
+  Client -- "HTTPS + SSE" --> PagesAPI
+  Board -. "board snapshot PNG + shapes" .-> Compiler
+  Dash -- "subscribe run events" --> RT
+  Dash -- "message / stop agent" --> RunAPI
+  PagesAPI --> PG
+  PagesAPI --> Store
+  Assist --> LLM
+  Compiler --> LLM
+  Splitter --> LLM
+  RunAPI -- "insert run (queued)" --> PG
+  Orch -- "claim runs, write events" --> PG
+  Orch --> SB
+  SB --> LLM
+  SB -- "clone, commit, open PR" --> GH
+
+  classDef llm fill:#fde68a,stroke:#b45309,stroke-width:2px,color:#1f2937;
+  classDef store fill:#e0f2fe,stroke:#0369a1,color:#1f2937;
+  class Assist,Compiler,Splitter,SB,LLM llm;
+  class PG,Store,RT,Auth store;

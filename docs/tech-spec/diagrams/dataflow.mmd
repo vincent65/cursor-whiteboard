@@ -1,0 +1,43 @@
+sequenceDiagram
+  actor H as Human
+  participant W as Web app
+  participant A as Anthropic API
+  participant DB as Supabase
+  participant R as Runner
+  participant S as Sandbox agent
+
+  rect rgb(240,240,240)
+  note over H,DB: Phase 1 - human writes the plan
+  H->>W: Write doc pages, draw on boards
+  W->>DB: Autosave page JSON + assets
+  H->>W: Highlight text or region, ask AI to refine / draw / advise
+  W->>A: assist(selection, instruction) - streamed
+  A-->>W: Proposal (text or shapes)
+  H->>W: Accept or discard proposal
+  end
+
+  rect rgb(255,248,220)
+  note over H,A: Phase 2 - AI compiles context
+  H->>W: Compile context
+  W->>DB: Load pages, assets, repo summary
+  W->>W: Pages to Markdown + Mermaid + board PNGs
+  W->>A: IR to spec (structured output)
+  A-->>W: Spec v1 with source refs
+  H->>W: Review, edit spec, split tasks
+  W->>A: Spec to task DAG (structured output)
+  A-->>W: Tasks with deps, files, acceptance checks
+  end
+
+  rect rgb(230,245,230)
+  note over H,S: Phase 3 - agents build in parallel
+  H->>W: Launch approved tasks
+  W->>DB: Insert runs (status = queued)
+  R->>DB: Claim queued run
+  R->>S: Create sandbox, clone repo, start agent with task spec
+  S-->>DB: Stream events (text, tool calls, PR link)
+  DB-->>W: Realtime push to dashboard
+  H->>W: Message an agent or edit the plan
+  W->>A: Recompile to spec v2, diff v1 to v2
+  W->>DB: Insert message / plan-update
+  R->>S: Forward into running session
+  end
