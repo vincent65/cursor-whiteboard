@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { BoardFile, type BoardFileAsset } from "../export/index.js";
+import { SLUG_RE } from "../shared/slug.js";
 import type { IncomingScene } from "../shared/types.js";
 
 export class InvalidNameError extends Error {}
@@ -42,7 +43,7 @@ const ASSET_FILE = new RegExp(
 );
 
 export function assertSlug(name: string): void {
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(name))
+  if (!SLUG_RE.test(name))
     throw new InvalidNameError(`invalid name: ${JSON.stringify(name)}`);
 }
 

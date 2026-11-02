@@ -1,3 +1,5 @@
+import { slugify } from "../../shared/slug";
+
 type Kind = "board" | "doc";
 
 function NavSection(props: {
@@ -9,8 +11,11 @@ function NavSection(props: {
 }) {
   const { title, kind, names, active, onCreate } = props;
   const create = () => {
-    const name = window.prompt(`New ${kind} name`)?.trim();
+    const input = window.prompt(`New ${kind} name`);
+    if (!input?.trim()) return;
+    const name = slugify(input);
     if (name) onCreate(name);
+    else window.alert(`A ${kind} name needs at least one letter or digit.`);
   };
   return (
     <section className="nav-section">
