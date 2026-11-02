@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FileStore } from "../../src/server/files.js";
@@ -69,6 +70,35 @@ describe("startServer", () => {
       expect(await page.text()).toBe("<p>app</p>");
     }
     expect((await fetch(`${base}/api/missing`)).status).toBe(404);
+  });
+
+  test("refuses websocket upgrades from other origins", async () => {
+    // A raw upgrade, since the WebSocket client cannot set Origin.
+    const upgrade = (origin: string) =>
+      new Promise<number>((resolve, reject) => {
+        const req = request(`${base}/ws`, {
+          headers: {
+            Connection: "Upgrade",
+            Upgrade: "websocket",
+            "Sec-WebSocket-Key":
+              Buffer.from("0123456789abcdef").toString("base64"),
+            "Sec-WebSocket-Version": "13",
+            Origin: origin,
+          },
+        });
+        req.on("upgrade", (res, socket) => {
+          socket.destroy();
+          resolve(res.statusCode ?? 0);
+        });
+        req.on("response", (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        });
+        req.on("error", reject);
+        req.end();
+      });
+    expect(await upgrade("https://attacker.example")).toBe(403);
+    expect(await upgrade(`http://127.0.0.1:${server.port}`)).toBe(101);
   });
 
   test("broadcasts external file changes to websocket clients", async () => {

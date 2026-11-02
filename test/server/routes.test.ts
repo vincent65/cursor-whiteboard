@@ -91,6 +91,53 @@ test("board lifecycle: create, list, get, put, export", async () => {
   expect(await readFile(onDisk, "utf8")).toBe(md);
 });
 
+test("writes need a loopback Host and, when sent, a same-origin Origin", async () => {
+  const create = (name: string, headers: Record<string, string>) =>
+    app.request("/api/boards", {
+      method: "POST",
+      // text/plain is a CORS simple request: browsers send it without preflight.
+      body: JSON.stringify({ name }),
+      headers: { "Content-Type": "text/plain", ...headers },
+    });
+  const crossOrigin = await create("evil", {
+    Host: "localhost:4242",
+    Origin: "https://attacker.example",
+  });
+  expect(crossOrigin.status).toBe(403);
+  expect(await crossOrigin.json()).toEqual({ error: expect.any(String) });
+  expect(
+    (
+      await create("other-port", {
+        Host: "localhost:4242",
+        Origin: "http://localhost:3000",
+      })
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await create("same-origin", {
+        Host: "localhost:4242",
+        Origin: "http://localhost:4242",
+      })
+    ).status,
+  ).toBe(201);
+  expect((await create("no-origin", { Host: "127.0.0.1:4242" })).status).toBe(
+    201,
+  );
+  expect((await create("ipv6", { Host: "[::1]:4242" })).status).toBe(201);
+  // DNS rebinding: the attacker's name resolves to 127.0.0.1, but Host keeps it.
+  for (const host of ["attacker.example:4242", "localhost.attacker.example"])
+    expect(
+      (await app.request("/api/boards", { headers: { Host: host } })).status,
+    ).toBe(403);
+  expect((await app.request("/api/boards")).status).toBe(200);
+  expect(await readdir(join(store.dir, "boards"))).toEqual([
+    "ipv6.excalidraw.json",
+    "no-origin.excalidraw.json",
+    "same-origin.excalidraw.json",
+  ]);
+});
+
 test("invalid names are rejected with 400 and nothing is written", async () => {
   for (const name of ["Main", "a b", "..", "a/b"]) {
     expect((await app.request("/api/boards", post({ name }))).status).toBe(400);
