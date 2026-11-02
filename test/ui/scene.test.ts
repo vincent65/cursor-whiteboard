@@ -19,6 +19,25 @@ test("toSaveBody keeps elements and files and reduces appState to the persisted 
   expect(body.appState).toEqual({ viewBackgroundColor: "#fff" });
 });
 
+test("toSaveBody sends only files used by live image elements", () => {
+  const file = (id: string) => ({
+    id,
+    mimeType: "image/png",
+    created: 1,
+    dataURL: "data:image/png;base64,AQID",
+  });
+  const body = toSaveBody(
+    [
+      { id: "i1", type: "image", fileId: "kept", isDeleted: false },
+      { id: "i2", type: "image", fileId: "deleted", isDeleted: true },
+      { id: "r1", type: "rectangle", isDeleted: false },
+    ],
+    {},
+    { kept: file("kept"), deleted: file("deleted"), orphan: file("orphan") },
+  );
+  expect(Object.keys(body.files ?? {})).toEqual(["kept"]);
+});
+
 test("filesWithDataUrls fetches each asset and builds a data URL", async () => {
   const emptyBoard: BoardFile = {
     type: "excalidraw",

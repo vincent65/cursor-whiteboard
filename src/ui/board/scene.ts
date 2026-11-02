@@ -39,10 +39,20 @@ export function toSaveBody(
   appState: Record<string, unknown>,
   files: Record<string, SceneFile>,
 ): IncomingScene {
+  // Excalidraw keeps a file after its image is deleted; sending it anyway
+  // would carry an image the server rejects into every later save.
+  const used = new Set(
+    elements.flatMap((e) => {
+      const el = e as { type?: unknown; fileId?: unknown; isDeleted?: unknown };
+      return el.type === "image" && !el.isDeleted ? [el.fileId] : [];
+    }),
+  );
   return {
     elements: [...elements],
     appState: persistedAppState(appState),
-    files,
+    files: Object.fromEntries(
+      Object.entries(files).filter(([id]) => used.has(id)),
+    ),
   };
 }
 
