@@ -9,7 +9,7 @@ export default defineConfig({
   build: { outDir: "../../dist/ui", emptyOutDir: true },
   server: {
     proxy: {
-      "/api": "http://localhost:4242",
+      "/api/": "http://localhost:4242",
       "/ws": { target: "ws://localhost:4242", ws: true },
     },
   },
