@@ -133,3 +133,47 @@ body {
   margin: 0;
   color: var(--muted);
 }
+
+.board {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.board-canvas {
+  flex: 1;
+  min-height: 0;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  padding: var(--space) calc(var(--space) * 2);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.notice-text {
+  flex: 1;
+}
+
+.button {
+  padding: calc(var(--space) / 2) var(--space);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
