@@ -5,6 +5,7 @@ import {
   exportToBlob,
   getNonDeletedElements,
   getSceneVersion,
+  restoreAppState,
   restoreElements,
 } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
@@ -17,23 +18,28 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { BoardFile } from "../../export/schema";
 import * as api from "../api";
 import { useDebounced } from "../hooks/useDebounced";
-import { filesWithDataUrls, toSaveBody } from "./scene";
+import {
+  filesWithDataUrls,
+  type PersistedKey,
+  persistedAppState,
+  type SaveState,
+  shouldSave,
+  toSaveBody,
+} from "./scene";
 
 type Scene = {
-  elements: readonly ExcalidrawElement[];
-  appState: AppState;
-  files: BinaryFiles;
-};
-
-type Loaded = {
   elements: readonly ExcalidrawElement[];
   appState: Partial<AppState>;
   files: BinaryFiles;
 };
 
-// Board files hold Blueprint's loose schema; Excalidraw's types are stricter.
-const sceneVersion = (board: BoardFile) =>
-  getSceneVersion(board.elements as unknown as readonly ExcalidrawElement[]);
+const saveState = (
+  elements: readonly ExcalidrawElement[],
+  appState: Partial<AppState>,
+): SaveState => ({
+  version: getSceneVersion(elements),
+  appState: appState as Record<string, unknown>,
+});
 
 const fetchAsset = async (asset: string): Promise<Blob> => {
   const res = await fetch(api.assetUrl(asset));
@@ -41,46 +47,46 @@ const fetchAsset = async (asset: string): Promise<Blob> => {
   return res.blob();
 };
 
-async function load(board: BoardFile): Promise<Loaded> {
+// Board files hold Blueprint's loose schema; Excalidraw's types are stricter.
+// Restoring fills in Excalidraw's defaults, so the editor's first onChange
+// matches what was loaded and does not count as an edit.
+async function load(board: BoardFile): Promise<Scene> {
   const files = await filesWithDataUrls(board, fetchAsset);
   return {
     elements: restoreElements(
       board.elements as unknown as readonly ExcalidrawElement[],
       null,
     ),
-    appState: board.appState as Partial<AppState>,
+    appState: restoreAppState(board.appState as Partial<AppState>, null),
     files: files as BinaryFiles,
   };
 }
 
 export function BoardView({ name }: { name: string }) {
-  const [initial, setInitial] = useState<Loaded | null>(null);
-  const [stale, setStale] = useState(false);
+  const [initial, setInitial] = useState<Scene | null>(null);
+  // The disk changed while the editor had unsaved edits; saves wait for the
+  // user to pick a side so neither version is silently overwritten.
+  const [conflict, setConflict] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const excalidraw = useRef<ExcalidrawImperativeAPI | null>(null);
-  // The scene as of the last onChange; debounced work reads it when it fires,
-  // so a reload in between supersedes any pending save of the old scene.
+  // The scene as of the last onChange; debounced work reads it when it fires.
+  // Loading a disk scene clears it, so a save pending from before is dropped.
   const latest = useRef<Scene | null>(null);
-  const lastSaved = useRef(0);
-  // Versions this view sent, to recognise the watcher echoing our own saves.
-  // ponytail: getSceneVersion is a sum, so an external edit landing on a sum
-  // we sent is missed; compare hashElementsVersion if that ever bites.
-  const sent = useRef(new Set<number>());
+  const lastSaved = useRef<SaveState>({ version: 0, appState: {} });
+  // Saves not yet answered, so the watcher echoing one is not a disk change.
+  const inFlight = useRef(new Set<SaveState>());
   // Saves run one at a time so a slow write cannot land after a newer one.
   const queue = useRef<Promise<unknown>>(Promise.resolve());
 
-  const save = useDebounced<void>(() => {
-    const s = latest.current;
-    if (!s) return;
-    const version = getSceneVersion(s.elements);
-    if (version === lastSaved.current) return;
-    lastSaved.current = version;
-    sent.current.add(version);
+  const persist = (s: Scene) => {
+    const state = saveState(s.elements, s.appState);
+    lastSaved.current = state;
+    inFlight.current.add(state);
     // Cloned now: Excalidraw mutates elements in place, and the queued save
     // must send exactly the version recorded above.
     const body = toSaveBody(
       structuredClone(s.elements),
-      s.appState as unknown as Record<string, unknown>,
+      state.appState,
       s.files,
     );
     queue.current = queue.current
@@ -88,12 +94,20 @@ export function BoardView({ name }: { name: string }) {
       .then(
         () => setError(null),
         (err: Error) => setError(`Save failed: ${err.message}`),
-      );
+      )
+      .finally(() => inFlight.current.delete(state));
+  };
+
+  const save = useDebounced<void>(() => {
+    const s = latest.current;
+    if (!s || conflict) return;
+    if (shouldSave(lastSaved.current, saveState(s.elements, s.appState)))
+      persist(s);
   }, 500);
 
   const exportPng = useDebounced<void>(() => {
     const s = latest.current;
-    if (!s) return;
+    if (!s || conflict) return;
     exportToBlob({
       elements: getNonDeletedElements(s.elements),
       appState: s.appState,
@@ -113,7 +127,7 @@ export function BoardView({ name }: { name: string }) {
       .then(
         (loaded) => {
           if (cancelled) return;
-          lastSaved.current = getSceneVersion(loaded.elements);
+          lastSaved.current = saveState(loaded.elements, loaded.appState);
           setInitial(loaded);
         },
         (err: Error) => !cancelled && setError(err.message),
@@ -123,17 +137,21 @@ export function BoardView({ name }: { name: string }) {
     };
   }, [name]);
 
-  const apply = useCallback((loaded: Loaded) => {
+  const apply = useCallback((loaded: Scene) => {
     const ex = excalidraw.current;
     if (!ex) return;
+    lastSaved.current = saveState(loaded.elements, loaded.appState);
+    latest.current = null;
     ex.addFiles(Object.values(loaded.files));
-    lastSaved.current = getSceneVersion(loaded.elements);
     // Not undoable: undo would bring back the scene the disk just replaced.
     ex.updateScene({
       elements: loaded.elements,
+      appState: persistedAppState(
+        loaded.appState as Record<string, unknown>,
+      ) as Pick<AppState, PersistedKey>,
       captureUpdate: CaptureUpdateAction.NEVER,
     });
-    setStale(false);
+    setConflict(false);
   }, []);
 
   // ponytail: one socket per open board, as in DocView.
@@ -142,18 +160,35 @@ export function BoardView({ name }: { name: string }) {
       api.connectWs(async (m) => {
         if (m.kind !== "board" || m.name !== name) return;
         const board = await api.getBoard(name).catch(() => null);
-        if (!board || sent.current.has(sceneVersion(board))) return;
+        if (!board) return;
+        const disk = saveState(
+          board.elements as unknown as readonly ExcalidrawElement[],
+          board.appState,
+        );
+        const echo = [lastSaved.current, ...inFlight.current].some(
+          (s) => !shouldSave(s, disk),
+        );
+        if (echo) return;
         const loaded = await load(board).catch(() => null);
         const ex = excalidraw.current;
         if (!loaded || !ex) return;
-        const current = getSceneVersion(ex.getSceneElementsIncludingDeleted());
-        if (current === lastSaved.current) apply(loaded);
-        else setStale(true);
+        const current = saveState(
+          ex.getSceneElementsIncludingDeleted(),
+          ex.getAppState(),
+        );
+        if (shouldSave(lastSaved.current, current)) setConflict(true);
+        else apply(loaded);
       }),
     [name, apply],
   );
 
-  const reload = () =>
+  const keepMine = () => {
+    setConflict(false);
+    if (latest.current) persist(latest.current);
+    exportPng();
+  };
+
+  const takeTheirs = () =>
     api
       .getBoard(name)
       .then(load)
@@ -165,21 +200,23 @@ export function BoardView({ name }: { name: string }) {
     files: BinaryFiles,
   ) => {
     latest.current = { elements, appState, files };
-    // onChange also fires for selection and scrolling; only edits schedule work.
-    if (getSceneVersion(elements) === lastSaved.current) return;
+    // onChange also fires for selection, zoom and scrolling; only edits
+    // schedule work.
+    if (!shouldSave(lastSaved.current, saveState(elements, appState))) return;
     save();
     exportPng();
   };
 
   return (
     <div className="board">
-      {stale && (
+      {conflict && (
         <div role="alert" className="notice">
-          <span className="notice-text">
-            Board changed on disk. Reload to see it.
-          </span>
-          <button type="button" className="button" onClick={reload}>
-            Reload
+          <span className="notice-text">Board changed on disk.</span>
+          <button type="button" className="button" onClick={keepMine}>
+            Keep mine
+          </button>
+          <button type="button" className="button" onClick={takeTheirs}>
+            Take theirs
           </button>
         </div>
       )}

@@ -10,8 +10,8 @@
   },
   "packageManager": "pnpm@10.30.1",
   "scripts": {
-    "dev": "concurrently -n server,ui \"tsx watch src/cli/index.ts --no-open\" \"vite\"",
-    "build": "tsc -p tsconfig.server.json && vite build",
+    "dev": "node scripts/copy-excalidraw-assets.mjs && concurrently -n server,ui \"tsx watch src/cli/index.ts --no-open\" \"vite\"",
+    "build": "tsc -p tsconfig.server.json && node scripts/copy-excalidraw-assets.mjs && vite build",
     "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json && biome check . && vitest run",
     "test": "vitest run",
     "test:watch": "vitest"
