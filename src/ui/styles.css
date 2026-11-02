@@ -1,0 +1,135 @@
+:root {
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-size: 14px;
+  --line-height: 1.5;
+  --space: 8px;
+  --bg: #ffffff;
+  --surface: #f6f7f9;
+  --border: #e3e6ea;
+  --text: #1f2328;
+  --muted: #656d76;
+  --accent: #2563eb;
+  --rail-width: 240px;
+  --pane-width: 360px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+  color: var(--text);
+  background: var(--bg);
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail-width) minmax(0, 1fr) var(--pane-width);
+  height: 100%;
+}
+
+.sidebar {
+  overflow-y: auto;
+  padding: calc(var(--space) * 2);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.nav-section + .nav-section {
+  margin-top: calc(var(--space) * 3);
+}
+
+.nav-title {
+  margin: 0 0 var(--space);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.nav-list {
+  margin: 0 0 var(--space);
+  padding: 0;
+  list-style: none;
+}
+
+.nav-link {
+  display: block;
+  padding: calc(var(--space) / 2) var(--space);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-link:hover {
+  background: var(--border);
+}
+
+.nav-link[aria-current="page"] {
+  background: var(--bg);
+  color: var(--accent);
+  font-weight: 600;
+  border-color: var(--border);
+}
+
+.nav-create {
+  padding: calc(var(--space) / 2) var(--space);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.nav-create:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.nav-link:focus-visible,
+.nav-create:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.main {
+  position: relative;
+  min-width: 0;
+  overflow: auto;
+}
+
+.empty {
+  margin: calc(var(--space) * 2);
+  color: var(--muted);
+}
+
+.right-pane {
+  padding: calc(var(--space) * 2);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+
+.muted {
+  margin: 0;
+  color: var(--muted);
+}
