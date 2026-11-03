@@ -33,8 +33,6 @@ type Live = {
   lastText: string | null;
   // What the run had spent when the current CLI process started; its totals add to this.
   costBase: number;
-  // The run has been done, so a later turn that ends leaves it done.
-  done: boolean;
 };
 
 const now = () => new Date().toISOString();
@@ -107,6 +105,7 @@ export class RunManager {
       status: "working",
       permissionMode: opts.permissionMode,
       prUrl: null,
+      markedDone: false,
       failure: null,
       costUsd: 0,
       startedAt: now(),
@@ -154,6 +153,7 @@ export class RunManager {
     if (record.status !== "idle")
       throw new ExistsError(`run ${runId} is ${record.status}, not idle`);
     const live = this.#liveFor(record);
+    this.#patch(live, { markedDone: true });
     live.base = { status: "done" };
     this.#derive(live);
   }
@@ -339,7 +339,6 @@ export class RunManager {
       endedText: null,
       lastText: null,
       costBase: record.costUsd,
-      done: record.status === "done",
     };
     this.#live.set(runId, live);
     return live;
@@ -352,7 +351,7 @@ export class RunManager {
       case "idle": {
         const prUrl = prUrlIn(live.endedText ?? "") ?? live.record.prUrl;
         if (prUrl) return { status: "done", prUrl };
-        return { status: live.done ? "done" : "idle" };
+        return { status: live.record.markedDone ? "done" : "idle" };
       }
       case "error":
         return { status: "failed", message };
@@ -370,7 +369,6 @@ export class RunManager {
     const failure = next.status === "failed" ? (next.message ?? null) : null;
     if (next.status === live.record.status && failure === live.record.failure)
       return;
-    if (next.status === "done") live.done = true;
     const ended = next.status === "done" || next.status === "failed";
     this.#patch(live, {
       status: next.status,

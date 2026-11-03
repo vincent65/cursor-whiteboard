@@ -27,6 +27,7 @@ const record = (id: string): RunRecord => ({
   status: "working",
   permissionMode: "acceptEdits",
   prUrl: null,
+  markedDone: false,
   failure: null,
   costUsd: 0,
   startedAt: "2026-11-02T00:00:00.000Z",

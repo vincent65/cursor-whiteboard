@@ -17,6 +17,7 @@ const run = (over: Partial<RunView> = {}): RunView => ({
   status: "working",
   permissionMode: "acceptEdits",
   prUrl: null,
+  markedDone: false,
   failure: null,
   costUsd: 0.5,
   startedAt: at,

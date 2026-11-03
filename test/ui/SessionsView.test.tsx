@@ -52,6 +52,7 @@ const run = (
   status: "working",
   permissionMode: "acceptEdits",
   prUrl: null,
+  markedDone: false,
   failure: null,
   costUsd: 0,
   startedAt,

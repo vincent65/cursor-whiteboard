@@ -353,12 +353,14 @@ test("a turn ending with a PR URL makes the run done with prUrl and cost; withou
   await manager.close();
 });
 
-test("markDone makes an idle run done, and it stays done through later turns and restarts", async () => {
+test("markDone makes an idle run done, and it stays done through later turns, a restart, and a resume", async () => {
   const { gate, release } = gated();
+  const held = gated();
   const { manager } = setup((text) =>
     (async function* () {
       yield init("sess-m");
       if (text === "wait") await gate;
+      if (text === "hold") await held.gate;
       yield* textTurn("m", "Merged it by hand.", "r");
     })(),
   );
@@ -377,6 +379,7 @@ test("markDone makes an idle run done, and it stays done through later turns and
   expect(statusesOf(run.id)).toEqual(["idle", "done"]);
   expect(await saved(manager, run.id)).toMatchObject({
     status: "done",
+    markedDone: true,
     prUrl: null,
     endedAt: expect.any(String),
   });
@@ -402,16 +405,26 @@ test("markDone makes an idle run done, and it stays done through later turns and
   await vi.waitFor(() =>
     expect(statusesOf(run.id)).toEqual(["idle", "done", "working", "done"]),
   );
-  await manager.close();
 
-  // So does a restart: the saved record is done.
+  // Blueprint restarts mid-turn, so the run reads interrupted, and then resumes.
+  await manager.message(run.id, "hold");
+  await vi.waitFor(async () =>
+    expect((await saved(manager, run.id)).status).toBe("working"),
+  );
+  await manager.close();
+  held.release();
   await runs.settled();
   sent = [];
   const after = setup(() =>
     turnsOf(init("sess-m"), ...textTurn("m2", "Tidied up.", "r2")),
   );
   await after.manager.start();
-  await after.manager.message(run.id, "one more thing");
+  expect(runs.run(run.id)).toMatchObject({
+    status: "interrupted",
+    markedDone: true,
+  });
+  await after.manager.resume(run.id);
+  // The resumed turn ends with no PR URL, and the run is still done.
   await vi.waitFor(() =>
     expect(statusesOf(run.id)).toEqual(["working", "done"]),
   );
@@ -584,11 +597,12 @@ test("events and statuses carry the run id for two concurrent runs", async () =>
 });
 
 test("start marks active records interrupted and resume continues the saved session id in the worktree", async () => {
-  // Saved before records had a permission mode or a failure: they read as acceptEdits and null.
+  // Saved before records had a permission mode, a failure, or markedDone: they read as
+  // acceptEdits, null, and false.
   const record = (
     id: string,
     status: RunRecord["status"],
-  ): Omit<RunRecord, "permissionMode" | "failure"> => ({
+  ): Omit<RunRecord, "permissionMode" | "failure" | "markedDone"> => ({
     id,
     taskSlug: "alpha",
     sessionId: `sess-${id}`,
@@ -655,11 +669,19 @@ test("start marks active records interrupted and resume continues the saved sess
       r.endedAt,
       r.permissionMode,
       r.failure,
+      r.markedDone,
     ]),
   ).toEqual([
-    ["run_aaaaaa", "interrupted", null, "acceptEdits", null],
-    ["run_bbbbbb", "interrupted", null, "acceptEdits", null],
-    ["run_cccccc", "done", "2026-11-02T01:00:00.000Z", "acceptEdits", null],
+    ["run_aaaaaa", "interrupted", null, "acceptEdits", null, false],
+    ["run_bbbbbb", "interrupted", null, "acceptEdits", null, false],
+    [
+      "run_cccccc",
+      "done",
+      "2026-11-02T01:00:00.000Z",
+      "acceptEdits",
+      null,
+      false,
+    ],
   ]);
   expect((await saved(manager, "run_aaaaaa"))?.status).toBe("interrupted");
   expect(sent).toContainEqual({ type: "runs.changed" });
@@ -760,6 +782,7 @@ test("resume with no usable session id sends the full run prompt instead", async
     status: "interrupted",
     permissionMode: "acceptEdits",
     prUrl: null,
+    markedDone: false,
     failure: null,
     costUsd: 0,
     startedAt: "2026-11-02T00:00:00.000Z",
@@ -844,6 +867,7 @@ test("message with no usable session id sends the run prompt, then the text", as
     status: "failed",
     permissionMode: "acceptEdits",
     prUrl: null,
+    markedDone: false,
     failure: null,
     costUsd: 0,
     startedAt: "2026-11-02T00:00:00.000Z",
@@ -912,6 +936,7 @@ test("events after close are not broadcast", async () => {
         status: "done",
         permissionMode: "acceptEdits",
         prUrl: PR,
+        markedDone: false,
         failure: null,
         costUsd: 0,
         startedAt: "2026-11-02T00:00:00.000Z",
