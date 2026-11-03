@@ -22,6 +22,8 @@ export function summarizeTool(
     case "Grep":
     case "Glob":
       return `searching ${input.pattern}`;
+    case "ToolSearch":
+      return "loading tools";
     case "mcp__blueprint__get_board":
       return "reading the board";
     case "mcp__blueprint__get_selection":
@@ -53,9 +55,7 @@ function resultText(content: unknown): string {
           : [],
       )
     : [];
-  return texts.length
-    ? texts.join("\n").slice(0, SUMMARY_LIMIT)
-    : "(non-text result)";
+  return texts.length ? texts.join("\n").slice(0, SUMMARY_LIMIT) : "done";
 }
 
 export class SdkEventMapper {

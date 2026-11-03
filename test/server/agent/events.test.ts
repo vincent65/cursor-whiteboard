@@ -57,6 +57,9 @@ test("summarizeTool follows the table", () => {
   expect(summarizeTool("mcp__blueprint__get_selection", {})).toBe(
     "reading the selection",
   );
+  expect(summarizeTool("ToolSearch", { query: "select:Read" })).toBe(
+    "loading tools",
+  );
   expect(summarizeTool("WebFetch", { url: "https://x" })).toBe("WebFetch");
 });
 
@@ -277,7 +280,7 @@ test("mapper turns a scripted SDK stream into panel events in order", () => {
       id: "toolu_3:result",
       toolUseId: "toolu_3",
       ok: true,
-      summary: "(non-text result)",
+      summary: "done",
       at: AT,
     },
     {
