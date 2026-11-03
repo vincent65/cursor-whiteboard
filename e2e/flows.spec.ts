@@ -68,14 +68,15 @@ test("plan, ask, and accept", async ({ page, start }) => {
   await page.getByRole("button", { name: "New board" }).click();
   await expect(page).toHaveURL(/#\/boards\/sign-in$/);
 
-  // Left of center, so the proposal drawn to their right fits in view.
-  for (const x of [140, 340]) {
+  // Right of the properties panel, which covers the board's left 232 px while a tool is
+  // picked, and left of center, so the proposal drawn to their right fits in view.
+  for (const x of [260, 410]) {
     // The radio's icon covers it; a user clicks the icon's label.
     await page.getByTestId("toolbar-rectangle").locator("..").click();
-    await drag(page, [x, 280], [x + 140, 380]);
+    await drag(page, [x, 280], [x + 110, 380]);
   }
   await page.keyboard.press("Escape");
-  await drag(page, [110, 250], [510, 410]);
+  await drag(page, [240, 250], [550, 410]);
   await expect(page.getByText(/^2 selected:/)).toBeVisible();
 
   const message = page.getByRole("textbox", { name: "Message Claude" });
