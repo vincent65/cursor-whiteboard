@@ -2,6 +2,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { Transaction } from "@codemirror/state";
 import { basicSetup, EditorView } from "codemirror";
 import { useEffect, useRef, useState } from "react";
+import { headingSlugs } from "../../export/citations";
 import * as api from "../api";
 import { useDebounced } from "../hooks/useDebounced";
 import { useServerEvent } from "../server-events";
@@ -55,13 +56,17 @@ const buttonStyle = {
 
 export function DocView({
   name,
+  focus,
   onConflictChange,
 }: {
   name: string;
+  focus?: string[];
   onConflictChange(open: boolean): void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
+  // The editor exists only once the doc has loaded.
+  const [loaded, setLoaded] = useState(false);
   // Unsaved edits exist; a ref so typing does not re-render.
   const dirty = useRef(false);
   // Disk text of an external change that collided with unsaved edits.
@@ -113,6 +118,7 @@ export function DocView({
           ],
         });
         view.current = v;
+        setLoaded(true);
       },
       (err: Error) => setError(err.message),
     );
@@ -122,6 +128,23 @@ export function DocView({
       view.current = null;
     };
   }, [name, save]);
+
+  // Puts the cursor on the cited heading and scrolls it to the top. Slugs
+  // match the server's citation index, so a stale one changes nothing.
+  useEffect(() => {
+    const v = view.current;
+    const slug = focus?.[0];
+    if (!loaded || !v || !slug) return;
+    for (let n = 1; n <= v.state.doc.lines; n++) {
+      const line = v.state.doc.line(n);
+      if (headingSlugs(line.text)[0] !== slug) continue;
+      v.dispatch({
+        selection: { anchor: line.from },
+        effects: EditorView.scrollIntoView(line.from, { y: "start" }),
+      });
+      return;
+    }
+  }, [loaded, focus]);
 
   useServerEvent(async (m) => {
     if (m.type !== "file-changed" || m.kind !== "doc" || m.name !== name)

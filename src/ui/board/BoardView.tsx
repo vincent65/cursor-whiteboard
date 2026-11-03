@@ -26,6 +26,7 @@ import { useDebounced } from "../hooks/useDebounced";
 import { useRefine } from "../panel/refine";
 import { selectionLabels, useSetSelection } from "../selection";
 import { useSendToServer, useServerEvent } from "../server-events";
+import { focusTargets } from "./focus";
 import {
   applyProposal,
   type Counts,
@@ -158,12 +159,17 @@ async function load(board: BoardFile): Promise<Scene> {
 
 export function BoardView({
   name,
+  focus,
   onConflictChange,
 }: {
   name: string;
+  focus?: string[];
   onConflictChange(open: boolean): void;
 }) {
   const [initial, setInitial] = useState<Scene | null>(null);
+  // Excalidraw loads initialData asynchronously after mount and reports no
+  // change until it has; the first onChange means the scene is in the editor.
+  const [loaded, setLoaded] = useState(false);
   // The disk changed while the editor had unsaved edits; saves wait for the
   // user to pick a side so neither version is silently overwritten.
   const [conflict, setConflict] = useState(false);
@@ -329,6 +335,28 @@ export function BoardView({
     };
   }, [name]);
 
+  // Selecting is not an undo step. Ids the board no longer has are skipped,
+  // so a stale citation opens the board with nothing selected.
+  useEffect(() => {
+    const ex = excalidraw.current;
+    if (!loaded || !ex) return;
+    const elements = ex.getSceneElementsIncludingDeleted();
+    const ids = focusTargets(elements, focus);
+    if (ids.length === 0) return;
+    ex.updateScene({
+      appState: {
+        selectedElementIds: Object.fromEntries(
+          ids.map((id) => [id, true] as const),
+        ),
+      },
+      captureUpdate: CaptureUpdateAction.NEVER,
+    });
+    ex.scrollToContent(
+      elements.filter((e) => ids.includes(e.id)),
+      { fitToViewport: true, animate: true },
+    );
+  }, [loaded, focus]);
+
   const apply = useCallback((loaded: Scene) => {
     const ex = excalidraw.current;
     if (!ex) return;
@@ -434,6 +462,7 @@ export function BoardView({
     files: BinaryFiles,
   ) => {
     latest.current = { elements, appState, files };
+    setLoaded(true);
     reportSelection();
     const version = getSceneVersion(elements);
     if (version !== pendingVersion.current) {

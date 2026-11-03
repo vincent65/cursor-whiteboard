@@ -79,6 +79,7 @@ function Shell() {
           <BoardView
             key={route.name}
             name={route.name}
+            focus={route.focus}
             onConflictChange={onConflictChange}
           />
         )}
@@ -86,6 +87,7 @@ function Shell() {
           <DocView
             key={route.name}
             name={route.name}
+            focus={route.focus}
             onConflictChange={onConflictChange}
           />
         )}
