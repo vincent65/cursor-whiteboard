@@ -902,6 +902,7 @@ pre {
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .run-actions {

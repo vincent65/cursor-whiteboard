@@ -157,7 +157,10 @@ export function RunCard({
           </a>
         )}
       </p>
-      {run.lastText && <p className="run-last">{run.lastText}</p>}
+      {run.lastText && (
+        // Line by line, as Claude wrote it; a blank line would waste one of the two shown.
+        <p className="run-last">{run.lastText.replace(/\n\s*\n/g, "\n")}</p>
+      )}
       <div className="run-actions">
         <button
           type="button"

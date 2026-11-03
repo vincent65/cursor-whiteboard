@@ -249,3 +249,19 @@ test("RunCard's transcript renders citations as chips", async () => {
     "#/boards/main?focus=login",
   );
 });
+
+test("RunCard's preview keeps the reply's line breaks, without blank lines", () => {
+  const { container } = render(
+    <RunCard
+      run={run({
+        lastText:
+          "Added src/login.ts.\nhttps://github.com/o/r/pull/1\n\n  \nThe check is a stub.",
+      })}
+      transcript={[]}
+      {...handlers()}
+    />,
+  );
+  expect(container.querySelector(".run-last")?.textContent).toBe(
+    "Added src/login.ts.\nhttps://github.com/o/r/pull/1\nThe check is a stub.",
+  );
+});
