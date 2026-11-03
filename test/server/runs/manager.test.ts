@@ -246,6 +246,16 @@ test("launch creates a worktree, a working record, and sends the run prompt", as
   expect((await manager.list()).map((r) => r.title)).toEqual(["alpha"]);
   expect(warn).toHaveBeenCalledTimes(1);
   expect(String(warn.mock.calls[0])).toContain("02-beta.md: bad frontmatter");
+  // The same failure on later loads is not logged again; a different one is.
+  const listTasks = vi.spyOn(store, "listTasks");
+  listTasks
+    .mockRejectedValueOnce(new Error("02-beta.md: bad frontmatter"))
+    .mockRejectedValueOnce(new Error("03-gamma.md: bad frontmatter"));
+  await manager.list();
+  expect(warn).toHaveBeenCalledTimes(1);
+  await manager.list();
+  expect(warn).toHaveBeenCalledTimes(2);
+  expect(String(warn.mock.calls[1])).toContain("03-gamma.md: bad frontmatter");
   warn.mockRestore();
   await manager.close();
 });

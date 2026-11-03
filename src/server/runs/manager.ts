@@ -51,6 +51,8 @@ export class RunManager {
   #git: { createWorktree: typeof createWorktree };
   #live = new Map<string, Live>();
   #closing = false;
+  // Task-file failures already logged, so a broken file warns once, not on every list.
+  #warned = new Set<string>();
 
   constructor(deps: RunManagerDeps) {
     this.#deps = deps;
@@ -172,7 +174,11 @@ export class RunManager {
   // A task file that cannot be read leaves every title as its slug, not the list broken.
   async list(): Promise<RunView[]> {
     const tasks = await this.#deps.store.listTasks().catch((err) => {
-      console.warn("could not read the task files for run titles", err);
+      const message = String(err);
+      if (!this.#warned.has(message)) {
+        this.#warned.add(message);
+        console.warn("could not read the task files for run titles", err);
+      }
       return [];
     });
     const titles = new Map(tasks.map(({ task }) => [task.slug, task.title]));
