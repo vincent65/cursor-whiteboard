@@ -1,10 +1,13 @@
 import "@excalidraw/excalidraw/index.css";
 import {
+  bumpVersion,
   CaptureUpdateAction,
   Excalidraw,
   exportToBlob,
   getNonDeletedElements,
   getSceneVersion,
+  getVisibleSceneBounds,
+  isElementInsideBBox,
   restoreAppState,
   restoreElements,
 } from "@excalidraw/excalidraw";
@@ -17,10 +20,21 @@ import type {
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BoardFile } from "../../export/schema";
 import type { ServerMessage } from "../../shared/messages";
+import type { Decision, Proposal } from "../../shared/proposals";
 import * as api from "../api";
 import { useDebounced } from "../hooks/useDebounced";
+import { useRefine } from "../panel/refine";
 import { selectionLabels, useSetSelection } from "../selection";
 import { useSendToServer, useServerEvent } from "../server-events";
+import {
+  applyProposal,
+  type Counts,
+  decideProposal,
+  type El,
+  pendingProposals,
+} from "./ghosts";
+import { renderMermaid, renderNote } from "./mermaid";
+import { ProposalsBar } from "./ProposalsBar";
 import {
   filesWithDataUrls,
   type PersistedKey,
@@ -65,6 +79,63 @@ const toPng = async (
     }),
   );
 
+// ghosts.ts works on a structural slice of each element and leaves versions
+// alone; bumping what it replaced is what lets saves, undo, and the bar see the
+// change. Restoring re-measures changed labels and repairs arrow bindings.
+function throughGhosts(
+  elements: readonly ExcalidrawElement[],
+  change: (elements: readonly El[]) => El[],
+): ExcalidrawElement[] {
+  const unchanged = new Set<unknown>(elements);
+  const next = (change(elements) as unknown as ExcalidrawElement[]).map((e) =>
+    unchanged.has(e) ? e : bumpVersion(e),
+  );
+  return restoreElements(next, null, {
+    refreshDimensions: true,
+    repairBindings: true,
+  });
+}
+
+// Draws a proposal as ghosts. Every conversion runs before the scene is read,
+// so a Mermaid error leaves the board untouched.
+async function applyProposalRequest(
+  ex: ExcalidrawImperativeAPI,
+  proposal: Proposal,
+  replace: boolean,
+): Promise<{ elementIds: string[] }> {
+  const rendered = new Map<number, El[]>();
+  for (const [i, op] of proposal.ops.entries()) {
+    if (op.op === "add_diagram")
+      rendered.set(i, await renderMermaid(op.mermaid));
+    else if (op.op === "add_note") rendered.set(i, renderNote(op.text));
+  }
+  const appState = ex.getAppState();
+  const view = getVisibleSceneBounds(appState);
+  const [x1, y1, x2, y2] = view;
+  const current = ex.getSceneElementsIncludingDeleted();
+  let ids: string[] = [];
+  const elements = throughGhosts(current, (els) => {
+    const result = applyProposal(
+      replace ? decideProposal(els, proposal.id, "rejected") : els,
+      proposal,
+      rendered,
+      {
+        selectedIds: selectedIds(appState, current),
+        viewport: { x: x1, y: y1, w: x2 - x1, h: y2 - y1 },
+      },
+    );
+    ids = result.ids;
+    return result.elements;
+  });
+  ex.updateScene({ elements, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+  const touched = getNonDeletedElements(elements).filter((e) =>
+    ids.includes(e.id),
+  );
+  if (touched.some((e) => !isElementInsideBBox(e, view)))
+    ex.scrollToContent(touched, { animate: true, fitToViewport: false });
+  return { elementIds: ids };
+}
+
 // Board files hold Blueprint's loose schema; Excalidraw's types are stricter.
 // Restoring fills in Excalidraw's defaults, so the editor's first onChange
 // matches what was loaded and does not count as an edit.
@@ -106,6 +177,11 @@ export function BoardView({
   const inFlight = useRef(new Set<SaveState>());
   // Saves run one at a time so a slow write cannot land after a newer one.
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const [pending, setPending] = useState<{ id: string; counts: Counts }[]>([]);
+  const pendingVersion = useRef(-1);
+  // Pending proposals' titles; ghosts on the board carry only the id.
+  const [titles, setTitles] = useState(new Map<string, string | null>());
+  const { target, setTarget } = useRefine();
 
   useEffect(() => {
     onConflictChange(conflict);
@@ -178,10 +254,30 @@ export function BoardView({
     [send, setSelection],
   );
 
+  useEffect(() => {
+    api.listProposals().then(
+      (proposals) =>
+        setTitles(
+          (t) =>
+            new Map([...proposals.map((p) => [p.id, p.title] as const), ...t]),
+        ),
+      (err: Error) => console.error(err),
+    );
+  }, []);
+
   const answer = async (
     m: Extract<ServerMessage, { type: "request" }>,
   ): Promise<unknown> => {
     const s = latest.current;
+    if (m.kind === "proposal.apply") {
+      const { proposal } = m;
+      if (proposal.board !== name)
+        throw new Error(`board ${proposal.board} is not open`);
+      const ex = excalidraw.current;
+      if (!s || !ex) throw new Error(`board ${name} is still loading`);
+      setTitles((t) => new Map(t).set(proposal.id, proposal.title));
+      return applyProposalRequest(ex, proposal, m.replace);
+    }
     if (m.kind === "board.png") {
       if (m.board !== name) throw new Error(`board ${m.board} is not open`);
       if (!s) throw new Error(`board ${name} is still loading`);
@@ -282,6 +378,25 @@ export function BoardView({
       .then(load)
       .then(apply, (err: Error) => setError(err.message));
 
+  // The local change stands even if the server disagrees: the board is the
+  // record, and a proposal the server lost has nothing left to decide.
+  const decide = (id: string, decision: Decision) => {
+    const ex = excalidraw.current;
+    if (!ex) return;
+    ex.updateScene({
+      elements: throughGhosts(ex.getSceneElementsIncludingDeleted(), (els) =>
+        decideProposal(els, id, decision),
+      ),
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
+    if (target?.id === id) setTarget(null);
+    api.decideProposal(id, decision).catch((err: Error) => {
+      // api.ts keeps only the message; this is the server's 404 text.
+      if (err.message.endsWith("is not pending")) console.warn(err.message);
+      else setError(`Decision failed: ${err.message}`);
+    });
+  };
+
   const onChange = (
     elements: readonly ExcalidrawElement[],
     appState: AppState,
@@ -289,6 +404,15 @@ export function BoardView({
   ) => {
     latest.current = { elements, appState, files };
     reportSelection();
+    const version = getSceneVersion(elements);
+    if (version !== pendingVersion.current) {
+      pendingVersion.current = version;
+      const next = pendingProposals(elements);
+      // Same list keeps the old state, so plain edits do not re-render.
+      setPending((prev) =>
+        JSON.stringify(prev) === JSON.stringify(next) ? prev : next,
+      );
+    }
     // onChange also fires for selection, zoom and scrolling; only edits
     // schedule work.
     if (!shouldSave(lastSaved.current, saveState(elements, appState))) return;
@@ -325,6 +449,11 @@ export function BoardView({
           />
         </div>
       )}
+      <ProposalsBar
+        items={pending.map((p) => ({ ...p, title: titles.get(p.id) ?? null }))}
+        onDecide={decide}
+        onRefine={(id) => setTarget({ id, title: titles.get(id) ?? null })}
+      />
     </div>
   );
 }

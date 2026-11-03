@@ -368,7 +368,8 @@ body {
 
 .proposals-bar {
   position: absolute;
-  bottom: 16px;
+  /* Above Excalidraw's footer (zoom, undo, help), which spans 16px to 52px. */
+  bottom: 64px;
   left: 50%;
   z-index: 10;
   display: flex;
