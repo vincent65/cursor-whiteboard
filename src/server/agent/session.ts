@@ -27,8 +27,15 @@ export type SessionDeps = {
   onSessionId(id: string): void;
 };
 
+// resumed: started with a saved session id. initialized: the CLI's init message arrived.
 // interrupted: interrupt() was called during the turn in flight, so its result ends the turn.
-type Run = { input: InputQueue; query: Query; interrupted: boolean };
+type Run = {
+  input: InputQueue;
+  query: Query;
+  resumed: boolean;
+  initialized: boolean;
+  interrupted: boolean;
+};
 
 // The streaming prompt: yields pushed messages in order and stays open until ended.
 class InputQueue {
@@ -183,6 +190,8 @@ export class PlanSession {
           ...(this.#sessionId ? { resume: this.#sessionId } : {}),
         },
       }),
+      resumed: this.#sessionId !== undefined,
+      initialized: false,
       interrupted: false,
     };
     this.#run = run;
@@ -204,6 +213,7 @@ export class PlanSession {
       for await (const msg of run.query) {
         if (this.#run !== run) return;
         if (msg.type === "system" && msg.subtype === "init") {
+          run.initialized = true;
           if (msg.session_id !== this.#sessionId) {
             this.#sessionId = msg.session_id;
             this.#deps.onSessionId(msg.session_id);
@@ -242,6 +252,12 @@ export class PlanSession {
       }
     } catch (err) {
       message = err instanceof Error ? err.message : String(err);
+      // The CLI refused the saved session: drop it so the next send starts fresh.
+      if (run.resumed && !run.initialized && this.#run === run) {
+        console.warn(`could not resume session ${this.#sessionId}: ${message}`);
+        this.#sessionId = undefined;
+        message = RESTORE_FAILED;
+      }
     }
     // Thrown or ended on its own, this run is done: reap it so the next send resumes afresh.
     if (this.#run !== run) return;

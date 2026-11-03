@@ -294,6 +294,44 @@ test("a thrown query becomes an error event and status error, and the next send 
   expect(events.at(-1)).toMatchObject({ kind: "result", id: "r2" });
 });
 
+test("a resumed run that throws before init drops the saved id and the next send starts fresh", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  let attempt = 0;
+  const { session, runs, events, statuses, sessionIds } = setup(
+    () =>
+      (async function* () {
+        if (attempt++ === 0)
+          throw new Error("No conversation found with session ID: old");
+        yield init("new");
+        yield* textTurn("m", "x", "r");
+      })(),
+    { resumeId: "old" },
+  );
+
+  session.send("one");
+  await vi.waitFor(() => expect(session.status).toBe("error"));
+  expect(runs[0].options?.resume).toBe("old");
+  expect(session.sessionId).toBeUndefined();
+  expect(warn).toHaveBeenCalledWith(
+    "could not resume session old: No conversation found with session ID: old",
+  );
+  warn.mockRestore();
+  expect(events.at(-1)).toMatchObject({
+    kind: "error",
+    message: "previous session could not be loaded; starting fresh",
+  });
+  expect(statuses.at(-1)).toEqual([
+    "error",
+    "previous session could not be loaded; starting fresh",
+  ]);
+
+  session.send("two");
+  await vi.waitFor(() => expect(session.status).toBe("idle"));
+  expect(runs[1].options?.resume).toBeUndefined();
+  expect(session.sessionId).toBe("new");
+  expect(sessionIds).toEqual(["new"]);
+});
+
 test("an error result sets status error and the next send starts a fresh query with resume", async () => {
   const { session, query, runs, events, statuses } = setup((text) =>
     turnsOf(
