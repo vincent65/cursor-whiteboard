@@ -8,7 +8,9 @@ export function runPrompt(input: {
   branch: string;
 }): string {
   const { task, taskFile, spec, branch } = input;
-  const acceptance = task.acceptance.map((line) => `- ${line}`).join("\n");
+  const acceptance =
+    task.acceptance.map((line) => `- ${line}`).join("\n") ||
+    "- none listed; use the task description and the specification";
   return `You are implementing one task of a plan in this worktree, on branch ${branch}.
 
 ## Task (${taskFile})

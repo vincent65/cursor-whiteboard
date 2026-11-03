@@ -49,15 +49,15 @@ Acceptance:
   expect(prompt).toContain("open a pull request with `gh pr create`");
 });
 
-test("runPrompt says nothing and unknown when a task has no dependencies or files", () => {
+test("runPrompt says nothing, unknown, and none listed when a task has no dependencies, files, or acceptance", () => {
   const prompt = runPrompt({
-    task: { ...task, dependsOn: [], files: [] },
+    task: { ...task, dependsOn: [], files: [], acceptance: [] },
     taskFile: "t.md",
     spec: "",
     branch: "b",
   });
   expect(prompt).toContain(
-    "Depends on: nothing\nFiles likely touched: unknown\n",
+    "Depends on: nothing\nFiles likely touched: unknown\nAcceptance:\n- none listed; use the task description and the specification\n\n## Specification",
   );
 });
 
