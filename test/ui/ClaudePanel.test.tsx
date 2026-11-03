@@ -6,6 +6,7 @@ import type { ServerMessage } from "../../src/shared/messages";
 import type { PanelEvent } from "../../src/shared/panel";
 import * as api from "../../src/ui/api";
 import { ClaudePanel } from "../../src/ui/panel/ClaudePanel";
+import { RefineProvider, useRefine } from "../../src/ui/panel/refine";
 import {
   SelectionProvider,
   selectionLabels,
@@ -71,7 +72,7 @@ test("panel renders restored transcript, sends on Enter with the current selecti
     {
       kind: "user",
       id: "u1",
-      text: '[Selection on board "main": a box "Auth"; b box "DB"]\n\nWhat is here?',
+      text: "What is here?",
       at,
     },
     {
@@ -117,9 +118,6 @@ test("panel renders restored transcript, sends on Enter with the current selecti
   renderPanel();
 
   expect(await screen.findByText("What is here?")).toHaveClass("msg-user");
-  // The server's selection header is for Claude; the reader sees a note.
-  expect(screen.queryByText(/Selection on board/)).toBeNull();
-  expect(screen.getByText("with the selection on main")).toBeVisible();
   expect(screen.getByText("reading the board")).toHaveClass("msg-tool");
   expect(
     screen.getByText("no such board").closest(".msg-tool"),
@@ -129,7 +127,7 @@ test("panel renders restored transcript, sends on Enter with the current selecti
     { normalizeWhitespace: false },
   );
   expect(screen.getByText("Done · $0.0123 total")).toHaveClass("msg-result");
-  expect(screen.getByText("Stopped · $0.0200")).toHaveClass("msg-result");
+  expect(screen.getByText("Stopped · $0.0200 total")).toHaveClass("msg-result");
   expect(screen.getByRole("status")).toHaveTextContent("Idle");
   expect(screen.getByText("2 selected: Auth, DB")).toBeVisible();
 
@@ -141,7 +139,11 @@ test("panel renders restored transcript, sends on Enter with the current selecti
   expect(input).toHaveValue("first\nsecond");
   expect(api.agentSend).not.toHaveBeenCalled();
   await userEvent.type(input, "{Enter}");
-  expect(api.agentSend).toHaveBeenCalledWith("first\nsecond", selection);
+  expect(api.agentSend).toHaveBeenCalledWith(
+    "first\nsecond",
+    selection,
+    undefined,
+  );
   expect(input).toHaveValue("");
 
   emit({ type: "agent.status", status: "working" });
@@ -249,6 +251,64 @@ test("an error status shows the message", async () => {
   emit({ type: "agent.status", status: "error", message: "the CLI exited" });
   expect(screen.getByRole("status")).toHaveTextContent("Error: the CLI exited");
   expect(screen.getByRole("textbox", { name: "Message Claude" })).toBeEnabled();
+});
+
+function RefineButton() {
+  const { setTarget } = useRefine();
+  return (
+    <button
+      type="button"
+      onClick={() => setTarget({ id: "p_1", title: "Login flow" })}
+    >
+      Refine
+    </button>
+  );
+}
+
+const renderRefine = () =>
+  render(
+    <RefineProvider>
+      <RefineButton />
+      <ClaudePanel />
+    </RefineProvider>,
+  );
+
+test("a refine target shows a chip, sends the proposal id, and clears", async () => {
+  vi.mocked(api.agentState).mockResolvedValue(state({}));
+  renderRefine();
+  const input = screen.getByRole("textbox", { name: "Message Claude" });
+  await waitFor(() => expect(input).toBeEnabled());
+
+  await userEvent.click(screen.getByRole("button", { name: "Refine" }));
+  expect(screen.getByText("Refining p_1 · Login flow")).toBeVisible();
+  // The Refine click puts the cursor where the instruction goes.
+  expect(input).toHaveFocus();
+
+  // A failed send keeps the target.
+  vi.mocked(api.agentSend).mockRejectedValueOnce(new Error("offline"));
+  await userEvent.type(input, "tighter{Enter}");
+  expect(await screen.findByRole("alert")).toHaveTextContent("offline");
+  expect(screen.getByText("Refining p_1 · Login flow")).toBeVisible();
+
+  await userEvent.type(input, "{Enter}");
+  expect(api.agentSend).toHaveBeenLastCalledWith("tighter", undefined, "p_1");
+  await waitFor(() => expect(screen.queryByText(/Refining/)).toBeNull());
+});
+
+test("the chip's × clears the target without sending", async () => {
+  vi.mocked(api.agentState).mockResolvedValue(state({}));
+  renderRefine();
+  const input = screen.getByRole("textbox", { name: "Message Claude" });
+  await waitFor(() => expect(input).toBeEnabled());
+  await userEvent.click(screen.getByRole("button", { name: "Refine" }));
+
+  await userEvent.click(screen.getByRole("button", { name: "Clear refine" }));
+  expect(screen.queryByText(/Refining/)).toBeNull();
+  expect(input).toHaveFocus();
+  expect(api.agentSend).not.toHaveBeenCalled();
+
+  await userEvent.type(input, "plain{Enter}");
+  expect(api.agentSend).toHaveBeenCalledWith("plain", undefined, undefined);
 });
 
 test("selection labels come from bound text, own text, then the element type", () => {

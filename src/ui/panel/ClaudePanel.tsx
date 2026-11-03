@@ -11,6 +11,7 @@ import * as api from "../api";
 import { useSelection } from "../selection";
 import { useServerEvent } from "../server-events";
 import { PermissionDialog } from "./PermissionDialog";
+import { useRefine } from "./refine";
 import { reduceTranscript, type TranscriptItem } from "./transcript";
 
 type Status = { status: AgentStatus; message?: string };
@@ -27,28 +28,10 @@ const LABELS: Record<AgentStatus, string> = {
 const statusText = ({ status, message }: Status): string =>
   status === "error" && message ? `Error: ${message}` : LABELS[status];
 
-// The one-line header the server puts before a message sent with a
-// selection (selectionHeader in server/agent/prompt.ts). It is for Claude; the
-// reader sees what they typed and a note.
-const SELECTION_HEADER = /^\[Selection on board ("(?:[^"\\]|\\.)*"): .*\]\n\n/;
-
-function UserMessage({ text }: { text: string }) {
-  const header = SELECTION_HEADER.exec(text);
-  if (!header) return <div className="msg-user">{text}</div>;
-  return (
-    <>
-      <div className="msg-user">{text.slice(header[0].length)}</div>
-      <div className="msg-user-note">
-        with the selection on {JSON.parse(header[1]) as string}
-      </div>
-    </>
-  );
-}
-
 function Item({ item }: { item: TranscriptItem }) {
   switch (item.kind) {
     case "user":
-      return <UserMessage text={item.text} />;
+      return <div className="msg-user">{item.text}</div>;
     case "assistant_text":
       return <p className="msg-assistant">{item.text}</p>;
     case "tool_use":
@@ -65,15 +48,12 @@ function Item({ item }: { item: TranscriptItem }) {
         </div>
       );
     case "result": {
-      const done = item.subtype !== "interrupted";
       // The SDK's cost is the session's running total, not this turn's.
       const cost =
-        item.costUsd === null
-          ? ""
-          : ` · $${item.costUsd.toFixed(4)}${done ? " total" : ""}`;
+        item.costUsd === null ? "" : ` · $${item.costUsd.toFixed(4)} total`;
       return (
         <div className="msg-result">
-          {done ? "Done" : "Stopped"}
+          {item.subtype === "interrupted" ? "Stopped" : "Done"}
           {cost}
         </div>
       );
@@ -93,10 +73,17 @@ export function ClaudePanel() {
   const [text, setText] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
   const selection = useSelection();
+  const { target, setTarget } = useRefine();
   // A live status heard before the restored state arrives is the newer one.
   const heardStatus = useRef(false);
   const transcript = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
+  const input = useRef<HTMLTextAreaElement>(null);
+
+  // A Refine click on the board puts the cursor where the instruction goes.
+  useEffect(() => {
+    if (target) input.current?.focus();
+  }, [target]);
 
   useEffect(() => {
     let cancelled = false;
@@ -160,7 +147,9 @@ export function ClaudePanel() {
       await api.agentSend(
         message,
         selection?.ids.length ? selection : undefined,
+        target?.id,
       );
+      if (target) setTarget(null);
     } catch (err) {
       // Put the words back so a failed send loses nothing.
       setText((now) => now || message);
@@ -224,14 +213,36 @@ export function ClaudePanel() {
         </p>
       )}
       <div className="composer">
-        {selection && selection.ids.length > 0 && (
+        {(target || (selection && selection.ids.length > 0)) && (
           <div className="chips">
-            <span className="chip">
-              {selection.ids.length} selected: {selection.labels.join(", ")}
-            </span>
+            {target && (
+              <span className="chip chip-refine">
+                <span className="chip-label">
+                  Refining {target.id}
+                  {target.title ? ` · ${target.title}` : ""}
+                </span>
+                <button
+                  type="button"
+                  className="chip-clear"
+                  aria-label="Clear refine"
+                  onClick={() => {
+                    setTarget(null);
+                    input.current?.focus();
+                  }}
+                >
+                  ×
+                </button>
+              </span>
+            )}
+            {selection && selection.ids.length > 0 && (
+              <span className="chip">
+                {selection.ids.length} selected: {selection.labels.join(", ")}
+              </span>
+            )}
           </div>
         )}
         <textarea
+          ref={input}
           aria-label="Message Claude"
           placeholder="Ask Claude about this board"
           rows={3}

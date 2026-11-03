@@ -281,13 +281,6 @@ body {
   overflow-wrap: anywhere;
 }
 
-.msg-user-note {
-  align-self: flex-end;
-  margin-top: calc(var(--space) * -0.5);
-  font-size: 12px;
-  color: var(--muted);
-}
-
 .msg-assistant {
   margin: 0;
   white-space: pre-wrap;
@@ -350,6 +343,8 @@ body {
 
 .chips {
   display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space) / 2);
   min-width: 0;
 }
 
@@ -364,6 +359,44 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.chip-refine {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--space) / 2);
+  padding-right: 2px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip-clear {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chip-clear:hover {
+  background: var(--surface);
+}
+
+.chip-clear:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .proposals-bar {
