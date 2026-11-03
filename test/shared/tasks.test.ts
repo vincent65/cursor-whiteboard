@@ -23,7 +23,14 @@ test("orderTasks sorts by dependencies and keeps the given order otherwise", () 
 
 test("orderTasks rejects cycles, duplicates, and unknown dependencies by name", () => {
   expect(() => orderTasks([t("a", ["b"]), t("b", ["a"])])).toThrow(
-    "depend on each other",
+    /^tasks a and b depend on each other$/,
+  );
+  // x waits on the loop without being on it, so it is not named.
+  expect(() =>
+    orderTasks([t("x", ["a"]), t("a", ["b"]), t("b", ["c"]), t("c", ["a"])]),
+  ).toThrow(/^tasks a and c depend on each other$/);
+  expect(() => orderTasks([t("a"), t("b", ["b"])])).toThrow(
+    /^task b depends on itself$/,
   );
   expect(() => orderTasks([t("a"), t("a")])).toThrow("duplicate task slug a");
   expect(() => orderTasks([t("a", ["zz"])])).toThrow(
@@ -56,4 +63,10 @@ test("taskFromMarkdown names what is wrong", () => {
   );
   const noSlug = taskToMarkdown(t("a")).replace('slug: "a"\n', "");
   expect(() => taskFromMarkdown(noSlug)).toThrow("task frontmatter");
+});
+
+test("taskFromMarkdown reads a file with CRLF line endings", () => {
+  const task = { ...t("a"), body: "line one\nline two\n" };
+  const crlf = taskToMarkdown(task).replaceAll("\n", "\r\n");
+  expect(taskFromMarkdown(crlf)).toEqual(task);
 });

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Hono } from "hono";
@@ -8,6 +8,7 @@ import { createAgent } from "../../src/server/agent/index.js";
 import { createApp } from "../../src/server/app.js";
 import { FileStore } from "../../src/server/files.js";
 import { WsHub } from "../../src/server/ws.js";
+import { taskToMarkdown } from "../../src/shared/tasks.js";
 import type { IncomingScene } from "../../src/shared/types.js";
 
 let root: string;
@@ -406,4 +407,51 @@ test("PUT /api/boards/:name still saves when the reconcile cannot append to the 
     "could not reconcile proposals on board flow: disk full",
   );
   warn.mockRestore();
+});
+
+test("GET /api/spec drops unknown citations and reports them", async () => {
+  await store.createBoard("main");
+  await putScene("main", {
+    elements: [
+      { id: "e1", type: "rectangle", x: 0, y: 0, width: 10, height: 10 },
+    ],
+    appState: {},
+    files: {},
+  });
+  const text = "## Goals\n\nShip [[board:main#e1]] and [[board:main#gone]].\n";
+  await writeFile(join(store.dir, "spec.md"), text);
+
+  const res = await app.request("/api/spec");
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({
+    text: "## Goals\n\nShip [[board:main#e1]] and .\n",
+    dropped: [
+      { kind: "board", page: "main", id: "gone", raw: "[[board:main#gone]]" },
+    ],
+  });
+  // Served clean, never rewritten on disk.
+  expect(await readFile(join(store.dir, "spec.md"), "utf8")).toBe(text);
+});
+
+test("GET /api/spec without a spec returns null text", async () => {
+  const res = await app.request("/api/spec");
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ text: null, dropped: [] });
+});
+
+test("GET /api/tasks lists parsed task files", async () => {
+  expect(await (await app.request("/api/tasks")).json()).toEqual([]);
+  const task = {
+    slug: "db",
+    title: "Database",
+    body: "Set it up.\n",
+    dependsOn: [],
+    files: ["src/db.ts"],
+    acceptance: ["migrations run"],
+    sources: ["[[board:main#e1]]"],
+  };
+  await writeFile(join(store.dir, "tasks", "01-db.md"), taskToMarkdown(task));
+  const res = await app.request("/api/tasks");
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual([{ file: "01-db.md", task }]);
 });

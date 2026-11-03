@@ -1,6 +1,7 @@
 import { type Context, Hono } from "hono";
 import {
   boardGraphToMarkdown,
+  dropUnknownCitations,
   excalidrawToBoardGraph,
 } from "../export/index.js";
 import type { IncomingScene } from "../shared/types.js";
@@ -79,6 +80,14 @@ export function routes(store: FileStore, proposals?: ProposalStore): Hono {
         await store.writeDoc(c.req.param("name"), await c.req.text());
         return c.body(null, 204);
       })
+      // Unknown citations are cut from what is served and listed in `dropped` for
+      // the UI to warn about; spec.md itself is never rewritten.
+      .get("/spec", async (c) => {
+        const text = await store.readSpec();
+        if (text === null) return c.json({ text: null, dropped: [] });
+        return c.json(dropUnknownCitations(text, await store.citationIndex()));
+      })
+      .get("/tasks", async (c) => c.json(await store.listTasks()))
       .get("/assets/:file", async (c) => {
         const file = c.req.param("file");
         // readAsset only accepts <sha256>.<known ext>, so the lookup always hits.

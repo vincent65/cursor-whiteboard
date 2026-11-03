@@ -64,7 +64,9 @@ function cycleMessage(tasks: Task[], placed: Set<string>): string {
     last = slug;
     slug = waitsOn.get(slug) ?? "";
   }
-  return `tasks ${slug} and ${last} depend on each other`;
+  return slug === last
+    ? `task ${slug} depends on itself`
+    : `tasks ${slug} and ${last} depend on each other`;
 }
 
 export const taskFileName = (index: number, slug: string): string =>
@@ -87,7 +89,7 @@ export function taskToMarkdown(task: Task): string {
 
 export function taskFromMarkdown(text: string): Task {
   const fail = (reason: string) => new Error(`task frontmatter: ${reason}`);
-  const lines = text.split("\n");
+  const lines = text.replaceAll("\r\n", "\n").split("\n");
   const end = lines.indexOf("---", 1);
   if (lines[0] !== "---" || end === -1)
     throw fail("expected a block between --- lines");

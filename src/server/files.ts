@@ -14,9 +14,23 @@ import {
 } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { z } from "zod";
-import { BoardFile, type BoardFileAsset } from "../export/index.js";
+import {
+  BoardFile,
+  type BoardFileAsset,
+  type BoardGraph,
+  buildCitationIndex,
+  excalidrawToBoardGraph,
+} from "../export/index.js";
 import { ProposalLogEntry } from "../shared/proposals.js";
 import { SLUG_RE } from "../shared/slug.js";
+import {
+  orderTasks,
+  type Task,
+  type TaskFile,
+  taskFileName,
+  taskFromMarkdown,
+  taskToMarkdown,
+} from "../shared/tasks.js";
 import type { IncomingScene, SessionsFile } from "../shared/types.js";
 
 export class InvalidNameError extends Error {}
@@ -274,6 +288,62 @@ export class FileStore {
       throw new InvalidNameError(`invalid export path: ${relPath}`);
     await mkdir(dirname(path), { recursive: true });
     await this.write(path, data);
+  }
+
+  readSpec(): Promise<string | null> {
+    return readFile(join(this.dir, "spec.md"), "utf8").catch(
+      (err: NodeJS.ErrnoException) => {
+        if (err.code === "ENOENT") return null;
+        throw err;
+      },
+    );
+  }
+
+  async listTasks(): Promise<TaskFile[]> {
+    const dir = join(this.dir, "tasks");
+    const names = (await readdir(dir)).filter((f) => f.endsWith(".md")).sort();
+    return Promise.all(
+      names.map(async (file) => {
+        let task: Task;
+        try {
+          task = taskFromMarkdown(await readFile(join(dir, file), "utf8"));
+        } catch (err) {
+          throw new Error(`task file ${file}: ${(err as Error).message}`);
+        }
+        if (!/^\d{2}-/.test(file) || file.slice(3) !== `${task.slug}.md`)
+          throw new Error(`task file ${file} has slug ${task.slug}`);
+        return { file, task };
+      }),
+    );
+  }
+
+  // Writes the new set before deleting the old one, so a failure part way
+  // leaves stale extras rather than missing tasks. Other files are left alone.
+  async replaceTasks(tasks: Task[]): Promise<TaskFile[]> {
+    const ordered = orderTasks(tasks);
+    for (const task of ordered) assertSlug(task.slug);
+    const dir = join(this.dir, "tasks");
+    const old = (await readdir(dir)).filter((f) => f.endsWith(".md"));
+    const files = ordered.map((task, i) => ({
+      file: taskFileName(i, task.slug),
+      task,
+    }));
+    for (const { file, task } of files)
+      await this.write(join(dir, file), taskToMarkdown(task));
+    const kept = new Set(files.map((f) => f.file));
+    for (const file of old) if (!kept.has(file)) await unlink(join(dir, file));
+    return files;
+  }
+
+  // Every citable id: board elements as the export graph sees them, doc headings by file.
+  async citationIndex(): Promise<Set<string>> {
+    const boards: Record<string, BoardGraph> = {};
+    for (const { name } of await this.listBoards())
+      boards[name] = excalidrawToBoardGraph(await this.readBoard(name), name);
+    const docs: Record<string, string> = {};
+    for (const { name } of await this.listDocs())
+      docs[`${name}.md`] = await this.readDoc(name);
+    return buildCitationIndex({ boards, docs });
   }
 
   async readSessions(): Promise<SessionsFile> {

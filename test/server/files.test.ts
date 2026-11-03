@@ -12,6 +12,7 @@ import {
   InvalidSceneError,
   NotFoundError,
 } from "../../src/server/files.js";
+import { type Task, taskToMarkdown } from "../../src/shared/tasks.js";
 import type { IncomingScene } from "../../src/shared/types.js";
 
 let root: string;
@@ -380,4 +381,79 @@ test("a bad line that is not a torn tail still fails the read", async () => {
   // Whole JSON that fails the schema is corrupt, not torn.
   await writeFile(path, '{"event":"maybe"}');
   await expect(store.readProposals()).rejects.toThrow("proposals.jsonl line 1");
+});
+
+const t = (slug: string, dependsOn: string[] = []): Task => ({
+  slug,
+  title: slug,
+  body: `Do ${slug}.\n`,
+  dependsOn,
+  files: [],
+  acceptance: [],
+  sources: [],
+});
+
+test("spec is null until written, then read back", async () => {
+  await store.init();
+  expect(await store.readSpec()).toBeNull();
+  await writeFile(join(store.dir, "spec.md"), "## Goals\n");
+  expect(await store.readSpec()).toBe("## Goals\n");
+});
+
+test("replaceTasks writes numbered files in dependency order and removes old ones", async () => {
+  await store.init();
+  await writeFile(join(store.dir, "tasks", "99-old.md"), "stale");
+  await writeFile(join(store.dir, "tasks", "notes.txt"), "keep");
+  const files = await store.replaceTasks([t("c", ["a"]), t("a")]);
+  expect(files.map((f) => f.file)).toEqual(["01-a.md", "02-c.md"]);
+  expect(files[1].task).toEqual(t("c", ["a"]));
+  expect((await readdir(join(store.dir, "tasks"))).sort()).toEqual([
+    "01-a.md",
+    "02-c.md",
+    "notes.txt",
+  ]);
+  expect(await store.listTasks()).toEqual(files);
+  expect((await store.listTasks())[1].task.dependsOn).toEqual(["a"]);
+});
+
+test("replaceTasks with a cycle changes nothing", async () => {
+  await store.init();
+  await writeFile(join(store.dir, "tasks", "01-old.md"), "stale");
+  await expect(
+    store.replaceTasks([t("a", ["b"]), t("b", ["a"])]),
+  ).rejects.toThrow("depend on each other");
+  expect(await readdir(join(store.dir, "tasks"))).toEqual(["01-old.md"]);
+});
+
+test("replaceTasks refuses a slug that is not a safe file name", async () => {
+  await store.init();
+  await expect(store.replaceTasks([t("../x")])).rejects.toThrow(
+    InvalidNameError,
+  );
+  expect(await readdir(join(store.dir, "tasks"))).toEqual([]);
+});
+
+test("listTasks names a bad file and a file whose slug does not match its name", async () => {
+  await store.init();
+  const tasks = join(store.dir, "tasks");
+  await writeFile(join(tasks, "01-a.md"), taskToMarkdown(t("a")));
+  await writeFile(join(tasks, "02-b.md"), "no frontmatter");
+  await expect(store.listTasks()).rejects.toThrow(
+    /^task file 02-b\.md: task frontmatter/,
+  );
+  await writeFile(join(tasks, "02-b.md"), taskToMarkdown(t("c")));
+  await expect(store.listTasks()).rejects.toThrow(
+    /^task file 02-b\.md has slug c$/,
+  );
+});
+
+test("citationIndex covers board elements and doc headings", async () => {
+  await store.init();
+  await store.createBoard("main");
+  await store.writeBoard("main", scene({ elements: [rect("e1")] }));
+  await store.createDoc("api");
+  await store.writeDoc("api", "# Auth Flow\n\n## Tokens\n");
+  expect(await store.citationIndex()).toEqual(
+    new Set(["board:main#e1", "doc:api.md#auth-flow", "doc:api.md#tokens"]),
+  );
 });
