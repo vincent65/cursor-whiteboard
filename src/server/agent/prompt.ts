@@ -12,6 +12,12 @@ export const SYSTEM_PROMPT_APPEND = `You are planning inside Blueprint, a whiteb
 - Put long descriptions in a doc under \`.blueprint/docs/\` and leave a short note on the board.
 - The user sees your tool calls only as short rows, so put everything they need in your text answer.`;
 
+export const COMPILE_INSTRUCTION = `Compile the plan into .blueprint/spec.md.
+Read every board export under .blueprint/export/boards/*.md and every doc under .blueprint/docs/.
+Write .blueprint/spec.md with exactly these level-2 sections in this order: Goals, Architecture, Interfaces, Constraints, Acceptance criteria, Open questions.
+Cite the board elements and doc headings each statement comes from with [[board:<board>#<elementId>]] and [[doc:<file>#<heading-slug>]]. Element ids are in each export's "ids" comment and in its element lists; heading slugs are the heading text lowercased with spaces as hyphens. Cite nothing you did not read.
+Keep it specific and short; prefer bullets. When the file is written, reply with two lines on what changed.`;
+
 const quote = (text: string) =>
   JSON.stringify(text.replace(/\s+/g, " ").trim());
 

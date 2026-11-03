@@ -13,6 +13,7 @@ import type { WsHub } from "../ws.js";
 import { PermissionBroker } from "./broker.js";
 import { denyBoardWrites } from "./hooks.js";
 import {
+  COMPILE_INSTRUCTION,
   composeUserMessage,
   SYSTEM_PROMPT_APPEND,
   selectionHeader,
@@ -29,6 +30,9 @@ export type Agent = {
     selection?: { board: string; ids: string[] },
     proposalId?: string,
   ): Promise<string>;
+  // Sends COMPILE_INSTRUCTION as a send; while that one is queued or running (until the
+  // next result), returns its id without sending again.
+  compile(): Promise<string>;
   // Reconciled against each saved board by PUT /boards/:name.
   proposals: ProposalStore;
   pendingProposals(): Proposal[];
@@ -106,6 +110,8 @@ export async function createAgent(deps: {
   // ponytail: a turn cut off with no result keeps its entry until the next result, so
   // entries retire a turn late from then on; harmless, as only dropped ids hand notes back.
   const riding = new Map<string, string[]>();
+  // The compile queued or running, until the next result or the run ending without one.
+  let compiling: Promise<string> | undefined;
 
   const session = new PlanSession(
     {
@@ -142,6 +148,9 @@ export async function createAgent(deps: {
       },
       onEvent: (event) => {
         if (event.kind === "result") {
+          // ponytail: any result clears it, so a compile held behind another turn can be
+          // sent twice; harmless, the second just rewrites spec.md.
+          compiling = undefined;
           const oldest = riding.keys().next();
           if (!oldest.done) riding.delete(oldest.value);
         }
@@ -152,7 +161,8 @@ export async function createAgent(deps: {
         riding.delete(sendId);
         if (notes) proposals.requeueNotes(notes);
       },
-      onStatus: (_status, msg) => {
+      onStatus: (s, msg) => {
+        if (s === "error" || s === "stopped") compiling = undefined;
         message = msg;
         broadcastStatus();
       },
@@ -190,35 +200,55 @@ export async function createAgent(deps: {
     }
   }
 
+  async function send(
+    text: string,
+    selection?: { board: string; ids: string[] },
+    proposalId?: string,
+    shown = text,
+  ): Promise<string> {
+    const head = await header(selection);
+    // From here on nothing awaits, so a decision cannot slip between the check and the
+    // send; checked before the notes are taken, so a refused send loses none.
+    const refining =
+      proposalId === undefined ? undefined : proposals.get(proposalId);
+    if (proposalId !== undefined && !refining)
+      throw new NotFoundError(`proposal ${proposalId} is not pending`);
+    const notes = proposals.takeNotes();
+    // The ops ride along, so a session that lost its context can still revise.
+    const refine = refining
+      ? [
+          `[The user wants proposal ${refining.id} refined. Call revise with proposalId ${refining.id} and the complete new op list. Its current ops are: ${JSON.stringify(refining.ops)}]`,
+        ]
+      : [];
+    loadErrors = [];
+    let id: string;
+    try {
+      id = session.send(
+        composeUserMessage(text, head, [...notes, ...refine]),
+        shown,
+      );
+    } catch (err) {
+      proposals.requeueNotes(notes);
+      throw err;
+    }
+    riding.set(id, notes);
+    return id;
+  }
+
   return {
-    async send(text, selection, proposalId) {
-      const head = await header(selection);
-      // From here on nothing awaits, so a decision cannot slip between the check and the
-      // send; checked before the notes are taken, so a refused send loses none.
-      const refining =
-        proposalId === undefined ? undefined : proposals.get(proposalId);
-      if (proposalId !== undefined && !refining)
-        throw new NotFoundError(`proposal ${proposalId} is not pending`);
-      const notes = proposals.takeNotes();
-      // The ops ride along, so a session that lost its context can still revise.
-      const refine = refining
-        ? [
-            `[The user wants proposal ${refining.id} refined. Call revise with proposalId ${refining.id} and the complete new op list. Its current ops are: ${JSON.stringify(refining.ops)}]`,
-          ]
-        : [];
-      loadErrors = [];
-      let id: string;
-      try {
-        id = session.send(
-          composeUserMessage(text, head, [...notes, ...refine]),
-          text,
-        );
-      } catch (err) {
-        proposals.requeueNotes(notes);
+    send: (text, selection, proposalId) => send(text, selection, proposalId),
+    compile() {
+      // Kept as a promise so a compile racing this one's send gets the same id.
+      compiling ??= send(
+        COMPILE_INSTRUCTION,
+        undefined,
+        undefined,
+        "Compile the plan into spec.md",
+      ).catch((err) => {
+        compiling = undefined;
         throw err;
-      }
-      riding.set(id, notes);
-      return id;
+      });
+      return compiling;
     },
     proposals,
     pendingProposals: () => proposals.pending(),

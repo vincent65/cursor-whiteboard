@@ -31,6 +31,7 @@ export function agentRoutes(agent: Agent): Hono {
       const { text, selection, proposalId } = body.data;
       return c.json({ id: await agent.send(text, selection, proposalId) }, 202);
     })
+    .post("/compile", async (c) => c.json({ id: await agent.compile() }, 202))
     .post("/interrupt", async (c) => {
       await agent.interrupt();
       return c.body(null, 204);

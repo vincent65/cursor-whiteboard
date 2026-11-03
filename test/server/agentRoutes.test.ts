@@ -8,6 +8,7 @@ import type {
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { type Agent, createAgent } from "../../src/server/agent/index.js";
+import { COMPILE_INSTRUCTION } from "../../src/server/agent/prompt.js";
 import {
   ProposalBusyError,
   ProposalStore,
@@ -66,6 +67,7 @@ function fakeAgent() {
         throw new ProposalBusyError("proposal p_2 is being revised");
       throw new NotFoundError(`proposal ${id} is not pending`);
     }),
+    compile: vi.fn(async () => "u2"),
     interrupt: vi.fn(async () => undefined),
     answerPermission: vi.fn((id: string) => id === "p1"),
     state: vi.fn(() => ({
@@ -206,6 +208,16 @@ test("state is returned as JSON and interrupt returns 204", async () => {
   const interrupt = await app.request("/api/agent/interrupt", post({}));
   expect(interrupt.status).toBe(204);
   expect(agent.interrupt).toHaveBeenCalledOnce();
+});
+
+test("POST /api/agent/compile returns 202 with the id", async () => {
+  const agent = fakeAgent();
+  const app = createApp(store, agent);
+
+  const res = await app.request("/api/agent/compile", post({}));
+  expect(res.status).toBe(202);
+  expect(await res.json()).toEqual({ id: "u2" });
+  expect(agent.compile).toHaveBeenCalledOnce();
 });
 
 test("without an agent the routes are absent (404 JSON)", async () => {
@@ -638,6 +650,76 @@ test("decision notes on a send the session throws on ride on the next send", asy
   await agent.send("kept");
   await vi.waitFor(() => expect(fake.received).toHaveLength(1));
   expect(fake.received[0]).toBe('[Proposal p_1 "Cache" was accepted.]\n\nkept');
+  await agent.close();
+});
+
+test("compile sends the instruction once while one is pending", async () => {
+  await writeFile(join(store.dir, "proposals.jsonl"), logLine(proposal("p_1")));
+  const fake = stallingSdk();
+  const agent = await createAgent({
+    store,
+    hub: new WsHub(),
+    cwd: root,
+    sdk: fake.sdk,
+  });
+  await agent.decideProposal("p_1", "accepted");
+
+  const [id, racing] = await Promise.all([agent.compile(), agent.compile()]);
+  expect(racing).toBe(id);
+  expect(await agent.compile()).toBe(id);
+  await vi.waitFor(() => expect(fake.received).toHaveLength(1));
+  // Notes ride along, as on any send; the bubble shows the short label.
+  expect(fake.received[0]).toBe(
+    `[Proposal p_1 "Cache" was accepted.]\n\n${COMPILE_INSTRUCTION}`,
+  );
+  const users = () => agent.state().transcript.filter((e) => e.kind === "user");
+  expect(users()).toEqual([
+    expect.objectContaining({ id, text: "Compile the plan into spec.md" }),
+  ]);
+
+  // The stalled turn ends with a result; the next compile sends again.
+  await agent.interrupt();
+  await vi.waitFor(() => expect(agent.state().status).toBe("idle"));
+  const again = await agent.compile();
+  expect(again).not.toBe(id);
+  await vi.waitFor(() => expect(fake.received).toHaveLength(2));
+  expect(fake.received[1]).toBe(COMPILE_INSTRUCTION);
+  expect(users()).toHaveLength(2);
+  await agent.close();
+});
+
+test("a compile whose send throws or whose run ends without a result can be sent again", async () => {
+  const query = vi.fn(() =>
+    Object.assign(
+      (async function* (): AsyncGenerator<SDKMessage> {
+        yield {
+          type: "system",
+          subtype: "init",
+          session_id: "s1",
+        } as SDKMessage;
+        throw new Error("crashed");
+      })(),
+      { interrupt: vi.fn(), close: vi.fn() },
+    ),
+  );
+  query.mockImplementationOnce(() => {
+    throw new Error("spawn failed");
+  });
+  const agent = await createAgent({
+    store,
+    hub: new WsHub(),
+    cwd: root,
+    sdk: {
+      query,
+      getSessionMessages: vi.fn(async () => []),
+    } as unknown as Parameters<typeof createAgent>[0]["sdk"],
+  });
+
+  await expect(agent.compile()).rejects.toThrow("spawn failed");
+  const id = await agent.compile();
+  await vi.waitFor(() => expect(agent.state().status).toBe("error"));
+  expect(await agent.compile()).not.toBe(id);
+  expect(query).toHaveBeenCalledTimes(3);
   await agent.close();
 });
 

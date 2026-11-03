@@ -1,5 +1,6 @@
 import type { BoardGraph } from "../../../src/export/index.js";
 import {
+  COMPILE_INSTRUCTION,
   composeUserMessage,
   SYSTEM_PROMPT_APPEND,
   selectionHeader,
@@ -108,4 +109,14 @@ test("the prompt names add_node, add_arrow, and the $ reference", () => {
   expect(SYSTEM_PROMPT_APPEND).toContain(
     "A node between two existing ones needs no near.",
   );
+});
+
+test("COMPILE_INSTRUCTION names the six sections in order and the citation grammar", () => {
+  expect(COMPILE_INSTRUCTION).toContain(
+    "exactly these level-2 sections in this order: Goals, Architecture, Interfaces, Constraints, Acceptance criteria, Open questions.",
+  );
+  expect(COMPILE_INSTRUCTION).toContain("[[board:<board>#<elementId>]]");
+  expect(COMPILE_INSTRUCTION).toContain("[[doc:<file>#<heading-slug>]]");
+  expect(COMPILE_INSTRUCTION).toContain(".blueprint/export/boards/*.md");
+  expect(COMPILE_INSTRUCTION.split("\n")).toHaveLength(5);
 });
