@@ -715,9 +715,10 @@ test("compile sends the instruction once while one is pending", async () => {
   await writeFile(join(store.dir, "proposals.jsonl"), logLine(proposal("p_1")));
   await store.createDoc("api");
   await store.writeDoc("api", "# API & Auth\n");
-  const message = compileMessage([
-    { file: "api.md", markdown: "# API & Auth\n" },
-  ]);
+  const message = compileMessage(
+    [],
+    [{ file: "api.md", markdown: "# API & Auth\n" }],
+  );
   expect(message).toContain("api.md: api--auth");
   const fake = stallingSdk();
   const agent = await createAgent({
@@ -785,6 +786,8 @@ test("compile writes every board's export before the send and skips a board that
   await agent.compile();
   expect(exported).toContain("r1");
   await vi.waitFor(() => expect(inner.received).toHaveLength(1));
+  // The message names the boards to read, without the one that failed.
+  expect(inner.received[0]).toBe(compileMessage(["main"], []));
   await sessionSaved();
   expect(warn).toHaveBeenCalledWith(
     expect.stringMatching(/^skipping board broken in the compile: /),
@@ -814,7 +817,7 @@ test("compile skips a doc it cannot read, with a warning, and sends the rest", a
   await agent.compile();
   await vi.waitFor(() => expect(fake.received).toHaveLength(1));
   expect(fake.received[0]).toBe(
-    compileMessage([{ file: "api.md", markdown: "# API\n" }]),
+    compileMessage([], [{ file: "api.md", markdown: "# API\n" }]),
   );
   expect(warn).toHaveBeenCalledWith(
     expect.stringMatching(/^skipping doc broken in the compile: /),

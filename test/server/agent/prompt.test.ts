@@ -118,10 +118,6 @@ test("COMPILE_INSTRUCTION names the six sections in order and the citation gramm
   );
   expect(COMPILE_INSTRUCTION).toContain("[[board:<board>#<elementId>]]");
   expect(COMPILE_INSTRUCTION).toContain("[[doc:<file>#<heading-slug>]]");
-  expect(COMPILE_INSTRUCTION).toContain(".blueprint/export/boards/*.md");
-  expect(COMPILE_INSTRUCTION).toContain(
-    "Read files with the Read and Glob tools, not Bash.",
-  );
   expect(COMPILE_INSTRUCTION).toContain(
     "use only the heading slugs listed below.",
   );
@@ -129,19 +125,38 @@ test("COMPILE_INSTRUCTION names the six sections in order and the citation gramm
   expect(COMPILE_INSTRUCTION.split("\n")).toHaveLength(6);
 });
 
-test("compileMessage lists each doc's citable heading slugs after the instruction", () => {
-  expect(
-    compileMessage([
-      {
-        file: "api.md",
-        markdown: "# API & Auth\n## Goals (v1)\n## Goals (v1)",
-      },
-      { file: "empty.md", markdown: "no headings" },
-    ]),
-  ).toBe(
-    `${COMPILE_INSTRUCTION}\n\nDoc headings you may cite:\napi.md: api--auth, goals-v1\nempty.md: (no headings)`,
+// Claude Code has no Glob tool to find the files with, and a Read of a directory fails.
+test("COMPILE_INSTRUCTION reads the listed files and never asks for Glob", () => {
+  expect(COMPILE_INSTRUCTION).toContain(
+    "Read each board export and doc listed below with the Read tool, not Bash.",
   );
-  expect(compileMessage([])).toBe(
-    `${COMPILE_INSTRUCTION}\n\nDoc headings you may cite: none, there are no docs.`,
+  expect(COMPILE_INSTRUCTION).not.toContain("Glob");
+  expect(COMPILE_INSTRUCTION).not.toContain("*.md");
+});
+
+// The split sees only the spec, so the spec carries the stack the tasks must use.
+test("COMPILE_INSTRUCTION has the spec name the repository's language and tests", () => {
+  expect(COMPILE_INSTRUCTION).toContain(
+    "Under Constraints, state the repository's language and test command, from the README and package manifest at its root",
+  );
+});
+
+test("compileMessage lists the board exports and each doc's citable heading slugs", () => {
+  expect(
+    compileMessage(
+      ["main", "flows"],
+      [
+        {
+          file: "api.md",
+          markdown: "# API & Auth\n## Goals (v1)\n## Goals (v1)",
+        },
+        { file: "empty.md", markdown: "no headings" },
+      ],
+    ),
+  ).toBe(
+    `${COMPILE_INSTRUCTION}\n\nBoard exports:\n.blueprint/export/boards/main.md\n.blueprint/export/boards/flows.md\n\nDocs in .blueprint/docs/, with the heading slugs you may cite:\napi.md: api--auth, goals-v1\nempty.md: (no headings)`,
+  );
+  expect(compileMessage([], [])).toBe(
+    `${COMPILE_INSTRUCTION}\n\nBoard exports: none, there are no boards.\n\nDocs: none, there are no docs.`,
   );
 });

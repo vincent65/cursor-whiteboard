@@ -580,7 +580,7 @@ test("restore shows a saved compile as its short label", async () => {
     parent_agent_id: null,
     message: { role: "user", content },
   });
-  const message = compileMessage([{ file: "api.md", markdown: "# Auth" }]);
+  const message = compileMessage([], [{ file: "api.md", markdown: "# Auth" }]);
   const saved = [
     user("u1", message),
     user("u2", `[Proposal p_1 "Cache" was accepted.]\n\n${message}`),

@@ -245,7 +245,9 @@ export async function createAgent(deps: {
 
   // The exports are gitignored and only a board save writes them, so a fresh clone or an
   // outside edit leaves them missing or stale; the compile reads them, so refresh them all.
-  async function writeBoardExports() {
+  // The names of the boards exported; a broken board is left out.
+  async function writeBoardExports(): Promise<string[]> {
+    const exported: string[] = [];
     for (const { name } of await store.listBoards()) {
       try {
         const graph = excalidrawToBoardGraph(await store.readBoard(name), name);
@@ -253,12 +255,14 @@ export async function createAgent(deps: {
           `boards/${name}.md`,
           boardGraphToMarkdown(graph),
         );
+        exported.push(name);
       } catch (err) {
         console.warn(
           `skipping board ${name} in the compile: ${(err as Error).message}`,
         );
       }
     }
+    return exported;
   }
 
   return {
@@ -267,7 +271,7 @@ export async function createAgent(deps: {
       // Kept as a promise so a compile racing this one's send gets the same id.
       if (compiling) return compiling;
       const p: Promise<string> = (async () => {
-        await writeBoardExports();
+        const boards = await writeBoardExports();
         // One unreadable doc leaves the compile to the rest, as a broken board does.
         const docs = (
           await Promise.all(
@@ -287,7 +291,12 @@ export async function createAgent(deps: {
             }),
           )
         ).flat();
-        return send(compileMessage(docs), undefined, undefined, COMPILE_LABEL);
+        return send(
+          compileMessage(boards, docs),
+          undefined,
+          undefined,
+          COMPILE_LABEL,
+        );
       })().catch((err) => {
         // A run that ended meanwhile may have let a newer compile start; leave that one.
         if (compiling === p) compiling = undefined;
