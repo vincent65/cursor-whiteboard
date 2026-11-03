@@ -1,4 +1,4 @@
-import type { BoardGraph } from "../../export/index.js";
+import { type BoardGraph, headingSlugs } from "../../export/index.js";
 
 export const SYSTEM_PROMPT_APPEND = `You are planning inside Blueprint, a whiteboard beside the user's code.
 
@@ -14,9 +14,24 @@ export const SYSTEM_PROMPT_APPEND = `You are planning inside Blueprint, a whiteb
 
 export const COMPILE_INSTRUCTION = `Compile the plan into .blueprint/spec.md.
 Read every board export under .blueprint/export/boards/*.md and every doc under .blueprint/docs/.
+Read files with the Read and Glob tools, not Bash.
 Write .blueprint/spec.md with exactly these level-2 sections in this order: Goals, Architecture, Interfaces, Constraints, Acceptance criteria, Open questions.
-Cite the board elements and doc headings each statement comes from with [[board:<board>#<elementId>]] and [[doc:<file>#<heading-slug>]]. Element ids are in each export's "ids" comment and in its element lists; heading slugs are the heading text lowercased with spaces as hyphens. Cite nothing you did not read.
+Cite the board elements and doc headings each statement comes from with [[board:<board>#<elementId>]] and [[doc:<file>#<heading-slug>]]. Element ids are in each export's "ids" comment and in its element lists; use only the heading slugs listed below. Cite nothing you did not read.
 Keep it specific and short; prefer bullets. When the file is written, reply with two lines on what changed.`;
+
+// The instruction plus each doc's citable heading slugs, listed the way exports list
+// element ids, so a citation never depends on Claude re-deriving the slug rule.
+export function compileMessage(
+  docs: { file: string; markdown: string }[],
+): string {
+  if (docs.length === 0)
+    return `${COMPILE_INSTRUCTION}\n\nDoc headings you may cite: none, there are no docs.`;
+  const lines = docs.map(({ file, markdown }) => {
+    const slugs = [...new Set(headingSlugs(markdown))].filter((s) => s !== "");
+    return `${file}: ${slugs.join(", ") || "(no headings)"}`;
+  });
+  return `${COMPILE_INSTRUCTION}\n\nDoc headings you may cite:\n${lines.join("\n")}`;
+}
 
 const quote = (text: string) =>
   JSON.stringify(text.replace(/\s+/g, " ").trim());

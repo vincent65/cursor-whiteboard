@@ -16,7 +16,7 @@ import type { WsHub } from "../ws.js";
 import { PermissionBroker } from "./broker.js";
 import { denyBoardWrites } from "./hooks.js";
 import {
-  COMPILE_INSTRUCTION,
+  compileMessage,
   composeUserMessage,
   SYSTEM_PROMPT_APPEND,
   selectionHeader,
@@ -268,8 +268,14 @@ export async function createAgent(deps: {
       // Kept as a promise so a compile racing this one's send gets the same id.
       compiling ??= (async () => {
         await writeBoardExports();
+        const docs = await Promise.all(
+          (await store.listDocs()).map(async ({ name }) => ({
+            file: `${name}.md`,
+            markdown: await store.readDoc(name),
+          })),
+        );
         return send(
-          COMPILE_INSTRUCTION,
+          compileMessage(docs),
           undefined,
           undefined,
           "Compile the plan into spec.md",

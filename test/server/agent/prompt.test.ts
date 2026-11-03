@@ -1,6 +1,7 @@
 import type { BoardGraph } from "../../../src/export/index.js";
 import {
   COMPILE_INSTRUCTION,
+  compileMessage,
   composeUserMessage,
   SYSTEM_PROMPT_APPEND,
   selectionHeader,
@@ -118,5 +119,29 @@ test("COMPILE_INSTRUCTION names the six sections in order and the citation gramm
   expect(COMPILE_INSTRUCTION).toContain("[[board:<board>#<elementId>]]");
   expect(COMPILE_INSTRUCTION).toContain("[[doc:<file>#<heading-slug>]]");
   expect(COMPILE_INSTRUCTION).toContain(".blueprint/export/boards/*.md");
-  expect(COMPILE_INSTRUCTION.split("\n")).toHaveLength(5);
+  expect(COMPILE_INSTRUCTION).toContain(
+    "Read files with the Read and Glob tools, not Bash.",
+  );
+  expect(COMPILE_INSTRUCTION).toContain(
+    "use only the heading slugs listed below.",
+  );
+  expect(COMPILE_INSTRUCTION).not.toContain("spaces as hyphens");
+  expect(COMPILE_INSTRUCTION.split("\n")).toHaveLength(6);
+});
+
+test("compileMessage lists each doc's citable heading slugs after the instruction", () => {
+  expect(
+    compileMessage([
+      {
+        file: "api.md",
+        markdown: "# API & Auth\n## Goals (v1)\n## Goals (v1)",
+      },
+      { file: "empty.md", markdown: "no headings" },
+    ]),
+  ).toBe(
+    `${COMPILE_INSTRUCTION}\n\nDoc headings you may cite:\napi.md: api--auth, goals-v1\nempty.md: (no headings)`,
+  );
+  expect(compileMessage([])).toBe(
+    `${COMPILE_INSTRUCTION}\n\nDoc headings you may cite: none, there are no docs.`,
+  );
 });

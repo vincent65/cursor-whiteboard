@@ -9,7 +9,7 @@ import type {
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { type Agent, createAgent } from "../../src/server/agent/index.js";
-import { COMPILE_INSTRUCTION } from "../../src/server/agent/prompt.js";
+import { compileMessage } from "../../src/server/agent/prompt.js";
 import {
   ProposalBusyError,
   ProposalStore,
@@ -664,6 +664,12 @@ test("decision notes on a send the session throws on ride on the next send", asy
 
 test("compile sends the instruction once while one is pending", async () => {
   await writeFile(join(store.dir, "proposals.jsonl"), logLine(proposal("p_1")));
+  await store.createDoc("api");
+  await store.writeDoc("api", "# API & Auth\n");
+  const message = compileMessage([
+    { file: "api.md", markdown: "# API & Auth\n" },
+  ]);
+  expect(message).toContain("api.md: api--auth");
   const fake = stallingSdk();
   const agent = await createAgent({
     store,
@@ -679,7 +685,7 @@ test("compile sends the instruction once while one is pending", async () => {
   await vi.waitFor(() => expect(fake.received).toHaveLength(1));
   // Notes ride along, as on any send; the bubble shows the short label.
   expect(fake.received[0]).toBe(
-    `[Proposal p_1 "Cache" was accepted.]\n\n${COMPILE_INSTRUCTION}`,
+    `[Proposal p_1 "Cache" was accepted.]\n\n${message}`,
   );
   const users = () => agent.state().transcript.filter((e) => e.kind === "user");
   expect(users()).toEqual([
@@ -692,7 +698,7 @@ test("compile sends the instruction once while one is pending", async () => {
   const again = await agent.compile();
   expect(again).not.toBe(id);
   await vi.waitFor(() => expect(fake.received).toHaveLength(2));
-  expect(fake.received[1]).toBe(COMPILE_INSTRUCTION);
+  expect(fake.received[1]).toBe(message);
   expect(users()).toHaveLength(2);
   await sessionSaved();
   await agent.close();
