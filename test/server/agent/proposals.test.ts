@@ -232,3 +232,17 @@ test("reconcile rejects a pending proposal with no ghost left on the board and s
   expect(files.log.at(-1)).toMatchObject({ event: "rejected", id: "p_1" });
   expect(store.takeNotes()).toEqual(["[Proposal p_1 was rejected.]"]);
 });
+
+test("reconcile leaves a proposal younger than the grace period for the next save", async () => {
+  const store = new ProposalStore(fakeFiles());
+  await store.proposed(proposal("p_1"));
+  const logged = Date.parse(at);
+
+  expect(await store.reconcile("flow", [], logged + 1_000)).toEqual([]);
+  expect(store.pending().map((p) => p.id)).toEqual(["p_1"]);
+
+  expect(await store.reconcile("flow", [], logged + 10_000)).toEqual([
+    proposal("p_1"),
+  ]);
+  expect(store.pending()).toEqual([]);
+});

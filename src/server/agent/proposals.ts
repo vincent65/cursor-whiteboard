@@ -8,6 +8,9 @@ import { type FileStore, NotFoundError } from "../files.js";
 
 const now = () => new Date().toISOString();
 
+// A save that left the browser before a proposal's ghosts were drawn must not reject it.
+export const RECONCILE_GRACE_MS = 5_000;
+
 // A decision or second revise arrived while a revise's browser round trip is in flight.
 export class ProposalBusyError extends Error {}
 
@@ -81,13 +84,15 @@ export class ProposalStore {
   }
 
   // Rejects each pending proposal of board whose ghosts are all gone from the saved
-  // elements; one being revised is left for the next save. Returns the rejected ones.
+  // elements; one being revised, or proposed or revised within the grace period, is left
+  // for the next save. Returns the rejected ones.
   reconcile(
     board: string,
     elements: readonly {
       isDeleted?: boolean;
       customData?: Record<string, unknown>;
     }[],
+    nowMs = Date.now(),
   ): Promise<Proposal[]> {
     return this.serial(async () => {
       const ghosted = new Set(
@@ -97,7 +102,12 @@ export class ProposalStore {
       );
       const rejected: Proposal[] = [];
       for (const p of this.pending())
-        if (p.board === board && !ghosted.has(p.id) && !this.revising.has(p.id))
+        if (
+          p.board === board &&
+          !ghosted.has(p.id) &&
+          !this.revising.has(p.id) &&
+          nowMs - Date.parse(p.at) >= RECONCILE_GRACE_MS
+        )
           rejected.push(await this.decide(p.id, "rejected"));
       return rejected;
     });
