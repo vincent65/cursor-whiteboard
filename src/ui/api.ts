@@ -67,14 +67,15 @@ export async function saveDoc(name: string, text: string): Promise<void> {
 export const assetUrl = (asset: string): string => `/api/${asset}`;
 
 // Frames sent while the socket is not open wait for the next one to open.
-// By then the server that asked for queued responses is gone, and only the
-// newest selection still matters.
+// By then the server that asked for queued responses is gone. The newest
+// selection goes out on every open, since a restarted server has forgotten it.
 export function connectWs(onMessage: (m: ServerMessage) => void): {
   send(m: ClientMessage): void;
   close(): void;
 } {
   let socket: WebSocket | null = null;
   let queue: ClientMessage[] = [];
+  let selection: ClientMessage | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let delay = 500;
   let closed = false;
@@ -85,17 +86,11 @@ export function connectWs(onMessage: (m: ServerMessage) => void): {
     socket = ws;
     ws.onopen = () => {
       delay = 500;
-      const selection = queue
-        .filter((m) => m.type === "selection.changed")
-        .at(-1);
       for (const m of queue)
-        if (
-          m.type === "selection.changed"
-            ? m === selection
-            : m.type !== "response"
-        )
+        if (m.type !== "response" && m.type !== "selection.changed")
           ws.send(JSON.stringify(m));
       queue = [];
+      if (selection) ws.send(JSON.stringify(selection));
     };
     ws.onmessage = (ev) => onMessage(JSON.parse(String(ev.data)));
     ws.onclose = () => {
@@ -108,6 +103,7 @@ export function connectWs(onMessage: (m: ServerMessage) => void): {
 
   return {
     send(m) {
+      if (m.type === "selection.changed") selection = m;
       if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(m));
       else queue.push(m);
     },

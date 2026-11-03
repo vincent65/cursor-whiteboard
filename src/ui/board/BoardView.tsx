@@ -96,7 +96,9 @@ export function BoardView({
   // Loading a disk scene clears it, so a save pending from before is dropped.
   const latest = useRef<(Scene & { appState: AppState }) | null>(null);
   const lastSaved = useRef<SaveState>({ version: 0, appState: {} });
-  const reportedIds = useRef<string[]>([]);
+  // Null until the first report, so a fresh board announces itself even with
+  // nothing selected.
+  const reportedIds = useRef<string[] | null>(null);
   const send = useSendToServer();
   // Saves not yet answered, so the watcher echoing one is not a disk change.
   const inFlight = useRef(new Set<SaveState>());
@@ -153,7 +155,7 @@ export function BoardView({
     const s = latest.current;
     if (!s) return;
     const ids = selectedIds(s.appState, s.elements);
-    if (sameIds(ids, reportedIds.current)) return;
+    if (reportedIds.current && sameIds(ids, reportedIds.current)) return;
     reportedIds.current = ids;
     send({ type: "selection.changed", board: name, ids });
   }, 150);

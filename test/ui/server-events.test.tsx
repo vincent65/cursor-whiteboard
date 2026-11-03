@@ -130,6 +130,24 @@ test("a reconnect drops queued responses and keeps only the latest selection", (
   ]);
 });
 
+test("every reconnect sends the last selection again", () => {
+  vi.useFakeTimers();
+  render(
+    <ServerEventsProvider>
+      <Probe onMessage={() => {}} />
+    </ServerEventsProvider>,
+  );
+  const first = FakeSocket.last;
+  first.open();
+  expect(first.sent).toEqual([JSON.stringify(selection)]);
+  first.drop();
+  act(() => vi.advanceTimersByTime(500));
+  const second = FakeSocket.last;
+  expect(second).not.toBe(first);
+  second.open();
+  expect(second.sent).toEqual([JSON.stringify(selection)]);
+});
+
 test("a throwing subscriber does not starve the others", () => {
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
   const after = vi.fn();
