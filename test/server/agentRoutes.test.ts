@@ -745,6 +745,40 @@ test("compile writes every board's export before the send and skips a board that
   warn.mockRestore();
 });
 
+test("a failed compile does not clear a newer one", async () => {
+  const fake = stallingSdk();
+  const agent = await createAgent({
+    store,
+    hub: new WsHub(),
+    cwd: root,
+    sdk: fake.sdk,
+  });
+  let release = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const listDocs = vi
+    .spyOn(store, "listDocs")
+    .mockImplementationOnce(async () => {
+      await gate;
+      throw new Error("docs unreadable");
+    });
+
+  const first = agent.compile();
+  await vi.waitFor(() => expect(listDocs).toHaveBeenCalled());
+  // Stopping clears the compile still gathering its docs, so a new one can start.
+  await agent.close();
+  const id = await agent.compile();
+  await vi.waitFor(() => expect(fake.received).toHaveLength(1));
+  release();
+  await expect(first).rejects.toThrow("docs unreadable");
+
+  expect(await agent.compile()).toBe(id);
+  expect(fake.received).toHaveLength(1);
+  await sessionSaved();
+  await agent.close();
+});
+
 test("a compile whose send throws or whose run ends without a result can be sent again", async () => {
   const query = vi.fn(() =>
     Object.assign(

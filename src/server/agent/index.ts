@@ -266,7 +266,8 @@ export async function createAgent(deps: {
     send: (text, selection, proposalId) => send(text, selection, proposalId),
     compile() {
       // Kept as a promise so a compile racing this one's send gets the same id.
-      compiling ??= (async () => {
+      if (compiling) return compiling;
+      const p: Promise<string> = (async () => {
         await writeBoardExports();
         const docs = await Promise.all(
           (await store.listDocs()).map(async ({ name }) => ({
@@ -281,10 +282,12 @@ export async function createAgent(deps: {
           "Compile the plan into spec.md",
         );
       })().catch((err) => {
-        compiling = undefined;
+        // A run that ended meanwhile may have let a newer compile start; leave that one.
+        if (compiling === p) compiling = undefined;
         throw err;
       });
-      return compiling;
+      compiling = p;
+      return p;
     },
     async split() {
       if (splitting) throw new ExistsError("a split is already running");
