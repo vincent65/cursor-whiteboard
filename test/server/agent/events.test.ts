@@ -505,6 +505,17 @@ test("a proposal id past the row's length still marks the result as a proposal",
   ]);
 });
 
+test("the mapper forgets a tool once its result arrives", () => {
+  const { use, result, summary } = toolRows();
+  const json = [{ type: "text", text: '{"proposalId":"p_1"}' }];
+  use("t1", "mcp__blueprint__propose", { title: "Flow", ops: [] });
+  expect(summary(result("t1", json))).toEqual([
+    '"Flow" is drawn as ghosts for you to accept or reject',
+  ]);
+  // A second result for the same id finds no tool, so it is shown as it came.
+  expect(summary(result("t1", json))).toEqual(['{"proposalId":"p_1"}']);
+});
+
 test("a tool search's row names the tools it loaded", () => {
   const { use, result, summary } = toolRows();
   const ref = (tool_name: string) => ({ type: "tool_reference", tool_name });

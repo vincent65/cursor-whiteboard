@@ -245,6 +245,8 @@ export class SdkEventMapper {
           // Read whole, before the row cuts it short.
           const text = resultText(block.content);
           const use = this.#tools.get(block.tool_use_id);
+          // One result per use, so the map holds only tools still running.
+          this.#tools.delete(block.tool_use_id);
           const summary =
             (!block.is_error && readableResult(use, block.content, text)) ||
             this.#relativize(text).slice(0, SUMMARY_LIMIT);
