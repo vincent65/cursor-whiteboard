@@ -188,8 +188,14 @@ test("launch a run", async ({ page, start }) => {
   await expect(page).toHaveURL(/#\/sessions$/);
   const card = page.getByRole("article", { name: "login-page" });
   const status = card.getByRole("status");
-  // The fake ends the run before the sessions view first loads it, so Working is not
-  // asserted: the card reads Done on arrival.
+  // The run asks before pushing; Working before the ask lasts only until the ask
+  // arrives, so the held state is what the test waits on.
+  await expect(status).toHaveText("Needs you");
+  const ask = card.getByRole("alertdialog");
+  await expect(ask).toContainText("Allow Bash");
+  const allow = ask.getByRole("button", { name: "Allow once" });
+  await allow.hover();
+  await allow.click();
   await expect(status).toHaveText("Done");
   await expect(card.getByRole("link", { name: "PR" })).toHaveAttribute(
     "href",

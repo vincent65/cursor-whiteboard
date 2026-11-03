@@ -44,6 +44,14 @@
       "match": ".",
       "steps": [
         {
+          "do": "ask",
+          "tool": "Bash",
+          "input": {
+            "command": "git push -u origin HEAD",
+            "description": "Push the branch to open its PR"
+          }
+        },
+        {
           "do": "write",
           "path": "src/login.ts",
           "content": "export function signIn(user: string, password: string): boolean {\n  return user.length > 0 && password.length > 0;\n}\n"

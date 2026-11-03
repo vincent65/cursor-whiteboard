@@ -8,4 +8,4 @@ Each one runs Blueprint against the fake SDK scenario in `e2e/scenario.json`, so
 | --- | --- |
 | [01-plan-ask-accept.webm](01-plan-ask-accept.webm) | Create a board, draw two boxes, select them, ask in the panel, and accept the proposed flowchart. |
 | [02-compile-split.webm](02-compile-split.webm) | Compile the plan into a spec, follow its citation to the cited box on the board, and split the spec into two tasks. |
-| [03-launch-run.webm](03-launch-run.webm) | Launch the first task as a run on its own branch and worktree, and see it finish with a PR link. |
+| [03-launch-run.webm](03-launch-run.webm) | Launch the first task as a run on its own branch and worktree, allow the push it asks about, and see it finish with a PR link. |

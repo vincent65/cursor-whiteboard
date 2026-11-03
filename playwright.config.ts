@@ -20,7 +20,7 @@ export default defineConfig({
       name: "demo",
       use: {
         video: { mode: "on", size: viewport },
-        launchOptions: { slowMo: 250 },
+        launchOptions: { slowMo: 500 },
       },
     },
   ],
