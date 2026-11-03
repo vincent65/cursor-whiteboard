@@ -1,0 +1,7 @@
+- **Status:** DONE
+- **Commit:** `4979eb5 feat(proposals): operation schemas and the proposal log`
+- **Tests:** the 2 new test files fail first (module not found, `readProposals is not a function`) and then all 17 of their tests pass. `pnpm check` is clean with 140 of 140 tests passing.
+- **Concerns:** none.
+  - I had to make two small changes to the brief's file tests so they run. They call `store.init()` first, because the `.blueprint/` folder doesn't exist yet. The test op uses `"delete" as const`, which the type check requires.
+  - If any line in the log is corrupt, `readProposals` throws an error and returns nothing. That includes a line half-written during a crash. This is what the brief asks for.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m2-proposals/task-1-report.md`

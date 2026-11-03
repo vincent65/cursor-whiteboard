@@ -1,0 +1,13 @@
+- Node 22.1 or later; TypeScript strict; ESM; server code uses NodeNext resolution with explicit `.js` extensions on relative imports.
+- No API key anywhere. The SDK runs on the user's Claude Code login; Blueprint never reads, stores, or forwards credentials.
+- Claude never edits board files directly: proposals are the only write path, and the `PreToolUse` guard from milestone 1 stays.
+- AI edits are never applied without an accept step: every operation lands as a ghost first, and only `accepted` makes it real.
+- Ghost styling: added elements at `opacity: 40` with `strokeStyle: "dashed"` and the proposal id appended to `groupIds` as the outermost group; updated elements with `strokeStyle: "dashed"`; deleted elements at `opacity: 40` with `strokeStyle: "dashed"` and `strokeColor: "#e03131"`. Ghosts are not locked.
+- Every element Blueprint creates or accepts carries `customData.origin: "ai"` and `customData.proposalId`.
+- Placement: beside the anchor's bounding box with an 80 pixel gap to the right, top-aligned; several additions in one proposal stack downward with a 40 pixel gap; with nothing to anchor on, centered in the viewport.
+- Diagrams must be flowchart, sequence, class, ER, or state Mermaid; anything the importer turns into an image is rejected with a message naming those five kinds.
+- All agent output reaches the browser as typed WebSocket messages; commands go through HTTP routes so they are testable with `app.request()`.
+- No "Claude Code" branding in UI copy; the panel is titled `Claude`.
+- Every UI test file that renders components or hooks starts with `// @vitest-environment jsdom`.
+- Commit messages use conventional commits and carry no co-author trailer.
+- `pnpm check` (both typechecks, Biome, Vitest) stays pristine; `pnpm build` warns only about the pre-existing chunk size.

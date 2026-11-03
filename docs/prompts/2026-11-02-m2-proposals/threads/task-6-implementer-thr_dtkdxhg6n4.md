@@ -1,0 +1,9 @@
+- **Status:** DONE_WITH_CONCERNS
+- **Commit:** `df61855 feat(ui): render Mermaid and notes into Excalidraw elements`
+- **Tests:** the 4 new tests in `test/ui/mermaid.test.ts` pass, and `pnpm check` passes cleanly (31 files, 194 tests). `pnpm build` warns only about the old chunk size.
+- **Concerns:**
+  - I had to change `vitest.config.ts`, which is not in the brief's file list. It now has `server.deps.inline: ["@excalidraw/excalidraw"]`. This is the first test that loads Excalidraw's code, and without this setting Excalidraw's import of `roughjs/bin/rough` fails to resolve in Vitest.
+  - The test also needs a `FontFace` stub (`globalThis.FontFace = class {}`) next to the canvas stub, because the test environment (jsdom) has no `FontFace`. The canvas stub alone makes the importer work, but not `convertToExcalidrawElements`.
+  - No Vite setting was needed. I checked a production build and the dev server with a temporary import, then removed it.
+  - `pnpm add` had to run outside the sandbox because the global pnpm store isn't writable inside it. Stopping the test dev server also needed `kill` outside the sandbox.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m2-proposals/task-6-report.md`

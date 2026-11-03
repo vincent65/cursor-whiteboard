@@ -1,0 +1,8 @@
+- **Status:** DONE_WITH_CONCERNS
+- **Commits:**
+  - `0f7adb1 fix(ui): refuse cross-proposal targets and snapshot original label text`
+  - earlier: `d86a94c fix(ui): proposal group outermost and keep stroke style on accept`
+  - earlier: `5d72597 feat(ui): ghost placement, application, and decisions as pure functions`
+- **Tests:** `ghosts.test.ts` passes 17 of 17. The 4 new tests failed first, then passed after the fix. `pnpm check` passes cleanly: 30 files, 190 tests.
+- **Concern:** `pendingProposals` now counts only elements without a `containerId`, as ruled. A proposal whose only op updates a bound text element directly still appears, but with all counts at 0.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m2-proposals/task-5-report.md` (new "Fix round 1" section)

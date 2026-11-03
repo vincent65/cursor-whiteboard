@@ -1,0 +1,7 @@
+- **Status:** DONE_WITH_CONCERNS
+- **Commit:** `3b81289 feat(proposals): the proposal store replays the log and tracks pending proposals`
+- **Tests:** the 6 proposal-store tests pass, and `pnpm check` is clean (29 files, 146 tests, no type or Biome errors).
+- **Concerns:**
+  - I added something the brief didn't ask for: `proposed`, `revised` and `decided` now run one at a time. Without that, two `decided` calls at once on the same proposal (for example a double-clicked Accept) would both write `accepted` to the log, queue two notes and apply the proposal twice. A test covers this.
+  - Also beyond the brief: `newId()` records each id it hands out, so two calls before a `proposed()` can't return the same id.
+- **Report:** /Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m2-proposals/task-2-report.md

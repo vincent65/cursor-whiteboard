@@ -1,0 +1,5 @@
+- **Status:** DONE_WITH_CONCERNS
+- **Commit:** `e5a3485 fix(proposals): survive a torn log tail and close the revise/decide window`
+- **Tests:** `pnpm check` passes cleanly (both typechecks, Biome, 173/173 tests in 29 files); RED then GREEN shown for findings 1 and 2.
+- **Concern:** For finding 1 I did not follow the ruling's "write a leading `\n`" when the last line is torn. If I add the `\n`, the torn line stays in the file but is no longer last, so the next read fails on it. The ruling's own restart test (the appended proposal is pending after a second `createAgent`) could not pass. Instead, `appendProposal` cuts off a torn last line that isn't valid JSON. It writes a leading `\n` only when the unfinished last line is valid JSON. The cut line was never loaded, so nothing is lost. If you want the `\n` version anyway, `readProposals` would also have to skip torn lines in the middle of the file, which the ruling doesn't allow.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m2-proposals/task-4-report.md` (new "Fix round 1" section)

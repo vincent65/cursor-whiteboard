@@ -1,0 +1,7 @@
+- **Status:** DONE
+- **Commit:** `f783aab feat(export): list connected arrows with ids, and typed API errors`
+- **Tests:** `pnpm check` is clean: both typechecks, Biome, and 201 of 201 tests across 34 files pass. All 4 new tests failed before the change and pass now. `pnpm build` warns only about the chunk size, as before.
+- **Concerns:**
+  - I did not test the new decision order against a live server, so the case of rejecting or accepting while Claude revises (409) is untested end to end.
+  - The decision order has no `BoardView` test; the error type it relies on is covered in `test/ui/api.test.ts`.
+- **Report:** [task-8b-report.md](/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m2-proposals/task-8b-report.md)

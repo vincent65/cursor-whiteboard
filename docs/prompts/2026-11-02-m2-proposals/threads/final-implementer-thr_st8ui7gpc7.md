@@ -1,0 +1,18 @@
+- **Status:** DONE_WITH_CONCERNS
+- **Commits:**
+  - `5a92a2e` fix(export): board reads leave out add ghosts and show update ghosts as before
+  - `79fafab` fix(ui): disable a proposal's buttons while its decision is in flight
+  - `c28fd2a` fix(ui): reject a proposal whose ghosts were removed by hand
+  - `2fc8685` fix(ui): clear the refine target only if it still names the one sent or decided
+  - `882150d` fix(ui): accepting a delete unbinds the live arrows that end on it
+  - `8a6e7d7` test(ui): pin the applyProposal to restoreElements seam
+  - `33e3069` fix(ui): an empty files object from the Mermaid importer is not an image
+  - `a7c678d` fix(agent): the refine note carries the proposal's current ops
+  - `680a296` refactor(export): rename the loop-local arrow string to link
+  - `dceb14a` fix(agent): decision notes on a send that never runs ride on the next one
+- **Tests:** `pnpm check` passes (both typechecks, Biome, and 234/234 tests in 35 files) and `pnpm build` passes; the export goldens are unchanged.
+- **Concerns:**
+  - `BoardView` has no component test, so the 1 s reconcile timer, its post, and the in-flight bookkeeping for findings 2 and 3 were checked by reading the code, not run in a browser or a test.
+  - If the user deletes ghosts and leaves the board within that 1 s, the timer is cleared and the proposal stays pending on the server.
+  - For finding 5, saved notes are dropped when their send's result arrives (not when the next send succeeds), so a held send dropped by Stop still gets its notes back.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m2-proposals/final-fix-report.md`

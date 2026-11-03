@@ -1,0 +1,5 @@
+- **Status:** DONE
+- **Commit:** `9dac292 fix(ui): test and guard the bound-arrow listing and arrow ends`
+- **Tests:** `pnpm check` is clean after one rerun (222/222 tests pass); the first run caught a lint error in my new test, now fixed. The two covering test files pass (33/33).
+- **Concerns:** none. The deferred item is untouched.
+- **Report:** `.superpowers/sdd/2026-11-02-m2-proposals/task-11-report.md`, with a "Fix round 1" section added.

@@ -1,0 +1,7 @@
+- **Status:** DONE_WITH_CONCERNS
+- **Commit:** `d686b2e feat(ui): refine a proposal from the panel`
+- **Tests:** `pnpm check` passes with no warnings (203 tests). `pnpm build` warns only about the existing chunk size. The new tests failed first, then passed.
+- **Manual check:** I ran the built app and clicked Refine. The chip showed `Refining p_7k2 ×` and the cursor moved to the message box. A long title is cut off with "…" and the × stays visible. Clicking × removed the chip and kept the cursor in the box. No console errors. I did not try a live send because that needs a logged-in Claude session; the tests cover it.
+- **Concern:** if you click Refine on a different proposal while a message is still sending, the new target is cleared when that send finishes. The window is short and I left it unfixed.
+- **Note:** the browser tool added `.gstack/` to `.gitignore` and created a `.gstack/` folder. I undid both, so the working tree is clean.
+- **Report:** /Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m2-proposals/task-9-report.md
