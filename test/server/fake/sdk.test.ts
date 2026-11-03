@@ -266,6 +266,63 @@ describe("query", () => {
     ]);
   });
 
+  test("a write fills {{board:<name>:first}} with that board's first labelled shape at write time", async () => {
+    const cwd = join(dir, "repo");
+    const boards = join(cwd, ".blueprint", "boards");
+    await mkdir(boards, { recursive: true });
+    const rect = (id: string, label?: string) => [
+      {
+        id,
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 50,
+        ...(label && { boundElements: [{ id: `${id}-t`, type: "text" }] }),
+      },
+      ...(label
+        ? [
+            {
+              id: `${id}-t`,
+              type: "text",
+              x: 0,
+              y: 0,
+              width: 50,
+              height: 25,
+              text: label,
+              containerId: id,
+            },
+          ]
+        : []),
+    ];
+    const board = (elements: unknown[]) =>
+      JSON.stringify({ type: "excalidraw", version: 2, elements });
+    await writeFile(
+      join(boards, "main.excalidraw.json"),
+      board([...rect("blank"), ...rect("drawn", "Login"), ...rect("b", "B")]),
+    );
+    const sdk = await fake({
+      run: [
+        {
+          match: ".",
+          steps: [
+            {
+              do: "write",
+              path: "spec.md",
+              content:
+                "[[board:main#{{board:main:first}}]] [[board:main#{{board:main:first}}]] [[board:gone#{{board:gone:first}}]]",
+            },
+          ],
+        },
+      ],
+    });
+    await collect(sdk.query({ prompt: prompts("go"), options: { cwd } }));
+    // A board that does not exist leaves its placeholder, so the citation reads as dropped.
+    expect(await readFile(join(cwd, "spec.md"), "utf8")).toBe(
+      "[[board:main#drawn]] [[board:main#drawn]] [[board:gone#{{board:gone:first}}]]",
+    );
+  });
+
   test("an ask rule goes through canUseTool and reports allow or deny", async () => {
     const canUseTool = vi
       .fn<NonNullable<Options["canUseTool"]>>()

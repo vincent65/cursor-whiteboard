@@ -13,6 +13,8 @@ import type {
   SessionMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
+import { excalidrawToBoardGraph } from "../../export/index.js";
+import { FileStore } from "../files.js";
 import { DEFAULT_COST_USD, loadScenario, type Step } from "./scenario.js";
 
 export type FakeSdk = {
@@ -47,6 +49,22 @@ function toolsOf(server: McpServerConfig | undefined) {
       _registeredTools: Record<string, Registered>;
     }
   )._registeredTools;
+}
+
+const FIRST_NODE = /\{\{board:([^:}]+):first\}\}/g;
+
+// Fills each {{board:<name>:first}} with the id of that board's first labelled shape
+// under cwd, so a scenario can cite a board the user drew; one it cannot resolve stays.
+async function fillBoards(cwd: string, text: string): Promise<string> {
+  const store = new FileStore(cwd);
+  const ids = new Map<string, string | undefined>();
+  for (const [, name] of text.matchAll(FIRST_NODE)) {
+    if (ids.has(name)) continue;
+    const board = await store.readBoard(name).catch(() => undefined);
+    const nodes = board ? excalidrawToBoardGraph(board, name).nodes : [];
+    ids.set(name, nodes.find((n) => n.label.trim())?.id);
+  }
+  return text.replace(FIRST_NODE, (all, name) => ids.get(name) ?? all);
 }
 
 const textOf = (content: SDKUserMessage["message"]["content"]) =>
@@ -225,18 +243,20 @@ export function createFakeSdk(scenarioPath: string): FakeSdk {
       ): AsyncGenerator<SDKMessage> {
         const id = `toolu_${randomUUID()}`;
         const path = step.do === "write" ? resolve(cwd, step.path) : "";
+        const content =
+          step.do === "write" ? await fillBoards(cwd, step.content) : "";
         const [name, input] =
           step.do === "tool"
             ? [`mcp__blueprint__${step.name}`, step.input]
             : step.do === "write"
-              ? ["Write", { file_path: path, content: step.content }]
+              ? ["Write", { file_path: path, content }]
               : [step.tool, step.input];
         yield assistant([{ type: "tool_use", id, name, input }]);
         const r =
           step.do === "tool"
             ? await callTool(step.name, step.input)
             : step.do === "write"
-              ? await write(path, step.content)
+              ? await write(path, content)
               : await ask(step.tool, step.input, id, ac);
         yield out(
           userMsg([

@@ -21,7 +21,8 @@ const Step = z.discriminatedUnion("do", [
     name: z.string(),
     input: z.record(z.string(), z.unknown()),
   }),
-  // Relative to the session's cwd.
+  // Relative to the session's cwd. {{board:<name>:first}} in content becomes the id
+  // of that board's first labelled shape when the step runs.
   z.object({ do: z.literal("write"), path: z.string(), content: z.string() }),
   // Goes through canUseTool.
   z.object({

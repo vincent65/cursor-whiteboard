@@ -99,7 +99,7 @@ The server prints `Using the fake SDK from` and the scenario's full path before 
 From another repository, give the full path instead, as in `BLUEPRINT_FAKE_SDK="$HOME/blueprint/e2e/scenario.json" blueprint`.
 
 The scenario answers every question with the same Login and Home flowchart, compiles a fixed spec, splits it into two tasks, and has each run write `src/login.ts`, ask to push, and print an example PR link.
-The spec cites a box with the ID `login` on a board named `main`, which a board you draw does not have, so the spec reports that citation as dropped; the [compile and split](docs/demo/02-compile-split.webm) video shows it resolving.
+The spec cites the first labelled shape on a board named `main`, so name your board `main` and the spec's citation chip opens that shape.
 Allowing the push runs nothing, but a launched run does make a real branch and worktree.
 When you are done, remove what the walkthrough made in the clone:
 

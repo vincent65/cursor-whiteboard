@@ -6,11 +6,11 @@
         {
           "do": "write",
           "path": ".blueprint/spec.md",
-          "content": "# Spec\n\n## Goals\n\n- A user signs in on the Login page and lands on Home. [[board:main#login]]\n\n## Acceptance criteria\n\n- Signing in with a valid account opens Home.\n- A wrong password keeps the user on Login with an error.\n"
+          "content": "# Spec\n\n## Goals\n\n- A user signs in on the Login page and lands on Home. [[board:main#{{board:main:first}}]]\n\n## Acceptance criteria\n\n- Signing in with a valid account opens Home.\n- A wrong password keeps the user on Login with an error.\n"
         },
         {
           "do": "say",
-          "text": "Wrote .blueprint/spec.md with Goals and Acceptance criteria.\nThe goal cites the Login box on the main board."
+          "text": "Wrote .blueprint/spec.md with Goals and Acceptance criteria.\nThe goal cites the first labelled shape on the main board."
         }
       ],
       "costUsd": 0.02
@@ -58,7 +58,7 @@
         },
         {
           "do": "say",
-          "text": "Added src/login.ts and committed it on this branch.\nhttps://github.com/example/blueprint-demo/pull/1\nThe sign-in check is a stub; the real check is left to the auth service."
+          "text": "Wrote src/login.ts on this branch.\nhttps://github.com/example/blueprint-demo/pull/1\nThe sign-in check is a stub; the real check is left to the auth service."
         }
       ],
       "costUsd": 0.05
