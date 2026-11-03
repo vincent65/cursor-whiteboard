@@ -805,26 +805,30 @@ test("compile skips a doc it cannot read, with a warning, and sends the rest", a
   // Listed like a doc, but reading it fails.
   await mkdir(join(store.dir, "docs", "broken.md"));
   const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-  const fake = echoSdk();
-  const agent = await createAgent({
-    store,
-    hub: new WsHub(),
-    cwd: root,
-    runs: new RunStore(store),
-    sdk: fake.sdk,
-  });
+  try {
+    const fake = echoSdk();
+    const agent = await createAgent({
+      store,
+      hub: new WsHub(),
+      cwd: root,
+      runs: new RunStore(store),
+      sdk: fake.sdk,
+    });
 
-  await agent.compile();
-  await vi.waitFor(() => expect(fake.received).toHaveLength(1));
-  expect(fake.received[0]).toBe(
-    compileMessage([], [{ file: "api.md", markdown: "# API\n" }]),
-  );
-  expect(warn).toHaveBeenCalledWith(
-    expect.stringMatching(/^skipping doc broken in the compile: /),
-  );
-  await sessionSaved();
-  await agent.close();
-  warn.mockRestore();
+    await agent.compile();
+    await vi.waitFor(() => expect(fake.received).toHaveLength(1));
+    expect(fake.received[0]).toBe(
+      compileMessage([], [{ file: "api.md", markdown: "# API\n" }]),
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(/^skipping doc broken in the compile: /),
+    );
+    await sessionSaved();
+    await agent.close();
+  } finally {
+    // A failed expectation must not leave console.warn silenced for later tests.
+    warn.mockRestore();
+  }
 });
 
 test("a failed compile does not clear a newer one", async () => {
