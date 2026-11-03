@@ -69,6 +69,13 @@ Rows inside a region are 8px apart, regions are padded 16px, and full pages are 
 
 There is one shadow, `--shadow-float`, and only the proposals bar uses it, because only it floats over the canvas.
 
+## Layout
+
+The layout is built for a window at least 1280 by 800.
+From 1360 px wide the rail is 240px and the Claude panel 360px.
+Below 1360 px they narrow to 200px and 320px, so at 1280 the board is 760px wide.
+Excalidraw keeps its desktop toolbar and properties panel only while the board is at least 730px wide, so a window under 1250 px gets its compact phone layout.
+
 ## Components
 
 ### Ghost styling and the proposals bar

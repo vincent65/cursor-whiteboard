@@ -81,6 +81,15 @@
   --pane-width: 360px;
 }
 
+/* Below 1360 px the rail and panel narrow so the board stays at least 730 px
+   wide, where Excalidraw keeps its desktop layout: 760 px at 1280. */
+@media (max-width: 1359px) {
+  :root {
+    --rail-width: 200px;
+    --pane-width: 320px;
+  }
+}
+
 *,
 *::before,
 *::after {
