@@ -65,3 +65,23 @@ test("renders nothing without proposals", () => {
   );
   expect(container).toBeEmptyDOMElement();
 });
+
+test("the bar centers in the board area right of the inset it is given", () => {
+  const { rerender } = render(
+    <ProposalsBar items={items} onDecide={vi.fn()} onRefine={vi.fn()} />,
+  );
+  const bar = () =>
+    screen
+      .getByText("Claude proposed Login flow · 2 added")
+      .closest(".proposals-bar") as HTMLElement;
+  expect(bar().style.getPropertyValue("--bar-inset")).toBe("0px");
+  rerender(
+    <ProposalsBar
+      items={items}
+      inset={232}
+      onDecide={vi.fn()}
+      onRefine={vi.fn()}
+    />,
+  );
+  expect(bar().style.getPropertyValue("--bar-inset")).toBe("232px");
+});

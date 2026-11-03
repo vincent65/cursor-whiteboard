@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import type { CSSProperties, JSX } from "react";
 import type { Decision } from "../../shared/proposals";
 import type { Counts } from "./ghosts";
 
@@ -17,10 +17,16 @@ export function ProposalsBar(props: {
   items: { id: string; title: string | null; counts: Counts; busy: boolean }[];
   onDecide(id: string, decision: Decision): void;
   onRefine(id: string): void;
+  // Pixels Excalidraw's properties panel covers on the board's left; the bar centers
+  // in the rest.
+  inset?: number;
 }): JSX.Element | null {
   if (!props.items.length) return null;
   return (
-    <div className="proposals-bar">
+    <div
+      className="proposals-bar"
+      style={{ "--bar-inset": `${props.inset ?? 0}px` } as CSSProperties}
+    >
       {props.items.map(({ id, title, counts, busy }) => (
         <div className="proposals-row" key={id}>
           <span className="proposals-text">

@@ -643,12 +643,13 @@ pre {
   position: absolute;
   /* Above Excalidraw's footer (zoom, undo, help), which spans 16px to 52px. */
   bottom: 64px;
-  left: 50%;
+  /* Centered in the board right of the properties panel, which --bar-inset covers. */
+  left: calc(50% + var(--bar-inset, 0px) / 2);
   z-index: 10;
   display: flex;
   flex-direction: column;
   gap: var(--space);
-  max-width: calc(100% - var(--space) * 4);
+  max-width: calc(100% - var(--bar-inset, 0px) - var(--space) * 2);
   padding: var(--space) var(--space) var(--space) calc(var(--space) * 2);
   transform: translateX(-50%);
   background: var(--ghost-tint);

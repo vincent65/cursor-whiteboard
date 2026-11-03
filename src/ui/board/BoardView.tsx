@@ -225,6 +225,8 @@ export function BoardView({
   // Pending proposals' titles; ghosts on the board carry only the id.
   const [titles, setTitles] = useState(new Map<string, string | null>());
   const { setTarget } = useRefine();
+  // What Excalidraw's properties panel covers on the left, as focus keeps clear.
+  const [inset, setInset] = useState(0);
   // Decisions awaiting the server; their rows stay disabled until each settles.
   const [deciding, setDeciding] = useState<ReadonlySet<string>>(new Set());
 
@@ -497,6 +499,7 @@ export function BoardView({
   ) => {
     latest.current = { elements, appState, files };
     setLoaded(true);
+    setInset(leftInset(appState, appState.viewModeEnabled));
     reportSelection();
     const version = getSceneVersion(elements);
     if (version !== pendingVersion.current) {
@@ -553,6 +556,7 @@ export function BoardView({
         }))}
         onDecide={decide}
         onRefine={(id) => setTarget({ id, title: titles.get(id) ?? null })}
+        inset={inset}
       />
     </div>
   );
