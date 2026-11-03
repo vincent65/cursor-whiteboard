@@ -18,11 +18,17 @@ const theme = EditorView.theme({
   ".cm-line": { padding: "0 calc(var(--space) * 2)" },
 });
 
-// Swaps in text from disk; the remote annotation keeps it from counting as an edit.
-function replace(v: EditorView, text: string) {
+// Swaps in text from disk. The remote annotation keeps it from counting as an
+// edit, and keeping it out of history stops undo from bringing back the text
+// the disk replaced.
+export function replaceFromDisk(v: EditorView, text: string) {
   v.dispatch({
     changes: { from: 0, to: v.state.doc.length, insert: text },
-    annotations: Transaction.remote.of(true),
+    selection: { anchor: Math.min(v.state.selection.main.head, text.length) },
+    annotations: [
+      Transaction.remote.of(true),
+      Transaction.addToHistory.of(false),
+    ],
   });
 }
 
@@ -129,7 +135,7 @@ export function DocView({
       diskText,
     });
     if (action === "reload") {
-      replace(v, diskText);
+      replaceFromDisk(v, diskText);
       dirty.current = false;
     }
     setConflict(action === "banner" ? diskText : null);
@@ -142,7 +148,7 @@ export function DocView({
 
   const takeTheirs = () => {
     if (conflict !== null && view.current) {
-      replace(view.current, conflict);
+      replaceFromDisk(view.current, conflict);
       dirty.current = false;
     }
     setConflict(null);

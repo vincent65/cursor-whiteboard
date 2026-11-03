@@ -246,6 +246,9 @@ export function BoardView({
   useServerEvent(async (m) => {
     if (m.type !== "file-changed" || m.kind !== "board" || m.name !== name)
       return;
+    // Let pending saves settle first, so the read and the comparison below
+    // see the state they left behind rather than one caught mid-save.
+    await queue.current;
     const board = await api.getBoard(name).catch(() => null);
     if (!board) return;
     const disk = saveState(
