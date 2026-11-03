@@ -257,6 +257,9 @@ export class RunManager {
         options: {
           systemPrompt: { type: "preset", preset: "claude_code" },
           permissionMode: record.permissionMode,
+          // The SDK passes bypassPermissions on to the CLI only with this flag.
+          allowDangerouslySkipPermissions:
+            record.permissionMode === "bypassPermissions",
           hooks: {
             PreToolUse: [
               {

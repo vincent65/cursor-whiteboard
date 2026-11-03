@@ -170,6 +170,8 @@ test("launch creates a worktree, a working record, and sends the run prompt", as
   expect(options).toMatchObject({
     cwd: worktree,
     permissionMode: "bypassPermissions",
+    // The SDK passes bypassPermissions on only with this flag.
+    allowDangerouslySkipPermissions: true,
     systemPrompt: { type: "preset", preset: "claude_code" },
   });
   expect(options?.systemPrompt).not.toHaveProperty("append");
@@ -368,6 +370,8 @@ test("permission asks mark the run needs_you and stop cancels them", async () =>
     permissionMode: "default",
   });
   await vi.waitFor(() => expect(runs.run(run.id)?.sessionId).toBe("sess-p"));
+  // Only a bypassPermissions run sets the flag.
+  expect(queries[0].options?.allowDangerouslySkipPermissions).toBe(false);
   // The SDK asks, as the CLI would for a tool the mode does not allow.
   const canUseTool = queries[0].options?.canUseTool as CanUseTool;
   const answer = canUseTool(
