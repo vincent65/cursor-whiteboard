@@ -1,5 +1,12 @@
 import { readFileSync } from "node:fs";
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -785,6 +792,34 @@ test("compile writes every board's export before the send and skips a board that
   await expect(
     readFile(join(store.dir, "export", "boards", "broken.md"), "utf8"),
   ).rejects.toThrow(/ENOENT/);
+  await agent.close();
+  warn.mockRestore();
+});
+
+test("compile skips a doc it cannot read, with a warning, and sends the rest", async () => {
+  await store.createDoc("api");
+  await store.writeDoc("api", "# API\n");
+  // Listed like a doc, but reading it fails.
+  await mkdir(join(store.dir, "docs", "broken.md"));
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const fake = echoSdk();
+  const agent = await createAgent({
+    store,
+    hub: new WsHub(),
+    cwd: root,
+    runs: new RunStore(store),
+    sdk: fake.sdk,
+  });
+
+  await agent.compile();
+  await vi.waitFor(() => expect(fake.received).toHaveLength(1));
+  expect(fake.received[0]).toBe(
+    compileMessage([{ file: "api.md", markdown: "# API\n" }]),
+  );
+  expect(warn).toHaveBeenCalledWith(
+    expect.stringMatching(/^skipping doc broken in the compile: /),
+  );
+  await sessionSaved();
   await agent.close();
   warn.mockRestore();
 });

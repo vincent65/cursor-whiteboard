@@ -268,12 +268,25 @@ export async function createAgent(deps: {
       if (compiling) return compiling;
       const p: Promise<string> = (async () => {
         await writeBoardExports();
-        const docs = await Promise.all(
-          (await store.listDocs()).map(async ({ name }) => ({
-            file: `${name}.md`,
-            markdown: await store.readDoc(name),
-          })),
-        );
+        // One unreadable doc leaves the compile to the rest, as a broken board does.
+        const docs = (
+          await Promise.all(
+            (
+              await store.listDocs()
+            ).map(async ({ name }) => {
+              try {
+                return [
+                  { file: `${name}.md`, markdown: await store.readDoc(name) },
+                ];
+              } catch (err) {
+                console.warn(
+                  `skipping doc ${name} in the compile: ${(err as Error).message}`,
+                );
+                return [];
+              }
+            }),
+          )
+        ).flat();
         return send(compileMessage(docs), undefined, undefined, COMPILE_LABEL);
       })().catch((err) => {
         // A run that ended meanwhile may have let a newer compile start; leave that one.
