@@ -4,6 +4,7 @@ import {
   CaptureUpdateAction,
   Excalidraw,
   exportToBlob,
+  getCommonBounds,
   getNonDeletedElements,
   getSceneVersion,
   getVisibleSceneBounds,
@@ -26,7 +27,7 @@ import { useDebounced } from "../hooks/useDebounced";
 import { useRefine } from "../panel/refine";
 import { selectionLabels, useSetSelection } from "../selection";
 import { useSendToServer, useServerEvent } from "../server-events";
-import { focusTargets } from "./focus";
+import { fitsInView, focusTargets } from "./focus";
 import {
   applyProposal,
   type Counts,
@@ -46,6 +47,12 @@ import {
   toSaveBody,
 } from "./scene";
 import { blobToDataUrl, sameIds, selectedIds } from "./snapshot";
+
+// Width Excalidraw's properties panel covers on the canvas's left edge; it
+// opens whenever something is selected outside view mode.
+// ponytail: fixed, measured at 0.18.1's desktop layout; read the panel's
+// DOM width if the phone layout (panel at the bottom) ever matters.
+const PROPERTIES_PANEL_WIDTH = 232;
 
 type Scene = {
   elements: readonly ExcalidrawElement[];
@@ -336,7 +343,9 @@ export function BoardView({
   }, [name]);
 
   // Selecting is not an undo step. Ids the board no longer has are skipped,
-  // so a stale citation opens the board with nothing selected.
+  // so a stale citation opens the board with nothing selected. Focus never
+  // zooms in: targets that fit are centered at the current zoom, and only
+  // targets that do not fit are zoomed out to.
   useEffect(() => {
     const ex = excalidraw.current;
     if (!loaded || !ex) return;
@@ -351,10 +360,22 @@ export function BoardView({
       },
       captureUpdate: CaptureUpdateAction.NEVER,
     });
-    ex.scrollToContent(
-      elements.filter((e) => ids.includes(e.id)),
-      { fitToViewport: true, animate: true },
-    );
+    const targets = elements.filter((e) => ids.includes(e.id));
+    const { width, height, zoom, viewModeEnabled } = ex.getAppState();
+    const left = viewModeEnabled ? 0 : PROPERTIES_PANEL_WIDTH;
+    const [x1, y1, x2, y2] = getCommonBounds(targets);
+    const box = { width: x2 - x1, height: y2 - y1 };
+    // Plain centering ignores canvasOffsets, so centering at the current zoom
+    // goes through the fit with the zoom pinned.
+    const fits = fitsInView(box, { width: width - left, height }, zoom.value);
+    ex.scrollToContent(targets, {
+      fitToViewport: true,
+      animate: true,
+      canvasOffsets: { left },
+      ...(fits
+        ? { minZoom: zoom.value, maxZoom: zoom.value }
+        : { viewportZoomFactor: 0.8 }),
+    });
   }, [loaded, focus]);
 
   const apply = useCallback((loaded: Scene) => {
