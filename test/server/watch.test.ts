@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -93,4 +93,21 @@ test("watcher reports the spec and task files", async () => {
   const task = eventFor("01-auth");
   await writeFile(join(store.dir, "tasks", "01-auth.md"), "---");
   expect(await task).toEqual({ kind: "task", name: "01-auth" });
+});
+
+test("watcher reports deleted boards, docs, the spec, and task files", async () => {
+  const files = [
+    ["boards/main.excalidraw.json", { kind: "board", name: "main" }],
+    ["docs/b.md", { kind: "doc", name: "b" }],
+    ["spec.md", { kind: "spec", name: "spec" }],
+    ["tasks/01-auth.md", { kind: "task", name: "01-auth" }],
+  ] as const;
+  for (const [file, ev] of files) {
+    const added = eventFor(ev.name);
+    await writeFile(join(store.dir, file), "x");
+    await added;
+    const removed = eventFor(ev.name);
+    await unlink(join(store.dir, file));
+    expect(await removed).toEqual(ev);
+  }
 });

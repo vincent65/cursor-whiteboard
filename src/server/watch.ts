@@ -21,7 +21,7 @@ function classify(path: string): Change | undefined {
       return { kind, name: file.slice(0, -suffix.length) };
 }
 
-// Reports external edits to boards, docs, the spec, and task files; echoes of
+// Reports external edits and deletions of boards, docs, the spec, and task files; echoes of
 // the store's own writes are skipped by content so a client saving a file is
 // not told to reload it.
 export function watchPlan(
@@ -51,6 +51,6 @@ export function watchPlan(
   const onEvent = (path: string) => {
     report(path).catch((err) => console.error("watch report failed", err));
   };
-  watcher.on("add", onEvent).on("change", onEvent);
+  watcher.on("add", onEvent).on("change", onEvent).on("unlink", onEvent);
   return () => watcher.close();
 }
