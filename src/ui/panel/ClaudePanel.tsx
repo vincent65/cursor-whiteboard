@@ -36,6 +36,8 @@ export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
   const [pending, setPending] = useState<PendingPermission[]>([]);
   const [text, setText] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
+  // Set from a Stop click until the session leaves working; an interrupt takes seconds.
+  const [stopping, setStopping] = useState(false);
   const selection = useSelection();
   const { target, setTarget } = useRefine();
   // A live status heard before the restored state arrives is the newer one.
@@ -78,6 +80,8 @@ export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
       // The server reports needs_you while any ask waits, so any other status
       // means every ask was settled, here or in another tab.
       if (m.status !== "needs_you") setPending([]);
+      if (m.status !== "working" && m.status !== "needs_you")
+        setStopping(false);
     } else if (m.type === "agent.event") {
       const event = m.event;
       setItems((list) => reduceTranscript(list, event));
@@ -129,8 +133,13 @@ export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
     void send();
   };
 
-  const stop = () =>
-    api.agentInterrupt().catch((err: Error) => setFailure(err.message));
+  const stop = () => {
+    setStopping(true);
+    api.agentInterrupt().catch((err: Error) => {
+      setStopping(false);
+      setFailure(err.message);
+    });
+  };
 
   const compile = () => {
     setFailure(null);
@@ -172,10 +181,10 @@ export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
         <button
           type="button"
           className="button"
-          disabled={!busy}
+          disabled={!busy || stopping}
           onClick={stop}
         >
-          Stop
+          {stopping ? "Stopping…" : "Stop"}
         </button>
       </header>
       <div className="transcript" ref={transcript} onScroll={onScroll}>

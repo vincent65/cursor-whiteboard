@@ -396,3 +396,27 @@ test("the input asks about the board only on a board route", async () => {
   );
   expect(screen.getByPlaceholderText("Ask Claude")).toBeInTheDocument();
 });
+
+test("Stop reads Stopping… from the click until a status other than working or needs_you arrives", async () => {
+  vi.mocked(api.agentState).mockResolvedValue(state({ status: "working" }));
+  renderPanel();
+  const stop = await screen.findByRole("button", { name: "Stop" });
+  await waitFor(() => expect(stop).toBeEnabled());
+  await userEvent.click(stop);
+  expect(stop).toHaveTextContent("Stopping…");
+  expect(stop).toBeDisabled();
+
+  emit({ type: "agent.status", status: "needs_you" });
+  expect(stop).toHaveTextContent("Stopping…");
+  emit({ type: "agent.status", status: "idle" });
+  expect(stop).toHaveTextContent("Stop");
+  expect(stop).toBeDisabled();
+
+  // A Stop that fails says why and gives the button back.
+  emit({ type: "agent.status", status: "working" });
+  vi.mocked(api.agentInterrupt).mockRejectedValueOnce(new Error("no session"));
+  await userEvent.click(stop);
+  expect(await screen.findByText("no session")).toBeVisible();
+  expect(stop).toHaveTextContent("Stop");
+  expect(stop).toBeEnabled();
+});

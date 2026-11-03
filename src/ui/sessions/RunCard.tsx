@@ -53,8 +53,15 @@ export function RunCard({
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  // Set from a Stop click until the run leaves working; an interrupt takes seconds.
+  const [stopping, setStopping] = useState(false);
   const list = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
+
+  const active = run.status === "working" || run.status === "needs_you";
+  useEffect(() => {
+    if (!active) setStopping(false);
+  }, [active]);
 
   useEffect(() => {
     if (!copied) return;
@@ -160,13 +167,17 @@ export function RunCard({
         >
           {open ? "Hide transcript" : "Show transcript"}
         </button>
-        {(run.status === "working" || run.status === "needs_you") && (
+        {active && (
           <button
             type="button"
             className="button"
-            onClick={() => attempt(onStop)}
+            disabled={stopping}
+            onClick={async () => {
+              setStopping(true);
+              if (!(await attempt(onStop))) setStopping(false);
+            }}
           >
-            Stop
+            {stopping ? "Stopping…" : "Stop"}
           </button>
         )}
         {run.status === "interrupted" && (

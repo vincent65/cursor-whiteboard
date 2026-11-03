@@ -206,3 +206,22 @@ test("RunCard's message box sends and the permission dialog answers with the run
   );
   expect(box).toHaveValue("again");
 });
+
+test("RunCard's Stop reads Stopping… until the run leaves working and needs_you", async () => {
+  const user = userEvent.setup();
+  const h = handlers();
+  const { rerender } = render(<RunCard run={run()} transcript={[]} {...h} />);
+  await user.click(screen.getByRole("button", { name: "Stop" }));
+  const stopping = screen.getByRole("button", { name: "Stopping…" });
+  expect(stopping).toBeDisabled();
+
+  rerender(
+    <RunCard run={run({ status: "needs_you" })} transcript={[]} {...h} />,
+  );
+  expect(screen.getByRole("button", { name: "Stopping…" })).toBeDisabled();
+  rerender(<RunCard run={run({ status: "idle" })} transcript={[]} {...h} />);
+  expect(screen.queryByRole("button", { name: /Stop/ })).toBeNull();
+  // A later turn gets a fresh Stop.
+  rerender(<RunCard run={run()} transcript={[]} {...h} />);
+  expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+});
