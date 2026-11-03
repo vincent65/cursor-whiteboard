@@ -102,3 +102,27 @@ test("denyBoardWrites gives the reason it was built with", async () => {
     },
   });
 });
+
+test("denyBoardWrites with several roots denies a board under any of them", async () => {
+  const worktree = "/repo/.blueprint/worktrees/auth";
+  const guard = denyBoardWrites([cwd, worktree], "read-only in a run");
+  const write = (file_path: string) =>
+    guard(pre("Write", { file_path }, worktree), "u", {
+      signal: new AbortController().signal,
+    });
+  const denied = {
+    hookSpecificOutput: {
+      permissionDecision: "deny",
+      permissionDecisionReason: "read-only in a run",
+    },
+  };
+  // From the worktree, a relative path climbs to the live board under the repository root.
+  expect(await write("../../boards/x.excalidraw.json")).toMatchObject(denied);
+  expect(
+    await write("/repo/.blueprint/boards/x.excalidraw.json"),
+  ).toMatchObject(denied);
+  expect(await write(".blueprint/boards/x.excalidraw.json")).toMatchObject(
+    denied,
+  );
+  expect(await write("src/x.ts")).toEqual({});
+});

@@ -13,11 +13,12 @@ export function isProtectedPath(root: string, filePath: string): boolean {
 }
 
 // `reason` is what Claude reads on a denial; run sessions have no propose tool.
-// `root` is the repository root, fixed for the session. The hook's `cwd` is the
-// agent's current directory, which moves with `cd`, so it only resolves relative paths.
+// `roots` are fixed for the session: the repository root, plus the worktree for a run,
+// whose `..` reaches the live board. The hook's `cwd` is the agent's current directory,
+// which moves with `cd`, so it only resolves relative paths.
 // ponytail: guards the file tools only; a Bash command can still write there.
 export const denyBoardWrites =
-  (root: string, reason = PLAN_REASON): HookCallback =>
+  (roots: string | string[], reason = PLAN_REASON): HookCallback =>
   async (input) => {
     if (
       input.hook_event_name !== "PreToolUse" ||
@@ -29,10 +30,9 @@ export const denyBoardWrites =
       notebook_path?: unknown;
     };
     const path = args.file_path ?? args.notebook_path;
-    if (
-      typeof path !== "string" ||
-      !isProtectedPath(root, resolve(input.cwd, path))
-    )
+    if (typeof path !== "string") return {};
+    const target = resolve(input.cwd, path);
+    if (![roots].flat().some((root) => isProtectedPath(root, target)))
       return {};
     return {
       hookSpecificOutput: {
