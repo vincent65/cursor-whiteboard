@@ -114,6 +114,11 @@ async function applyProposalRequest(
   proposal: Proposal,
   replace: boolean,
 ): Promise<{ elementIds: string[] }> {
+  // Labels are measured as they are drawn, and Excalidraw loads Excalifont only once the
+  // scene shows text; on a board without any, a fallback font's metrics would size the
+  // boxes, and the labels would wrap once the real font re-measures them.
+  // ponytail: the ops' JSON stands in for their text; it only picks the glyph subsets.
+  await document.fonts.load("20px Excalifont", JSON.stringify(proposal.ops));
   const rendered = new Map<number, El[]>();
   for (const [i, op] of proposal.ops.entries()) {
     if (op.op === "add_diagram")
