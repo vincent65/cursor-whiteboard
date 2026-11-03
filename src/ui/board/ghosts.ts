@@ -104,7 +104,8 @@ export function pendingProposals(
       counts = { added: 0, updated: 0, deleted: 0 };
       byId.set(g.proposalId, counts);
     }
-    counts[key[g.ghost]]++;
+    // A delete ghost's bound label is tagged too; count only the container.
+    if (!e.containerId) counts[key[g.ghost]]++;
   }
   return [...byId].map(([id, counts]) => ({ id, counts }));
 }
@@ -127,7 +128,11 @@ export function applyProposal(
     elements.find((e) => e.id === id && !e.isDeleted);
   proposal.ops.forEach((op, i) => {
     if (op.op === "update" || op.op === "delete") {
-      if (!live(op.id)) throw new Error(`unknown element id ${op.id}`);
+      const target = live(op.id);
+      if (!target) throw new Error(`unknown element id ${op.id}`);
+      const other = ghostOf(target)?.proposalId;
+      if (other && other !== proposal.id)
+        throw new Error(`element ${op.id} is in pending proposal ${other}`);
       if (
         op.op === "update" &&
         op.label !== undefined &&
@@ -136,6 +141,8 @@ export function applyProposal(
         throw new Error(`element ${op.id} has no label`);
     } else if (!rendered.has(i)) {
       throw new Error(`op ${i} was not rendered`);
+    } else if (!bounds(rendered.get(i) ?? [])) {
+      throw new Error(`op ${i} rendered nothing`);
     }
   });
 
@@ -161,8 +168,7 @@ export function applyProposal(
   proposal.ops.forEach((op, i) => {
     if (op.op === "add_diagram" || op.op === "add_note") {
       const group = rendered.get(i) ?? [];
-      const b = bounds(group);
-      if (!b) return;
+      const b = bounds(group) as Bounds;
       const a = anchor(elements, op.near ?? [], ctx.selectedIds);
       // With nothing to anchor on, later groups stack under the centered first one.
       const to =
@@ -204,6 +210,18 @@ export function applyProposal(
         strokeColor: DELETE_COLOR,
         customData: tag("delete", before),
       };
+      const label = labelOf(out, cur.id);
+      if (label && label !== cur) {
+        const labelBefore = snapshot(label, {
+          opacity: label.opacity,
+          customData: label.customData,
+        });
+        out[out.indexOf(label)] = {
+          ...label,
+          opacity: GHOST_OPACITY,
+          customData: tag("delete", labelBefore),
+        };
+      }
       return;
     }
 
@@ -225,7 +243,8 @@ export function applyProposal(
     }
     if (op.label !== undefined) {
       const label = labelOf(out, cur.id) as El;
-      before.label = label.text;
+      // originalText is the unwrapped source; text carries the wrap breaks.
+      before.label = label.originalText ?? label.text;
       if (label === cur)
         Object.assign(next, { text: op.label, originalText: op.label });
       else {

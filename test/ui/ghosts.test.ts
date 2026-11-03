@@ -390,3 +390,78 @@ test("replace flow: rejecting p_1 then applying p_1 again leaves one pending pro
   expect(byId(out, "u")).toEqual(board()[1]);
   expect(pendingProposals(out)).toEqual([]);
 });
+
+test("an element in another pending proposal is refused before anything changes", () => {
+  const { elements } = applyProposal(
+    [el({ id: "a" })],
+    { ...p, ops: [{ op: "update", id: "a", strokeColor: "#f00" }] },
+    new Map(),
+    ctx,
+  );
+  const snapshot = structuredClone(elements);
+  for (const op of [
+    { op: "delete", id: "a" },
+    { op: "update", id: "a", backgroundColor: "#000" },
+  ] as const)
+    expect(() =>
+      applyProposal(elements, { ...p, id: "p_2", ops: [op] }, new Map(), ctx),
+    ).toThrow("element a is in pending proposal p_1");
+  expect(elements).toEqual(snapshot);
+});
+
+test("a wrapped label rejects back to its original text", () => {
+  const b = el({ id: "b" });
+  const t = el({
+    id: "t",
+    type: "text",
+    containerId: "b",
+    text: "A long\nlabel",
+    originalText: "A long label",
+  });
+  const { elements } = applyProposal(
+    [b, t],
+    { ...p, ops: [{ op: "update", id: "b", label: "New" }] },
+    new Map(),
+    ctx,
+  );
+  expect(ghostOf(byId(elements, "b"))?.before?.label).toBe("A long label");
+  expect(byId(decideProposal(elements, "p_1", "rejected"), "t")).toMatchObject({
+    text: "A long label",
+    originalText: "A long label",
+  });
+});
+
+test("an add op that renders nothing throws", () => {
+  expect(() =>
+    applyProposal(
+      [],
+      { ...p, ops: [{ op: "add_note", text: "n" }] },
+      new Map([[0, []]]),
+      ctx,
+    ),
+  ).toThrow("op 0 rendered nothing");
+});
+
+test("a delete ghost fades its label too and counts the pair once", () => {
+  const d = el({ id: "d" });
+  const dt = el({ id: "dt", type: "text", containerId: "d", text: "Bye" });
+  const { elements } = applyProposal(
+    [d, dt],
+    { ...p, ops: [{ op: "delete", id: "d" }] },
+    new Map(),
+    ctx,
+  );
+  expect(byId(elements, "dt").opacity).toBe(40);
+  expect(ghostOf(byId(elements, "dt"))).toMatchObject({
+    proposalId: "p_1",
+    ghost: "delete",
+    before: { opacity: 100 },
+  });
+  expect(pendingProposals(elements)).toEqual([
+    { id: "p_1", counts: { added: 0, updated: 0, deleted: 1 } },
+  ]);
+  const rejected = decideProposal(elements, "p_1", "rejected");
+  expect(byId(rejected, "dt")).toEqual(dt);
+  const accepted = decideProposal(elements, "p_1", "accepted");
+  expect(byId(accepted, "dt").isDeleted).toBe(true);
+});
