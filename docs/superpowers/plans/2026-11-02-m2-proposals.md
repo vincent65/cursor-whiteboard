@@ -294,8 +294,8 @@ git commit -m "feat(agent): propose and revise tools with a browser round trip"
 ### Task 4: Prompt, guard copy, agent wiring, and proposal routes
 
 **Files:**
-- Modify: `src/server/agent/prompt.ts`, `src/server/agent/hooks.ts`, `src/server/agent/index.ts`, `src/server/agentRoutes.ts`, `src/server/index.ts`
-- Test: `test/server/agent/prompt.test.ts`, `test/server/agent/hooks.test.ts`, `test/server/agentRoutes.test.ts`
+- Modify: `src/server/agent/prompt.ts`, `src/server/agent/hooks.ts`, `src/server/agent/session.ts`, `src/server/agent/index.ts`, `src/server/agentRoutes.ts`, `src/server/index.ts`
+- Test: `test/server/agent/prompt.test.ts`, `test/server/agent/hooks.test.ts`, `test/server/agent/session.test.ts`, `test/server/agentRoutes.test.ts`
 
 **Interfaces:**
 - Consumes: `ProposalStore` (Task 2), `createBoardTools` with `proposals` (Task 3), `Decision`, `Proposal` (Task 1).
@@ -321,6 +321,7 @@ decideProposal(id: string, decision: Decision): Promise<Proposal>;
 ```
 
 - Produces in `src/server/agentRoutes.ts`: `SendBody` gains `proposalId: z.string().optional()`; `POST /send` returns 404 `{ error: "proposal <id> is not pending" }` when `agent.send` throws `NotFoundError`; `GET /proposals` returns `agent.pendingProposals()`; `POST /proposals/:id/decision` with body `{ decision: "accepted" | "rejected" }` returns 204, 400 on a bad body, 404 when not pending.
+- Produces in `src/server/agent/session.ts`: `send(text: string, shown: string = text): string` emits the `user` event with `shown` (what the user typed) while `text` (notes, header, and typed text) goes to Claude; `createAgent` passes both. The panel then stops stripping the selection header from user bubbles by regex (deferred from the milestone 1 review): remove that code in `src/ui/panel/ClaudePanel.tsx` and its test in Task 9.
 - `src/server/index.ts`: `close()` wraps `agent.close()` in `try/finally` so clients are terminated and the server closes even if the session hangs or rejects (deferred from the milestone 1 review).
 
 - [ ] **Step 1: Write the failing tests**
