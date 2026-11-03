@@ -151,6 +151,24 @@ test("placement beside the anchor shifts right past shapes it would overlap", ()
   ];
   expect(placeBeside(a, viewport, size, 0, blockers)).toEqual({ x: 520, y: 0 });
 
+  // An arrow drawn leftward starts at its x: its points, not x + width, say where it is.
+  const leftArrow = el({
+    id: "l",
+    type: "arrow",
+    x: 330,
+    y: 25,
+    width: 150,
+    height: 0,
+    points: [
+      [0, 0],
+      [-150, 0],
+    ],
+  });
+  expect(placeBeside(a, viewport, size, 0, [leftArrow])).toEqual({
+    x: 410,
+    y: 0,
+  });
+
   // Through applyProposal: the note avoids the shape beside its anchor.
   const placed = byId(
     applyProposal(

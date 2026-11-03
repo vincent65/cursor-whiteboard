@@ -94,6 +94,17 @@ export function anchor(
   return of(nearIds) ?? of(selectedIds) ?? bounds(elements);
 }
 
+// Where an element really is: an arrow or line spans its points, which can run left
+// of or above its x and y; anything else spans x + width and y + height.
+function extent(e: El): Bounds {
+  if (!e.points?.length) return { x: e.x, y: e.y, w: e.width, h: e.height };
+  const xs = e.points.map(([px]) => e.x + px);
+  const ys = e.points.map(([, py]) => e.y + py);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+}
+
 // Right of the anchor, shifted right past any live element the group would
 // overlap, GAP_X clear of the last one; centered in the viewport without an anchor.
 export function placeBeside(
@@ -106,17 +117,17 @@ export function placeBeside(
   if (anchor) {
     const y = anchor.y + offsetY;
     let x = anchor.x + anchor.w + GAP_X;
+    const live = elements.filter((e) => !e.isDeleted).map(extent);
     for (;;) {
-      const hit = elements.filter(
-        (e) =>
-          !e.isDeleted &&
-          e.x < x + size.w &&
-          x < e.x + e.width &&
-          e.y < y + size.h &&
-          y < e.y + e.height,
+      const hit = live.filter(
+        (b) =>
+          b.x < x + size.w &&
+          x < b.x + b.w &&
+          b.y < y + size.h &&
+          y < b.y + b.h,
       );
       if (hit.length === 0) return { x, y };
-      x = Math.max(...hit.map((e) => e.x + e.width)) + GAP_X;
+      x = Math.max(...hit.map((b) => b.x + b.w)) + GAP_X;
     }
   }
   return {
