@@ -22,6 +22,8 @@ export class WsHub {
   >();
   private readonly pending = new Map<string, Pending>();
   private active: Socket | null = null;
+  // The board named by the last selection.changed from the active tab.
+  activeBoard: string | null = null;
 
   add(socket: Socket): void {
     this.sockets.add(socket);
@@ -29,7 +31,10 @@ export class WsHub {
 
   remove(socket: Socket): void {
     this.sockets.delete(socket);
-    if (this.active === socket) this.active = null;
+    if (this.active === socket) {
+      this.active = null;
+      this.activeBoard = null;
+    }
     for (const p of this.pending.values()) {
       if (p.socket === socket)
         p.reject(new Error("the browser tab disconnected"));
@@ -59,6 +64,7 @@ export class WsHub {
       else p.reject(new Error(msg.error));
     } else if (msg?.type === "selection.changed") {
       this.active = socket;
+      this.activeBoard = msg.board;
     } else {
       return;
     }
