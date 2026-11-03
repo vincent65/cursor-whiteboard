@@ -1016,6 +1016,32 @@ test("split broadcasts running then done and writes task files; a cycle leaves o
   await agent.close();
 });
 
+test("split is fed the spec without citations that no longer resolve", async () => {
+  await store.createBoard("main");
+  await store.writeBoard("main", {
+    elements: [
+      { id: "e1", type: "rectangle", x: 0, y: 0, width: 10, height: 10 },
+    ],
+    appState: {},
+    files: {},
+  });
+  await writeFile(
+    join(store.dir, "spec.md"),
+    "## Goals\nShip [[board:main#e1]], [[board:main#gone]].\n",
+  );
+  const fake = splitSdk([task("schema")]);
+  const { hub, splits } = statusHub();
+  const agent = await createAgent({ store, hub, cwd: root, sdk: fake.sdk });
+
+  await agent.split();
+  expect(fake.prompts[0]).toContain(
+    "## Specification\n\n## Goals\nShip [[board:main#e1]].\n",
+  );
+  fake.release();
+  await vi.waitFor(() => expect(splits()).toHaveLength(2));
+  await agent.close();
+});
+
 test("POST /api/agent/split is 404 without a spec and 409 while running", async () => {
   const fake = splitSdk([task("schema")]);
   const { hub, splits } = statusHub();

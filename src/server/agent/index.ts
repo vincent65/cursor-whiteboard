@@ -1,6 +1,7 @@
 import * as claudeSdk from "@anthropic-ai/claude-agent-sdk";
 import {
   boardGraphToMarkdown,
+  dropUnknownCitations,
   excalidrawToBoardGraph,
 } from "../../export/index.js";
 import type { AgentStatus } from "../../shared/messages.js";
@@ -288,10 +289,12 @@ export async function createAgent(deps: {
     async split() {
       if (splitting) throw new ExistsError("a split is already running");
       splitting = true;
-      let spec: string | null;
+      let spec: string;
       try {
-        spec = await store.readSpec();
-        if (spec === null) throw new NotFoundError("compile the plan first");
+        const text = await store.readSpec();
+        if (text === null) throw new NotFoundError("compile the plan first");
+        // Cleaned as it is served, so no task cites an element that is gone.
+        spec = dropUnknownCitations(text, await store.citationIndex()).text;
       } catch (err) {
         splitting = false;
         throw err;
