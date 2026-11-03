@@ -458,7 +458,7 @@ export const SYSTEM_PROMPT_APPEND: string;
 export function selectionHeader(board: string, graph: BoardGraph, ids: string[]): string;   // "" when ids is empty
 export function composeUserMessage(text: string, header: string): string;              // header + blank line + text, or text alone
 // hooks.ts
-export const denyBoardWrites: HookCallback;   // PreToolUse for Write|Edit|MultiEdit|NotebookEdit
+export function denyBoardWrites(root: string): HookCallback;   // PreToolUse for Write|Edit|MultiEdit|NotebookEdit; root is the fixed repository root, hook cwd only resolves relative paths
 export function isProtectedPath(cwd: string, filePath: string): boolean;
 ```
 
@@ -466,7 +466,7 @@ export function isProtectedPath(cwd: string, filePath: string): boolean;
 - `get_selection({})`: `hub.request({ kind: "selection.snapshot" })`; with no ids returns the text `Nothing is selected on the board.`; otherwise the Markdown of `selectionGraph` plus the PNG crop when present. The board name comes from the hub's last `selection.changed`, exposed as `hub.activeBoard`.
 - `SYSTEM_PROMPT_APPEND` covers, in this order: where the plan files live (`.blueprint/` with boards, docs, spec, tasks); that boards are read with the two tools and never edited directly; that a selection header in a user message means "this" refers to those elements; that diagrams must be flowchart, sequence, class, ER, or state Mermaid (for milestone 2's proposals); that long descriptions go in a doc under `.blueprint/docs/` with a short note on the board; and that the user sees tool calls as short rows, so answers should be in the text.
 - `selectionHeader` renders `[Selection on board "<board>": <id> <kind> "<label>"; ...; <edgeId> arrow "<label>" (<from>→<to>)]`.
-- `isProtectedPath` resolves `filePath` against `cwd` and returns true under `.blueprint/boards/` or `.blueprint/assets/`.
+- `isProtectedPath(root, filePath)` resolves `filePath` against `root` and returns true under `root/.blueprint/boards/` or `root/.blueprint/assets/`; the guard anchors on the repository root, never on the hook's drifting `cwd`.
 
 - [ ] **Step 1: Write the failing tests**
 
