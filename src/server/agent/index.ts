@@ -29,6 +29,8 @@ export type Agent = {
     selection?: { board: string; ids: string[] },
     proposalId?: string,
   ): Promise<string>;
+  // Reconciled against each saved board by PUT /boards/:name.
+  proposals: ProposalStore;
   pendingProposals(): Proposal[];
   // NotFoundError unless pending; ProposalBusyError while it is being revised.
   decideProposal(id: string, decision: Decision): Promise<Proposal>;
@@ -216,6 +218,7 @@ export async function createAgent(deps: {
       riding.set(id, notes);
       return id;
     },
+    proposals,
     pendingProposals: () => proposals.pending(),
     decideProposal: (id, decision) => proposals.decided(id, decision),
     async interrupt() {

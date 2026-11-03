@@ -77,13 +77,29 @@ export class ProposalStore {
   }
 
   decided(id: string, decision: Decision): Promise<Proposal> {
+    return this.serial(() => this.decide(id, decision));
+  }
+
+  // Rejects each pending proposal of board whose ghosts are all gone from the saved
+  // elements; one being revised is left for the next save. Returns the rejected ones.
+  reconcile(
+    board: string,
+    elements: readonly {
+      isDeleted?: boolean;
+      customData?: Record<string, unknown>;
+    }[],
+  ): Promise<Proposal[]> {
     return this.serial(async () => {
-      const p = this.pendingOrThrow(id);
-      this.throwIfRevising(id);
-      await this.log({ event: decision, at: now(), id });
-      const title = p.title === null ? "" : ` ${JSON.stringify(p.title)}`;
-      this.notes.push(`[Proposal ${id}${title} was ${decision}.]`);
-      return p;
+      const ghosted = new Set(
+        elements
+          .filter((e) => !e.isDeleted && e.customData?.ghost !== undefined)
+          .map((e) => e.customData?.proposalId),
+      );
+      const rejected: Proposal[] = [];
+      for (const p of this.pending())
+        if (p.board === board && !ghosted.has(p.id) && !this.revising.has(p.id))
+          rejected.push(await this.decide(p.id, "rejected"));
+      return rejected;
     });
   }
 
@@ -102,6 +118,15 @@ export class ProposalStore {
     const run = this.queue.then(fn);
     this.queue = run.catch(() => {});
     return run;
+  }
+
+  private async decide(id: string, decision: Decision): Promise<Proposal> {
+    const p = this.pendingOrThrow(id);
+    this.throwIfRevising(id);
+    await this.log({ event: decision, at: now(), id });
+    const title = p.title === null ? "" : ` ${JSON.stringify(p.title)}`;
+    this.notes.push(`[Proposal ${id}${title} was ${decision}.]`);
+    return p;
   }
 
   private throwIfRevising(id: string): void {

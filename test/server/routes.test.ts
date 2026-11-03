@@ -4,8 +4,10 @@ import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Hono } from "hono";
+import { createAgent } from "../../src/server/agent/index.js";
 import { createApp } from "../../src/server/app.js";
 import { FileStore } from "../../src/server/files.js";
+import { WsHub } from "../../src/server/ws.js";
 import type { IncomingScene } from "../../src/shared/types.js";
 
 let root: string;
@@ -320,4 +322,42 @@ test("assets are served sandboxed with the right content type and 404 otherwise"
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: expect.any(String) });
   }
+});
+
+test("PUT /api/boards/:name reconciles pending proposals of that board", async () => {
+  await store.createBoard("flow");
+  const proposal = (id: string) => ({
+    id,
+    board: "flow",
+    title: null,
+    ops: [{ op: "add_note" as const, text: "hello" }],
+    at: "2026-11-02T00:00:00.000Z",
+  });
+  for (const id of ["p_1", "p_2"])
+    await store.appendProposal({
+      event: "proposed",
+      at: "2026-11-02T00:00:00.000Z",
+      proposal: proposal(id),
+    });
+  // The session never starts: nothing here sends.
+  const sdk = { query: vi.fn(), getSessionMessages: vi.fn() };
+  const agent = await createAgent({ store, hub: new WsHub(), cwd: root, sdk });
+  app = createApp(store, agent, agent.proposals);
+
+  const ghost = {
+    ...box("r1", "a1"),
+    boundElements: null,
+    customData: { origin: "ai", proposalId: "p_2", ghost: "add" },
+  };
+  expect(
+    (await putScene("flow", { elements: [ghost], appState: {}, files: {} }))
+      .status,
+  ).toBe(200);
+
+  const pending = await (await app.request("/api/agent/proposals")).json();
+  expect(pending).toEqual([proposal("p_2")]);
+  const log = await readFile(join(root, ".blueprint/proposals.jsonl"), "utf8");
+  expect(log.trim().split("\n").at(-1)).toMatch(
+    /"event":"rejected".*"id":"p_1"/,
+  );
 });

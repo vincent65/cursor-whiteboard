@@ -8,7 +8,10 @@ import type {
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { type Agent, createAgent } from "../../src/server/agent/index.js";
-import { ProposalBusyError } from "../../src/server/agent/proposals.js";
+import {
+  ProposalBusyError,
+  ProposalStore,
+} from "../../src/server/agent/proposals.js";
 import { createApp } from "../../src/server/app.js";
 import { FileStore, NotFoundError } from "../../src/server/files.js";
 import { WsHub } from "../../src/server/ws.js";
@@ -55,6 +58,7 @@ function fakeAgent() {
         return "u1";
       },
     ),
+    proposals: new ProposalStore(store),
     pendingProposals: vi.fn(() => [proposal("p_1")]),
     decideProposal: vi.fn(async (id: string) => {
       if (id === "p_1") return proposal("p_1");

@@ -4,6 +4,7 @@ import {
   excalidrawToBoardGraph,
 } from "../export/index.js";
 import type { IncomingScene } from "../shared/types.js";
+import type { ProposalStore } from "./agent/proposals.js";
 import { assertSlug, type FileStore, InvalidNameError } from "./files.js";
 
 const MARKDOWN = { "Content-Type": "text/markdown; charset=utf-8" };
@@ -26,7 +27,7 @@ async function nameFromBody(c: Context): Promise<string> {
   return name;
 }
 
-export function routes(store: FileStore): Hono {
+export function routes(store: FileStore, proposals?: ProposalStore): Hono {
   return (
     new Hono()
       .get("/boards", async (c) => c.json(await store.listBoards()))
@@ -48,6 +49,15 @@ export function routes(store: FileStore): Hono {
           `boards/${name}.md`,
           boardGraphToMarkdown(excalidrawToBoardGraph(board, name)),
         );
+        // A proposal whose ghosts the user removed must not stay pending; the save
+        // itself already succeeded, so a failure here only warns.
+        await proposals
+          ?.reconcile(name, board.elements)
+          .catch((err) =>
+            console.warn(
+              `could not reconcile proposals on board ${name}: ${(err as Error).message}`,
+            ),
+          );
         return c.json(board);
       })
       .post("/boards/:name/png", async (c) => {

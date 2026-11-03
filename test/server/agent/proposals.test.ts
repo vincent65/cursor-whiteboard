@@ -210,3 +210,25 @@ test("revise can retitle", async () => {
   await replayed.load();
   expect(replayed.get("p_1")?.title).toBe("Redis cache");
 });
+
+test("reconcile rejects a pending proposal with no ghost left on the board and skips one being revised", async () => {
+  const files = fakeFiles();
+  const store = new ProposalStore(files);
+  const onMain = (id: string) => ({ ...proposal(id), board: "main" });
+  for (const id of ["p_1", "p_2", "p_3"]) await store.proposed(onMain(id));
+  await store.proposed(proposal("p_4"));
+  await store.beginRevise("p_3");
+
+  const rejected = await store.reconcile("main", [
+    // A deleted ghost and an accepted element (no ghost tag) do not keep p_1 alive.
+    { isDeleted: true, customData: { proposalId: "p_1", ghost: "add" } },
+    { customData: { origin: "ai", proposalId: "p_1" } },
+    { customData: { proposalId: "p_2", ghost: "update" } },
+    {},
+  ]);
+
+  expect(rejected).toEqual([onMain("p_1")]);
+  expect(store.pending().map((p) => p.id)).toEqual(["p_2", "p_3", "p_4"]);
+  expect(files.log.at(-1)).toMatchObject({ event: "rejected", id: "p_1" });
+  expect(store.takeNotes()).toEqual(["[Proposal p_1 was rejected.]"]);
+});
