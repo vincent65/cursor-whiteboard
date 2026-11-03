@@ -25,7 +25,7 @@ function Item({ item }: { item: TranscriptItem }) {
         item.costUsd === null ? "" : ` · $${item.costUsd.toFixed(4)} total`;
       return (
         <div className="msg-result">
-          {item.subtype === "interrupted" ? "Stopped" : "Done"}
+          {item.subtype === "interrupted" ? "Stopped" : "Turn done"}
           {cost}
         </div>
       );

@@ -44,6 +44,14 @@ const transcript: PanelEvent[] = [
     partial: false,
     at,
   },
+  {
+    kind: "result",
+    id: "res1",
+    subtype: "success",
+    costUsd: 0.25,
+    durationMs: 1000,
+    at,
+  },
 ];
 
 test("RunCard shows status, cost, PR link, and the right buttons per status", async () => {
@@ -141,6 +149,8 @@ test("RunCard shows status, cost, PR link, and the right buttons per status", as
   expect(h.onExpand).toHaveBeenCalledOnce();
   expect(screen.getByText("Build the auth API")).toBeInTheDocument();
   expect(screen.getByText("Starting on the routes.")).toBeInTheDocument();
+  // A turn's end, not to be confused with the run's Done status.
+  expect(screen.getByText("Turn done · $0.2500 total")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Hide transcript" }));
   expect(screen.queryByText("Build the auth API")).toBeNull();
 });

@@ -128,7 +128,10 @@ test("panel renders restored transcript, sends on Enter with the current selecti
     "Two boxes.\nOne arrow.",
     { normalizeWhitespace: false },
   );
-  expect(screen.getByText("Done · $0.0123 total")).toHaveClass("msg-result");
+  // "Turn done", so a run's transcript does not read like its Done status.
+  expect(screen.getByText("Turn done · $0.0123 total")).toHaveClass(
+    "msg-result",
+  );
   expect(screen.getByText("Stopped · $0.0200 total")).toHaveClass("msg-result");
   expect(screen.getByRole("status")).toHaveTextContent("Idle");
   expect(screen.getByText("2 selected: Auth, DB")).toBeVisible();
