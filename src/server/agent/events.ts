@@ -65,6 +65,8 @@ export class SdkEventMapper {
   }
 
   map(msg: SDKMessage): PanelEvent[] {
+    // A subagent's own traffic; its Task tool row already shows that it ran.
+    if ("parent_tool_use_id" in msg && msg.parent_tool_use_id) return [];
     const at = new Date().toISOString();
     switch (msg.type) {
       case "system":

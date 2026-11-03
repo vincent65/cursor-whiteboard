@@ -342,3 +342,58 @@ test("a success result flagged is_error becomes an error event with its result t
     },
   ]);
 });
+
+test("subagent messages are skipped and leave the main stream's state alone", () => {
+  const mapper = new SdkEventMapper();
+  const stream = (parent: string | null, event: unknown) =>
+    sdk({ type: "stream_event", parent_tool_use_id: parent, event });
+  const delta = (parent: string | null, text: string) =>
+    stream(parent, {
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "text_delta", text },
+    });
+
+  mapper.map(
+    stream(null, { type: "message_start", message: { id: "msg_main" } }),
+  );
+  mapper.map(delta(null, "Hello"));
+
+  const sub = "toolu_task";
+  const subagent = [
+    stream(sub, { type: "message_start", message: { id: "msg_sub" } }),
+    delta(sub, "inner"),
+    sdk({
+      type: "assistant",
+      parent_tool_use_id: sub,
+      message: {
+        id: "msg_sub",
+        content: [
+          { type: "text", text: "inner" },
+          { type: "tool_use", id: "toolu_inner", name: "Read", input: {} },
+        ],
+      },
+    }),
+    sdk({
+      type: "user",
+      parent_tool_use_id: sub,
+      message: {
+        role: "user",
+        content: [
+          { type: "tool_result", tool_use_id: "toolu_inner", content: "x" },
+        ],
+      },
+    }),
+  ];
+  expect(subagent.flatMap((m) => mapper.map(m))).toEqual([]);
+
+  expect(mapper.map(delta(null, " world"))).toEqual([
+    {
+      kind: "assistant_text",
+      id: "msg_main:0",
+      text: "Hello world",
+      partial: true,
+      at: AT,
+    },
+  ]);
+});
