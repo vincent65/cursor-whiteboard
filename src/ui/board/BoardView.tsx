@@ -27,7 +27,7 @@ import { useDebounced } from "../hooks/useDebounced";
 import { useRefine } from "../panel/refine";
 import { selectionLabels, useSetSelection } from "../selection";
 import { useSendToServer, useServerEvent } from "../server-events";
-import { fitsInView, focusTargets } from "./focus";
+import { fitsInView, focusTargets, leftInset } from "./focus";
 import {
   applyProposal,
   type Counts,
@@ -47,12 +47,6 @@ import {
   toSaveBody,
 } from "./scene";
 import { blobToDataUrl, sameIds, selectedIds } from "./snapshot";
-
-// Width Excalidraw's properties panel covers on the canvas's left edge; it
-// opens whenever something is selected outside view mode.
-// ponytail: fixed, measured at 0.18.1's desktop layout; read the panel's
-// DOM width if the phone layout (panel at the bottom) ever matters.
-const PROPERTIES_PANEL_WIDTH = 232;
 
 type Scene = {
   elements: readonly ExcalidrawElement[];
@@ -369,7 +363,7 @@ export function BoardView({
     });
     const targets = elements.filter((e) => ids.includes(e.id));
     const { width, height, zoom, viewModeEnabled } = ex.getAppState();
-    const left = viewModeEnabled ? 0 : PROPERTIES_PANEL_WIDTH;
+    const left = leftInset({ width, height }, viewModeEnabled);
     const [x1, y1, x2, y2] = getCommonBounds(targets);
     const box = { width: x2 - x1, height: y2 - y1 };
     // Plain centering ignores canvasOffsets, so centering at the current zoom

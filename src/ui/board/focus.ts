@@ -13,3 +13,16 @@ type Size = { width: number; height: number };
 export function fitsInView(box: Size, view: Size, zoom: number): boolean {
   return box.width * zoom <= view.width && box.height * zoom <= view.height;
 }
+
+// Width Excalidraw's properties panel covers on the canvas's left edge; it
+// opens whenever something is selected, outside view mode, in the desktop layout.
+// ponytail: fixed, measured at 0.18.1's desktop layout.
+const PROPERTIES_PANEL_WIDTH = 232;
+
+// How much of the editor's left edge a focus must keep clear. Excalidraw 0.18.1
+// switches to its compact layout, with no side panel, by its isMobileBreakpoint.
+export function leftInset(editor: Size, viewMode: boolean): number {
+  const compact =
+    editor.width < 730 || (editor.height < 500 && editor.width < 1000);
+  return viewMode || compact ? 0 : PROPERTIES_PANEL_WIDTH;
+}
