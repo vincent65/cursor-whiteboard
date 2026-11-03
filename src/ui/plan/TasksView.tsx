@@ -6,14 +6,14 @@ import type { RunPermissionMode } from "../../shared/types";
 import * as api from "../api";
 import { routeHash } from "../hooks/useHashRoute";
 import { useServerEvent } from "../server-events";
-import { citationHash } from "./citations";
+import { CitationLink } from "./citations";
 import { LaunchDialog } from "./LaunchDialog";
 
 const SESSIONS = routeHash({ kind: "sessions" });
 
 function Source({ source }: { source: string }) {
   const [c] = parseCitations(source);
-  return c ? <a href={citationHash(c)}>{source}</a> : <span>{source}</span>;
+  return c ? <CitationLink citation={c} /> : <span>{source}</span>;
 }
 
 // The last split's cost. A split usually finishes while the spec view is

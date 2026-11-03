@@ -119,3 +119,25 @@ test("anything else is shown as text", () => {
   expect(c.querySelector("table, hr, img")).toBeNull();
   expect(c).toHaveTextContent("| a | b |---![alt](x.png)");
 });
+
+test("citations stay text unless a renderer is given, and never inside code", () => {
+  const text = "See [[board:main#a1]] and `[[doc:notes.md#x]]`";
+  expect(md(text)).toHaveTextContent(
+    "See [[board:main#a1]] and [[doc:notes.md#x]]",
+  );
+  const c = render(
+    <Markdown
+      text={`# On [[doc:notes.md#top]]\n\n${text}`}
+      renderCitation={(cite) => (
+        <mark>
+          {cite.kind}:{cite.page}:{cite.id}
+        </mark>
+      )}
+    />,
+  ).container;
+  expect([...c.querySelectorAll("mark")].map((m) => m.textContent)).toEqual([
+    "doc:notes.md:top",
+    "board:main:a1",
+  ]);
+  expect(c.querySelector("code")).toHaveTextContent("[[doc:notes.md#x]]");
+});

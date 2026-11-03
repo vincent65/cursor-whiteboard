@@ -145,8 +145,8 @@ test("compile and split", async ({ page, start }) => {
   await page.getByRole("button", { name: "Compile" }).click();
   await expect(page.getByText(/Wrote \.blueprint\/spec\.md/)).toBeVisible();
   await page.getByRole("link", { name: "Spec" }).click();
-  const citation = page.getByText("[[board:main#login]]", { exact: true });
-  await expect(citation).toHaveCSS("text-decoration-line", "underline");
+  const citation = page.getByRole("link", { name: "main#login" });
+  await expect(citation).toHaveAttribute("title", "[[board:main#login]]");
 
   await citation.click();
   await expect(page).toHaveURL(/#\/boards\/main\?focus=login$/);

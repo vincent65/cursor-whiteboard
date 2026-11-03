@@ -1,47 +1,12 @@
-import { markdown } from "@codemirror/lang-markdown";
-import { EditorState, StateField } from "@codemirror/state";
-import { Decoration, type DecorationSet } from "@codemirror/view";
-import { basicSetup, EditorView } from "codemirror";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as api from "../api";
-import { replaceFromDisk, theme } from "../docs/DocView";
+import { Markdown } from "../markdown";
 import { useServerEvent } from "../server-events";
-import { citationMarks } from "./citations";
-
-const marks = (text: string): DecorationSet =>
-  Decoration.set(
-    citationMarks(text).map(({ from, to, hash }) =>
-      Decoration.mark({ class: "cite", hash }).range(from, to),
-    ),
-  );
-
-const citeField = StateField.define<DecorationSet>({
-  create: (state) => marks(state.doc.toString()),
-  update: (deco, tr) => (tr.docChanged ? marks(tr.state.doc.toString()) : deco),
-  provide: (field) => EditorView.decorations.from(field),
-});
-
-// A click on a citation opens what it cites. posAtDOM is exact even when
-// other marks split the citation's span.
-const followCitation = EditorView.domEventHandlers({
-  click(event, view) {
-    const el = (event.target as HTMLElement).closest(".cite");
-    if (!el) return false;
-    const pos = view.posAtDOM(el);
-    let hash: string | undefined;
-    view.state.field(citeField).between(pos, pos, (from, to, deco) => {
-      if (from <= pos && pos < to) hash = deco.spec.hash;
-    });
-    if (hash) location.hash = hash;
-    return hash !== undefined;
-  },
-});
+import { CitationLink } from "./citations";
 
 type Spec = Awaited<ReturnType<typeof api.getSpec>>;
 
 export function SpecView() {
-  const host = useRef<HTMLDivElement>(null);
-  const view = useRef<EditorView | null>(null);
   const [spec, setSpec] = useState<Spec | null>(null);
   const [splitting, setSplitting] = useState(false);
   // A failed load or split, until the next split status or successful load.
@@ -75,33 +40,6 @@ export function SpecView() {
 
   const text = spec?.text ?? null;
   const hasText = text !== null;
-  // The editor exists while there is a spec; reloads swap its text in place.
-  useEffect(() => {
-    if (!hasText || !host.current) return;
-    const v = new EditorView({
-      parent: host.current,
-      extensions: [
-        basicSetup,
-        markdown(),
-        EditorView.lineWrapping,
-        EditorState.readOnly.of(true),
-        EditorView.editable.of(false),
-        theme,
-        citeField,
-        followCitation,
-      ],
-    });
-    view.current = v;
-    return () => {
-      v.destroy();
-      view.current = null;
-    };
-  }, [hasText]);
-  useEffect(() => {
-    const v = view.current;
-    if (v && text !== null && v.state.doc.toString() !== text)
-      replaceFromDisk(v, text);
-  }, [text]);
 
   useServerEvent((m) => {
     if (m.type === "file-changed" && m.kind === "spec") void load();
@@ -151,7 +89,15 @@ export function SpecView() {
           {error}
         </p>
       )}
-      {hasText && <div ref={host} className="spec-editor" />}
+      {hasText && (
+        // Read-only, so a document rather than an editor.
+        <article className="spec-doc">
+          <Markdown
+            text={text}
+            renderCitation={(c) => <CitationLink citation={c} />}
+          />
+        </article>
+      )}
     </div>
   );
 }

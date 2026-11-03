@@ -110,13 +110,14 @@ test("TasksView renders cards with dependencies and source links, and the empty 
   expect(c.getAllByRole("listitem").map((li) => li.textContent)).toEqual(
     expect.arrayContaining(["Login works", "Logout works"]),
   );
-  expect(c.getByRole("link", { name: "[[board:main#a1]]" })).toHaveAttribute(
+  expect(c.getByRole("link", { name: "main#a1" })).toHaveAttribute(
     "href",
     "#/boards/main?focus=a1",
   );
-  expect(
-    c.getByRole("link", { name: "[[doc:notes.md#caching]]" }),
-  ).toHaveAttribute("href", "#/docs/notes?focus=caching");
+  expect(c.getByRole("link", { name: "notes.md#caching" })).toHaveAttribute(
+    "href",
+    "#/docs/notes?focus=caching",
+  );
 
   const first = (await screen.findByText("01-db.md")).closest("article");
   expect(first && within(first).queryByText(/Depends on/)).toBeNull();
@@ -167,9 +168,7 @@ test("a repeated acceptance line or source renders each time without a key warni
   render(<TasksView cost={null} />);
 
   expect(await screen.findAllByText("It works")).toHaveLength(2);
-  expect(
-    screen.getAllByRole("link", { name: "[[board:main#a1]]" }),
-  ).toHaveLength(2);
+  expect(screen.getAllByRole("link", { name: "main#a1" })).toHaveLength(2);
   expect(error).not.toHaveBeenCalled();
   error.mockRestore();
 });

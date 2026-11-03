@@ -63,12 +63,35 @@ test("SpecView shows the empty state, then the spec with marked citations on fil
       "Dropped 1 citation that no longer resolves: [[board:main#gone]]",
     ),
   ).toBeInTheDocument();
-  const cite = container.querySelector(".cite");
-  expect(cite?.textContent).toBe("[[board:main#a1]]");
-  expect(container.querySelector(".cm-content")).toHaveAttribute(
-    "contenteditable",
-    "false",
-  );
+  // A document, not an editor: headings and a citation chip, nothing editable.
+  expect(screen.getByRole("heading", { name: "Goals" })).toBeInTheDocument();
+  expect(container.querySelector("[contenteditable]")).toBeNull();
+  const cite = screen.getByRole("link", { name: "main#a1" });
+  expect(cite).toHaveClass("cite");
+  expect(cite).toHaveAttribute("title", "[[board:main#a1]]");
+});
+
+test("a citation chip opens what it cites", async () => {
+  vi.mocked(api.getSpec).mockResolvedValue({ text: spec, dropped: [] });
+  location.hash = "#/spec";
+  render(<SpecView />);
+  await userEvent.click(await screen.findByRole("link", { name: "main#a1" }));
+  expect(location.hash).toBe("#/boards/main?focus=a1");
+});
+
+test("a reloaded spec replaces the shown one", async () => {
+  vi.mocked(api.getSpec).mockResolvedValueOnce({ text: spec, dropped: [] });
+  render(<SpecView />);
+  await screen.findByRole("heading", { name: "Goals" });
+  vi.mocked(api.getSpec).mockResolvedValueOnce({
+    text: "## Scope\n\nOnly login.\n",
+    dropped: [],
+  });
+  await emit({ type: "file-changed", kind: "spec", name: "spec" });
+  expect(
+    await screen.findByRole("heading", { name: "Scope" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Goals" })).toBeNull();
 });
 
 test("Split into tasks shows Splitting… until done, and errors from the split", async () => {
