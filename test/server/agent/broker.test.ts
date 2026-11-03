@@ -132,3 +132,14 @@ test("an aborted signal denies as interrupted and clears the entry", async () =>
   });
   expect(broker.pending()).toEqual([]);
 });
+
+test("an ask shows paths relative to the session directory", () => {
+  const broker = new PermissionBroker({ cwd: "/repo", onChange() {} });
+  void broker.ask({
+    toolUseID: "t1",
+    tool: "Write",
+    input: { file_path: "/repo/src/login.ts" },
+    signal: new AbortController().signal,
+  });
+  expect(broker.pending()[0]?.summary).toBe("editing src/login.ts");
+});

@@ -118,10 +118,13 @@ function savedAt(msg: SessionMessage): string {
 
 // A saved session's transcript, as the panel showed it live, each event at the time its
 // line was written. Keyed by event id, so a text block split across lines keeps one entry.
-export function transcriptFrom(messages: SessionMessage[]): PanelEvent[] {
+export function transcriptFrom(
+  messages: SessionMessage[],
+  cwd?: string,
+): PanelEvent[] {
   const events = new Map<string, PanelEvent>();
   const add = (e: PanelEvent) => events.set(e.id, e);
-  const mapper = new SdkEventMapper();
+  const mapper = new SdkEventMapper(cwd);
   for (const msg of messages) {
     const at = savedAt(msg);
     const prompt = savedPrompt(msg);
@@ -178,7 +181,8 @@ export class PlanSession {
           dir: this.#deps.cwd,
         });
         if (saved.length === 0) throw new Error(`session ${id} is empty`);
-        for (const e of transcriptFrom(saved)) this.#remember(e);
+        for (const e of transcriptFrom(saved, this.#deps.cwd))
+          this.#remember(e);
       } catch {
         this.#sessionId = undefined;
         this.#emit({
@@ -295,7 +299,7 @@ export class PlanSession {
   }
 
   async #consume(run: Run): Promise<void> {
-    const mapper = new SdkEventMapper();
+    const mapper = new SdkEventMapper(this.#deps.cwd);
     let message = "Claude session ended";
     try {
       for await (const msg of run.query) {

@@ -4,6 +4,7 @@ import type {
   SDKResultSuccess,
 } from "@anthropic-ai/claude-agent-sdk";
 import {
+  relativeTo,
   SdkEventMapper,
   summarizeTool,
 } from "../../../src/server/agent/events.js";
@@ -492,4 +493,66 @@ test("Blueprint's own tool results read as sentences, and their failures keep th
   expect(summary(result("t6", '{"proposalId":"p_1"}'))).toEqual([
     '{"proposalId":"p_1"}',
   ]);
+});
+
+test("rows show paths relative to the session directory, under either spelling of it", async () => {
+  const { mkdtemp, realpath, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  // On macOS tmpdir() is under /var, which the CLI reports as /private/var.
+  const cwd = await mkdtemp(join(tmpdir(), "blueprint-rel-"));
+  const real = await realpath(cwd);
+  try {
+    const rel = relativeTo(cwd);
+    expect(
+      summarizeTool("Write", { file_path: `${real}/src/login.ts` }, rel),
+    ).toBe("editing src/login.ts");
+    expect(summarizeTool("Read", { file_path: `${cwd}/a.md` }, rel)).toBe(
+      "reading a.md",
+    );
+    expect(summarizeTool("Read", { file_path: "/elsewhere/a.md" }, rel)).toBe(
+      "reading /elsewhere/a.md",
+    );
+
+    const mapper = new SdkEventMapper(cwd);
+    const [use] = mapper.map(
+      sdk({
+        type: "assistant",
+        parent_tool_use_id: null,
+        message: {
+          id: "msg_w",
+          content: [
+            {
+              type: "tool_use",
+              id: "tw",
+              name: "Write",
+              input: { file_path: `${real}/src/login.ts` },
+            },
+          ],
+        },
+      }),
+    );
+    expect(use).toMatchObject({ summary: "editing src/login.ts" });
+    const [result] = mapper.map(
+      sdk({
+        type: "user",
+        parent_tool_use_id: null,
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tw",
+              content: `File created successfully at: ${real}/src/login.ts`,
+            },
+          ],
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      summary: "File created successfully at: src/login.ts",
+    });
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });

@@ -268,6 +268,7 @@ export class RunManager {
     const worktree = this.#worktree(record);
     let asked = new Set<string>();
     const broker = new PermissionBroker({
+      cwd: worktree,
       onChange: (pending) => {
         if (this.#closing) return;
         for (const p of pending)

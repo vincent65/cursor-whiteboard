@@ -1,3 +1,5 @@
+import { realpathSync } from "node:fs";
+import { sep } from "node:path";
 import type {
   SDKMessage,
   SDKResultMessage,
@@ -6,10 +8,32 @@ import type { PanelEvent } from "../../shared/panel.js";
 
 const SUMMARY_LIMIT = 120;
 
+type Relativize = (text: string) => string;
+
+// Strips the session directory from the paths in a row, so it reads `editing src/a.ts`.
+// Both spellings count: macOS reports a temp directory under /var as /private/var.
+export function relativeTo(cwd: string | undefined): Relativize {
+  if (!cwd) return (text) => text;
+  let real = cwd;
+  try {
+    real = realpathSync(cwd);
+  } catch {}
+  // Longest first, so /var/x/ never cuts into /private/var/x/.
+  const roots = [...new Set([cwd, real])]
+    .map((root) => (root.endsWith(sep) ? root : root + sep))
+    .sort((a, b) => b.length - a.length);
+  return (text) => roots.reduce((t, root) => t.replaceAll(root, ""), text);
+}
+
 export function summarizeTool(
   name: string,
   input: Record<string, unknown>,
+  relativize: Relativize = (text) => text,
 ): string {
+  return relativize(summarize(name, input));
+}
+
+function summarize(name: string, input: Record<string, unknown>): string {
   switch (name) {
     case "Read":
       return `reading ${input.file_path}`;
@@ -47,7 +71,7 @@ export function resultError(msg: SDKResultMessage): string | undefined {
 }
 
 function resultText(content: unknown): string {
-  if (typeof content === "string") return content.slice(0, SUMMARY_LIMIT);
+  if (typeof content === "string") return content;
   const texts = Array.isArray(content)
     ? content.flatMap((part: { type?: string; text?: string }) =>
         part.type === "text" && typeof part.text === "string"
@@ -55,7 +79,7 @@ function resultText(content: unknown): string {
           : [],
       )
     : [];
-  return texts.length ? texts.join("\n").slice(0, SUMMARY_LIMIT) : "done";
+  return texts.length ? texts.join("\n") : "done";
 }
 
 // Blueprint's own tools answer in a sentence rather than their raw output.
@@ -82,6 +106,12 @@ export class SdkEventMapper {
   #unfinished: string[] = [];
   // Tool names by tool_use id, so a result can be read in its tool's terms.
   #tools = new Map<string, string>();
+  #relativize: Relativize;
+
+  // cwd: the session's directory, which rows leave out of the paths they show.
+  constructor(cwd?: string) {
+    this.#relativize = relativeTo(cwd);
+  }
 
   get sessionId(): string | undefined {
     return this.#sessionId;
@@ -140,7 +170,11 @@ export class SdkEventMapper {
             }
             if (block.type === "tool_use") {
               const input = (block.input ?? {}) as Record<string, unknown>;
-              const summary = summarizeTool(block.name, input);
+              const summary = summarizeTool(
+                block.name,
+                input,
+                this.#relativize,
+              );
               this.#tools.set(block.id, block.name);
               return [
                 {
@@ -164,7 +198,10 @@ export class SdkEventMapper {
         if (typeof content === "string") return [];
         return content.flatMap((block): PanelEvent[] => {
           if (block.type !== "tool_result") return [];
-          const text = resultText(block.content);
+          const text = this.#relativize(resultText(block.content)).slice(
+            0,
+            SUMMARY_LIMIT,
+          );
           const tool = this.#tools.get(block.tool_use_id);
           return [
             {

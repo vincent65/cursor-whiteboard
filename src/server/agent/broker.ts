@@ -6,7 +6,7 @@ import type {
   PendingPermission,
   PermissionDecision,
 } from "../../shared/panel.js";
-import { summarizeTool } from "./events.js";
+import { relativeTo, summarizeTool } from "./events.js";
 
 const DEFAULT_DENY = "The user denied this action in Blueprint.";
 
@@ -19,9 +19,15 @@ type Open = {
 export class PermissionBroker {
   #open = new Map<string, Open>();
   #onChange: (pending: PendingPermission[]) => void;
+  #relativize: (text: string) => string;
 
-  constructor(opts: { onChange(pending: PendingPermission[]): void }) {
+  // cwd: the session's directory, which asks leave out of the paths they show.
+  constructor(opts: {
+    cwd?: string;
+    onChange(pending: PendingPermission[]): void;
+  }) {
     this.#onChange = opts.onChange;
+    this.#relativize = relativeTo(opts.cwd);
   }
 
   ask(req: {
@@ -42,7 +48,7 @@ export class PermissionBroker {
         entry: {
           id,
           tool: req.tool,
-          summary: summarizeTool(req.tool, req.input),
+          summary: summarizeTool(req.tool, req.input, this.#relativize),
           canAlways: !!req.suggestions?.length,
           at: new Date().toISOString(),
         },

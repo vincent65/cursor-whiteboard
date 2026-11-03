@@ -54,6 +54,6 @@ export function sessionRoutes(deps: SessionRouteDeps): Hono {
       const saved = await deps.getSessionMessages(id, { dir: deps.root });
       if (saved.length === 0)
         throw new NotFoundError(`session ${id} not found`);
-      return c.json(transcriptFrom(saved).slice(-TRANSCRIPT_LIMIT));
+      return c.json(transcriptFrom(saved, deps.root).slice(-TRANSCRIPT_LIMIT));
     });
 }

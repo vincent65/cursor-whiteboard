@@ -106,6 +106,7 @@ export async function createAgent(deps: {
 
   let asked = new Set<string>();
   const broker = new PermissionBroker({
+    cwd,
     onChange(pending) {
       for (const p of pending)
         if (!asked.has(p.id))
