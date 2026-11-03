@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BoardFile } from "../../src/export/schema.js";
@@ -272,4 +272,24 @@ test("wasWrittenRecently is true right after a write and false after the window"
   ).toBe(false);
   await new Promise((r) => setTimeout(r, 30));
   expect(store.wasWrittenRecently(doc, 10)).toBe(false);
+});
+
+test("sessions file round-trips and defaults when missing", async () => {
+  await store.init();
+  expect(await store.readSessions()).toEqual({ plan: null, runs: [] });
+  const s = {
+    plan: { sessionId: "abc", updatedAt: "2026-11-02T00:00:00.000Z" },
+    runs: [],
+  };
+  await store.writeSessions(s);
+  expect(await store.readSessions()).toEqual(s);
+  expect(
+    JSON.parse(await readFile(join(store.dir, "sessions.json"), "utf8")),
+  ).toEqual(s);
+});
+
+test("a corrupt sessions file is reported, not silently replaced", async () => {
+  await store.init();
+  await writeFile(join(store.dir, "sessions.json"), "{not json");
+  await expect(store.readSessions()).rejects.toThrow();
 });

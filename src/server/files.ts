@@ -10,9 +10,10 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
+import { z } from "zod";
 import { BoardFile, type BoardFileAsset } from "../export/index.js";
 import { SLUG_RE } from "../shared/slug.js";
-import type { IncomingScene } from "../shared/types.js";
+import type { IncomingScene, SessionsFile } from "../shared/types.js";
 
 export class InvalidNameError extends Error {}
 export class NotFoundError extends Error {}
@@ -41,6 +42,31 @@ const DATA_URL = /^data:([a-z]+\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})$/;
 const ASSET_FILE = new RegExp(
   `^[0-9a-f]{64}\\.(${Object.values(EXTENSIONS).join("|")})$`,
 );
+
+const SessionsSchema: z.ZodType<SessionsFile> = z.object({
+  plan: z.object({ sessionId: z.string(), updatedAt: z.string() }).nullable(),
+  runs: z.array(
+    z.object({
+      id: z.string(),
+      taskSlug: z.string(),
+      sessionId: z.string(),
+      worktree: z.string(),
+      branch: z.string(),
+      status: z.enum([
+        "working",
+        "needs_you",
+        "idle",
+        "done",
+        "failed",
+        "interrupted",
+      ]),
+      prUrl: z.string().nullable(),
+      costUsd: z.number(),
+      startedAt: z.string(),
+      endedAt: z.string().nullable(),
+    }),
+  ),
+});
 
 export function assertSlug(name: string): void {
   if (!SLUG_RE.test(name))
@@ -209,9 +235,28 @@ export class FileStore {
     await this.write(path, data);
   }
 
+  async readSessions(): Promise<SessionsFile> {
+    const text = await readFile(this.sessionsPath(), "utf8").catch(
+      (err: NodeJS.ErrnoException) => {
+        if (err.code === "ENOENT") return null;
+        throw err;
+      },
+    );
+    if (text === null) return { plan: null, runs: [] };
+    return SessionsSchema.parse(JSON.parse(text));
+  }
+
+  async writeSessions(s: SessionsFile): Promise<void> {
+    await this.write(this.sessionsPath(), `${JSON.stringify(s, null, 2)}\n`);
+  }
+
   wasWrittenRecently(absPath: string, withinMs: number): boolean {
     const at = this.recentWrites.get(absPath);
     return at !== undefined && Date.now() - at <= withinMs;
+  }
+
+  private sessionsPath(): string {
+    return join(this.dir, "sessions.json");
   }
 
   private boardPath(name: string): string {
