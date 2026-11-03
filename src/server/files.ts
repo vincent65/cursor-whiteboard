@@ -89,6 +89,9 @@ async function orNotFound<T>(work: Promise<T>, what: string): Promise<T> {
   }
 }
 
+const sha256 = (data: Buffer | string) =>
+  createHash("sha256").update(data).digest("hex");
+
 function serialize(board: BoardFile): string {
   return `${JSON.stringify(board, null, 2)}\n`;
 }
@@ -96,7 +99,8 @@ function serialize(board: BoardFile): string {
 export class FileStore {
   readonly dir: string;
   private readonly root: string;
-  private readonly recentWrites = new Map<string, number>();
+  // Absolute path -> sha256 of the data the store last wrote there.
+  private readonly ownWrites = new Map<string, string>();
 
   constructor(root: string) {
     this.root = resolve(root);
@@ -173,7 +177,7 @@ export class FileStore {
       const bytes = Buffer.from(match[2], "base64");
       if (bytes.toString("base64") !== match[2])
         throw new InvalidSceneError(`file ${key} has malformed base64`);
-      const sha = createHash("sha256").update(bytes).digest("hex");
+      const sha = sha256(bytes);
       assets.set(`${sha}.${ext}`, bytes);
       files[key] = { id, mimeType, created, asset: `assets/${sha}.${ext}` };
     }
@@ -250,9 +254,12 @@ export class FileStore {
     await this.write(this.sessionsPath(), `${JSON.stringify(s, null, 2)}\n`);
   }
 
-  wasWrittenRecently(absPath: string, withinMs: number): boolean {
-    const at = this.recentWrites.get(absPath);
-    return at !== undefined && Date.now() - at <= withinMs;
+  // True when the file on disk still holds the store's own last write: an echo, not an edit.
+  async isOwnWrite(absPath: string): Promise<boolean> {
+    const hash = this.ownWrites.get(absPath);
+    if (hash === undefined) return false;
+    const data = await readFile(absPath).catch(() => null);
+    return data !== null && sha256(data) === hash;
   }
 
   private sessionsPath(): string {
@@ -291,7 +298,7 @@ export class FileStore {
     const tmp = `${path}.tmp-${randomBytes(6).toString("hex")}`;
     try {
       await writeFile(tmp, data);
-      this.recentWrites.set(path, Date.now());
+      this.ownWrites.set(path, sha256(data));
       await rename(tmp, path);
     } catch (err) {
       await unlink(tmp).catch(() => {});

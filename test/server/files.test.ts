@@ -262,16 +262,19 @@ test("readBoard and readDoc throw NotFoundError", async () => {
   await expect(store.readBoard("../x")).rejects.toThrow(InvalidNameError);
 });
 
-test("wasWrittenRecently is true right after a write and false after the window", async () => {
+test("isOwnWrite matches the store's last write by content, not by time", async () => {
   await store.init();
   await store.createDoc("notes");
+  await store.writeDoc("notes", "mine");
   const doc = join(store.dir, "docs", "notes.md");
-  expect(store.wasWrittenRecently(doc, 1000)).toBe(true);
-  expect(
-    store.wasWrittenRecently(join(store.dir, "docs", "other.md"), 1000),
-  ).toBe(false);
-  await new Promise((r) => setTimeout(r, 30));
-  expect(store.wasWrittenRecently(doc, 10)).toBe(false);
+  expect(await store.isOwnWrite(doc)).toBe(true);
+  expect(await store.isOwnWrite(join(store.dir, "docs", "other.md"))).toBe(
+    false,
+  );
+
+  // An outside edit right after the store's own write is not an echo.
+  await writeFile(doc, "theirs");
+  expect(await store.isOwnWrite(doc)).toBe(false);
 });
 
 test("sessions file round-trips and defaults when missing", async () => {

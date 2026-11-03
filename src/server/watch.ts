@@ -16,8 +16,8 @@ function classify(path: string): Change | undefined {
       return { kind, name: file.slice(0, -suffix.length) };
 }
 
-// Reports external edits to boards and docs; the store's own writes are
-// skipped so a client saving a file is not told to reload it.
+// Reports external edits to boards and docs; echoes of the store's own writes
+// are skipped by content so a client saving a file is not told to reload it.
 export function watchPlan(
   store: FileStore,
   onChange: (ev: Change) => void,
@@ -33,11 +33,14 @@ export function watchPlan(
     // Skips the store's temp files, which vanish mid-write.
     ignored: (path, stats) => !!stats?.isFile() && !classify(path),
   });
-  const report = (path: string) => {
-    if (store.wasWrittenRecently(path, 1000)) return;
+  const report = async (path: string) => {
     const change = classify(path);
-    if (change) onChange(change);
+    if (!change || (await store.isOwnWrite(path))) return;
+    onChange(change);
   };
-  watcher.on("add", report).on("change", report);
+  const onEvent = (path: string) => {
+    report(path).catch((err) => console.error("watch report failed", err));
+  };
+  watcher.on("add", onEvent).on("change", onEvent);
   return () => watcher.close();
 }

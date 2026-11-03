@@ -72,6 +72,13 @@ test("watcher reports an external doc write and ignores the server's own write",
   expect(await next).toEqual({ kind: "doc", name: "b" });
 });
 
+test("watcher reports an outside edit made right after the server's own write", async () => {
+  await store.writeDoc("a", "ours");
+  const next = eventFor("a");
+  await writeFile(join(store.dir, "docs", "a.md"), "theirs");
+  expect(await next).toEqual({ kind: "doc", name: "a" });
+});
+
 test("watcher maps board files to kind board and strips the extension", async () => {
   const next = eventFor("main");
   await writeFile(join(store.dir, "boards", "main.excalidraw.json"), "{}");
