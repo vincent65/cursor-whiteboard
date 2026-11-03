@@ -1,0 +1,7 @@
+- **Status:** DONE_WITH_CONCERNS
+- **Commit:** `0b30e4c feat(tasks): task schema, ordering, and Markdown frontmatter`, with no trailer.
+- **Tests:** the new test file failed first because the module was missing, then all 4 of its tests passed. `pnpm check` is clean, with 244 tests passing across the repo.
+- **Concerns:**
+  - A task that depends on itself gets the message "tasks a and a depend on each other". It reads oddly but is clear, and I can give it its own message if you want.
+  - When three or more tasks form a loop, the two tasks named are both in the loop but may not depend on each other directly. For example, the message can say "a and c" when a only reaches c through b.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m3-compile/task-1-report.md`

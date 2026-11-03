@@ -1,0 +1,5 @@
+- **Status:** DONE_WITH_CONCERNS
+- **Commit:** `796fff6 feat(server): spec and task files, served with unknown citations dropped`
+- **Tests:** RED was 11 failing tests, and they now pass. `pnpm check` passes with no warnings: 254 of 254 tests across 36 files. I also ran the real server against a temporary project and checked both new routes with curl, including that `spec.md` on disk is never changed.
+- **Concern:** when an unknown citation is removed from the spec text, the punctuation around it stays. For example, `See A, B, [[x]], [[y]].` comes back as `See A, B, , .`. That comes from `dropUnknownCitations` in `src/export/citations.ts`, which is outside this task's files.
+- **Report:** /Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m3-compile/task-2-report.md

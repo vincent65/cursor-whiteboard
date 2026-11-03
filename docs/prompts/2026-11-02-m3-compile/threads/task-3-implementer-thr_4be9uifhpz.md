@@ -1,0 +1,9 @@
+- Status: DONE
+- Commit: `7f1d6a6 feat(agent): the Compile action`
+- Tests: the server suite passes (145 tests), and `pnpm check` passes cleanly with all 258 tests.
+- Changes beyond the brief:
+  - Two `compile()` calls at the same time (for example a double-click) get the same id and send one message.
+  - If the session errors or stops before a `result` arrives, the next Compile sends again instead of returning the stale id.
+- Not done: no live check against a real session, because the brief names no manual step and a real compile would write `spec.md`.
+- Known limit: any `result` clears the pending compile. If a compile is queued behind another message, that message's result clears it, so a second click queues a second compile, which just rewrites `spec.md` again.
+- Report: /Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m3-compile/task-3-report.md

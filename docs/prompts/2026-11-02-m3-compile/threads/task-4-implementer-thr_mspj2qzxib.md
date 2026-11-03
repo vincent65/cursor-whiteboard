@@ -1,0 +1,9 @@
+- **Status:** DONE_WITH_CONCERNS
+- **Commit:** `355eb22 feat(agent): split the spec into task files with structured output`
+- **Tests:** `pnpm check` is clean, with 262 tests passing in 37 files. One real split query worked: it returned 5 tasks with correct sources and cost $0.076.
+- **Concerns:**
+  - **Schema draft:** the CLI rejects the schema Zod builds by default (draft 2020-12), so a real split fails. I switched to Zod's `target: "draft-7"`, which removes nothing from the schema. A test now checks this.
+  - **409 error:** "a split is already running" is thrown as an `ExistsError`, because that is what the app already maps to 409 and `app.ts` is not in my file list.
+  - **When `split()` returns:** it resolves once the split starts, so `POST /split` can return 202 right away. The result arrives later as a `split.status` message.
+  - **Not handled:** crashes inside the query reach the browser without the `split failed:` prefix. `agent.close()` does not stop a split that is still running.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m3-compile/task-4-report.md`

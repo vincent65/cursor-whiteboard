@@ -1,0 +1,10 @@
+- Node 22.1 or later; TypeScript strict; ESM; server code uses NodeNext resolution with explicit `.js` extensions on relative imports.
+- No API key anywhere. Both the plan session and the split query run on the user's Claude Code login.
+- `spec.md` has exactly these level-2 sections in this order: `Goals`, `Architecture`, `Interfaces`, `Constraints`, `Acceptance criteria`, `Open questions`.
+- Citations use `[[board:<name>#<elementId>]]` and `[[doc:<file>#<heading-slug>]]`; unknown citations are dropped with a warning when the spec is served and never rewritten on disk.
+- Task files live at `.blueprint/tasks/<nn>-<slug>.md`; `nn` is two digits from `01`; slugs match `src/shared/slug.ts`'s rule.
+- All agent output reaches the browser as typed WebSocket messages; commands go through HTTP routes so they are testable with `app.request()`.
+- No "Claude Code" branding in UI copy.
+- Every UI test file that renders components or hooks starts with `// @vitest-environment jsdom`.
+- Commit messages use conventional commits and carry no co-author trailer.
+- `pnpm check` stays pristine; `pnpm build` warns only about the pre-existing chunk size.

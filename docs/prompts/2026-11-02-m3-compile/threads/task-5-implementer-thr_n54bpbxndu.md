@@ -1,0 +1,7 @@
+- Status: DONE_WITH_CONCERNS
+- Commit: `bc0e06c feat(ui): plan routes, sidebar links, and the Compile button`
+- Tests: the 3 new tests failed first, then passed; all UI tests pass (75); `pnpm check` is clean (265 tests, no warnings); `pnpm build` warns only about the old chunk size.
+- Concerns:
+  - The brief named no manual check, so I didn't open the panel header in a browser. It now holds three controls, so it's worth a look in Task 7.
+  - As the brief says, Compile is only disabled while starting, so it can be clicked during a running turn. Any server rejection shows in the failure line.
+- Report: `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m3-compile/task-5-report.md`
