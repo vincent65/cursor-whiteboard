@@ -268,16 +268,18 @@ export function BoardView({
       send({ type: "selection.changed", board: name, ids });
   }, 150);
 
-  // Declared after reportSelection, so a report still pending flushes first.
-  // An empty board name tells the server no board is open any more.
-  useEffect(
-    () => () => {
+  // The board is announced at once, so a message sent while its scene still
+  // loads can already propose to it. Declared after reportSelection, so a report
+  // still pending flushes first; an empty board name tells the server no board
+  // is open any more.
+  useEffect(() => {
+    send({ type: "selection.changed", board: name, ids: [] });
+    return () => {
       reported.current = null;
       setSelection(null);
       send({ type: "selection.changed", board: "", ids: [] });
-    },
-    [send, setSelection],
-  );
+    };
+  }, [name, send, setSelection]);
 
   useEffect(() => {
     api.listProposals().then(
