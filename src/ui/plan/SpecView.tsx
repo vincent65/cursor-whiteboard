@@ -62,7 +62,7 @@ export function SpecView() {
     void load();
   }, [load]);
   // A split started before this view mounted is known only to the server. A
-  // split.status heard meanwhile is newer than the state, so it wins.
+  // split.status heard or a Split pressed meanwhile is newer than the state, so it wins.
   const heardSplit = useRef(false);
   useEffect(() => {
     api.agentState().then(
@@ -112,6 +112,7 @@ export function SpecView() {
   });
 
   const split = () => {
+    heardSplit.current = true;
     setSplitting(true);
     setError(null);
     api.agentSplit().catch((err: Error) => {

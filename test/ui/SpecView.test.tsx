@@ -183,3 +183,21 @@ test("an error clears on any split status and on a successful reload", async () 
   await emit({ type: "file-changed", kind: "spec", name: "spec" });
   await vi.waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
 });
+
+test("a split started here wins over a state that arrives after it", async () => {
+  vi.mocked(api.getSpec).mockResolvedValue({ text: spec, dropped: [] });
+  vi.mocked(api.agentSplit).mockResolvedValue();
+  let answer: (s: ReturnType<typeof agentState>) => void = () => {};
+  vi.mocked(api.agentState).mockReturnValue(
+    new Promise((r) => {
+      answer = r;
+    }),
+  );
+  render(<SpecView />);
+
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Split into tasks" }),
+  );
+  await act(async () => answer(agentState(false)));
+  expect(screen.getByRole("button", { name: "Splitting…" })).toBeDisabled();
+});
