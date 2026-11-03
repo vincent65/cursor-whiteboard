@@ -4,3 +4,5 @@ dist/
 .blueprint/export/
 .blueprint/worktrees/
 src/ui/public/fonts/
+test-results/
+playwright-report/

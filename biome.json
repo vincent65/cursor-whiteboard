@@ -6,7 +6,9 @@
       "!!**/dist",
       "!!test/export/fixtures",
       "!!docs",
-      "!!.superpowers"
+      "!!.superpowers",
+      "!!test-results",
+      "!!playwright-report"
     ]
   },
   "formatter": {

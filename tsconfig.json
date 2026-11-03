@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": ["node", "vitest/globals", "vite/client"]
   },
-  "include": ["src", "test"]
+  "include": ["src", "test", "e2e", "playwright.config.ts"]
 }
