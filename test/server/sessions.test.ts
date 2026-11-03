@@ -54,7 +54,7 @@ test("listOtherSessions excludes Blueprint's own sessions and sorts newest first
   expect(listSessions).toHaveBeenCalledWith({
     dir: "/repo",
     includeWorktrees: true,
-    includeProgrammatic: true,
+    includeProgrammatic: false,
   });
   expect(others).toEqual([
     {
@@ -82,6 +82,7 @@ test("GET /api/sessions/:id/transcript maps a saved session and 404s an unknown 
       session_id: "new",
       parent_tool_use_id: null,
       message: { role: "user", content: "refactor the router" },
+      timestamp: "2026-11-01T09:00:00.000Z",
     },
     {
       type: "assistant",
@@ -89,8 +90,10 @@ test("GET /api/sessions/:id/transcript maps a saved session and 404s an unknown 
       session_id: "new",
       parent_tool_use_id: null,
       message: { id: "msg_1", content: [{ type: "text", text: "Done." }] },
+      timestamp: "2026-11-01T09:00:05.000Z",
     },
-  ] as SessionMessage[];
+    // Saved lines carry a timestamp the SDK's type leaves out.
+  ] as unknown as SessionMessage[];
   const getSessionMessages = vi.fn(async (id: string) =>
     id === "new" ? saved : [],
   );
@@ -104,9 +107,15 @@ test("GET /api/sessions/:id/transcript maps a saved session and 404s an unknown 
 
   const res = await app.request("/api/sessions/new/transcript");
   expect(res.status).toBe(200);
+  // Each event is dated by its saved line, not by when it was read.
   expect(await res.json()).toMatchObject([
-    { kind: "user", id: "u1", text: "refactor the router" },
-    { kind: "assistant_text", text: "Done." },
+    {
+      kind: "user",
+      id: "u1",
+      text: "refactor the router",
+      at: "2026-11-01T09:00:00.000Z",
+    },
+    { kind: "assistant_text", text: "Done.", at: "2026-11-01T09:00:05.000Z" },
   ]);
   expect(getSessionMessages).toHaveBeenCalledWith("new", { dir: root });
 
@@ -121,4 +130,27 @@ test("GET /api/sessions/:id/transcript maps a saved session and 404s an unknown 
   expect(
     ((await list.json()) as { sessionId: string }[]).map((s) => s.sessionId),
   ).toEqual(["new", "old"]);
+});
+
+test("GET /api/sessions/:id/transcript keeps the last 500 events", async () => {
+  const saved = Array.from({ length: 510 }, (_, i) => ({
+    type: "user",
+    uuid: `u${i}`,
+    session_id: "long",
+    parent_tool_use_id: null,
+    message: { role: "user", content: `prompt ${i}` },
+  })) as SessionMessage[];
+  const app = createApp(store, undefined, undefined, {
+    listSessions: vi.fn(async () => []),
+    getSessionMessages: vi.fn(async () => saved),
+    root,
+    exclude: () => new Set(),
+  });
+
+  const events = (await (
+    await app.request("/api/sessions/long/transcript")
+  ).json()) as { id: string }[];
+  expect(events).toHaveLength(500);
+  expect(events[0].id).toBe("u10");
+  expect(events.at(-1)?.id).toBe("u509");
 });

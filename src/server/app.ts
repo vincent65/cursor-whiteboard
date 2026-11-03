@@ -11,13 +11,9 @@ import {
   NotFoundError,
 } from "./files.js";
 import { routes } from "./routes.js";
-import {
-  type RunRouteDeps,
-  runRoutes,
-  type SessionRouteDeps,
-  sessionRoutes,
-} from "./runRoutes.js";
+import { type RunRouteDeps, runRoutes } from "./runRoutes.js";
 import { GateError } from "./runs/gate.js";
+import { type SessionRouteDeps, sessionRoutes } from "./sessions.js";
 
 function statusFor(err: Error): ContentfulStatusCode {
   if (err instanceof InvalidNameError || err instanceof InvalidSceneError)

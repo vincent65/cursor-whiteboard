@@ -13,7 +13,8 @@ import type { PanelEvent } from "../../shared/panel.js";
 import { resultError, SdkEventMapper } from "./events.js";
 import { COMPILE_INSTRUCTION, COMPILE_LABEL } from "./prompt.js";
 
-const TRANSCRIPT_LIMIT = 500;
+// The most events a transcript holds, live or read back from a saved session.
+export const TRANSCRIPT_LIMIT = 500;
 const RESTORE_FAILED = "previous session could not be loaded; starting fresh";
 const resumeFailed = (cause: string) =>
   `The previous session could not be loaded (${cause}); starting fresh.`;
@@ -108,13 +109,21 @@ const COMPILE_LINE = COMPILE_INSTRUCTION.split("\n")[0];
 const shownPrompt = (prompt: string) =>
   prompt.split("\n").includes(COMPILE_LINE) ? COMPILE_LABEL : prompt;
 
-// A saved session's transcript, as the panel showed it live. Keyed by event id, so a text
-// block split across transcript lines keeps one entry.
+// When a transcript line was written. The SDK's type leaves the field out, but saved lines
+// carry it; a line without one reads as now.
+function savedAt(msg: SessionMessage): string {
+  const { timestamp } = msg as { timestamp?: unknown };
+  return typeof timestamp === "string" ? timestamp : now();
+}
+
+// A saved session's transcript, as the panel showed it live, each event at the time its
+// line was written. Keyed by event id, so a text block split across lines keeps one entry.
 export function transcriptFrom(messages: SessionMessage[]): PanelEvent[] {
   const events = new Map<string, PanelEvent>();
   const add = (e: PanelEvent) => events.set(e.id, e);
   const mapper = new SdkEventMapper();
   for (const msg of messages) {
+    const at = savedAt(msg);
     const prompt = savedPrompt(msg);
     if (prompt?.startsWith(INTERRUPT_MARKER)) {
       add({
@@ -123,13 +132,13 @@ export function transcriptFrom(messages: SessionMessage[]): PanelEvent[] {
         subtype: "interrupted",
         costUsd: null,
         durationMs: 0,
-        at: now(),
+        at,
       });
     } else if (prompt !== undefined) {
-      add({ kind: "user", id: msg.uuid, text: shownPrompt(prompt), at: now() });
+      add({ kind: "user", id: msg.uuid, text: shownPrompt(prompt), at });
     } else {
       for (const e of mapper.map(msg as unknown as SDKMessage, msg.uuid))
-        add(e);
+        add({ ...e, at });
     }
   }
   return [...events.values()];
