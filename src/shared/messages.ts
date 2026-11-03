@@ -1,5 +1,6 @@
 import type { PanelEvent } from "./panel.js";
 import type { Proposal } from "./proposals.js";
+import type { RunStatus } from "./types.js";
 
 export type { PanelEvent } from "./panel.js";
 
@@ -19,6 +20,10 @@ export type ServerMessage =
     }
   | { type: "agent.event"; event: PanelEvent }
   | { type: "agent.status"; status: AgentStatus; message?: string }
+  | { type: "run.event"; runId: string; event: PanelEvent }
+  | { type: "run.status"; runId: string; status: RunStatus; message?: string }
+  // A record was added or patched; clients refetch GET /api/runs.
+  | { type: "runs.changed" }
   | {
       type: "split.status";
       state: "running" | "done" | "error";

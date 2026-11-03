@@ -1,0 +1,310 @@
+import type * as claudeSdk from "@anthropic-ai/claude-agent-sdk";
+import type { AgentStatus } from "../../shared/messages.js";
+import type {
+  PanelEvent,
+  PendingPermission,
+  PermissionDecision,
+} from "../../shared/panel.js";
+import type { RunRecord, RunStatus } from "../../shared/types.js";
+import { PermissionBroker } from "../agent/broker.js";
+import { denyBoardWrites } from "../agent/hooks.js";
+import { PlanSession } from "../agent/session.js";
+import { ExistsError, type FileStore, NotFoundError } from "../files.js";
+import type { WsHub } from "../ws.js";
+import { createWorktree } from "./git.js";
+import { prUrlIn, runPrompt } from "./prompt.js";
+import type { RunStore } from "./store.js";
+
+const CONTINUE = "Continue the task where you left off.";
+const INTERRUPTED = "interrupted";
+
+export type LaunchOptions = {
+  taskSlug: string;
+  permissionMode: "acceptEdits" | "default" | "bypassPermissions";
+};
+export type RunView = RunRecord & {
+  pending: PendingPermission[];
+  lastText: string | null;
+};
+
+type Derived = { status: RunStatus; message?: string; prUrl?: string };
+
+// A run with a session in this process. `record` is ahead of the store, whose writes land
+// one at a time; `base` is what the session alone says, before a permission ask overrides it.
+type Live = {
+  record: RunRecord;
+  message?: string;
+  session: PlanSession;
+  broker: PermissionBroker;
+  base: Derived;
+  // The last assistant text of the turn in flight, and of the turn the last result ended.
+  turnText: string | null;
+  endedText: string | null;
+  lastText: string | null;
+  // What the run had spent when the current CLI process started; its totals add to this.
+  costBase: number;
+};
+
+const now = () => new Date().toISOString();
+
+type RunManagerDeps = {
+  store: FileStore;
+  runs: RunStore;
+  hub: WsHub;
+  root: string;
+  sdk: Pick<typeof claudeSdk, "query" | "getSessionMessages">;
+  git?: { createWorktree: typeof createWorktree };
+};
+
+export class RunManager {
+  #deps: RunManagerDeps;
+  #git: { createWorktree: typeof createWorktree };
+  #live = new Map<string, Live>();
+  #closing = false;
+
+  constructor(deps: RunManagerDeps) {
+    this.#deps = deps;
+    this.#git = deps.git ?? { createWorktree };
+  }
+
+  // No session survives a restart, so a run that was mid-turn reads interrupted.
+  async start(): Promise<void> {
+    const { runs, hub } = this.#deps;
+    const stale = runs
+      .runs()
+      .filter((r) => r.status === "working" || r.status === "needs_you");
+    if (stale.length === 0) return;
+    await Promise.all(
+      stale.map((r) =>
+        runs.patchRun(r.id, { status: "interrupted", endedAt: null }),
+      ),
+    );
+    hub.broadcast({ type: "runs.changed" });
+  }
+
+  async launch(opts: LaunchOptions): Promise<RunRecord> {
+    const { store, runs, hub, root } = this.#deps;
+    const found = (await store.listTasks()).find(
+      (t) => t.task.slug === opts.taskSlug,
+    );
+    if (!found) throw new NotFoundError(`task ${opts.taskSlug} not found`);
+    const spec = (await store.readSpec()) ?? "";
+    const { worktree, branch } = await this.#git.createWorktree(
+      root,
+      opts.taskSlug,
+    );
+    const record: RunRecord = {
+      id: runs.newRunId(),
+      taskSlug: opts.taskSlug,
+      sessionId: "",
+      worktree,
+      branch,
+      status: "working",
+      prUrl: null,
+      costUsd: 0,
+      startedAt: now(),
+      endedAt: null,
+    };
+    await runs.upsertRun(record);
+    hub.broadcast({ type: "runs.changed" });
+    this.#open(record, opts.permissionMode).session.send(
+      runPrompt({
+        task: found.task,
+        taskFile: `.blueprint/tasks/${found.file}`,
+        spec,
+        branch,
+      }),
+    );
+    return { ...record };
+  }
+
+  // A run with no session here (ended with the last server) resumes its saved one.
+  async message(runId: string, text: string): Promise<string> {
+    return this.#liveFor(this.#record(runId)).session.send(text);
+  }
+
+  async stop(runId: string): Promise<void> {
+    this.#record(runId);
+    const live = this.#live.get(runId);
+    if (!live) return;
+    live.broker.cancelAll(INTERRUPTED);
+    await live.session.interrupt();
+  }
+
+  async resume(runId: string): Promise<void> {
+    const record = this.#record(runId);
+    if (record.status !== "interrupted")
+      throw new ExistsError(
+        `run ${runId} is ${record.status}, not interrupted`,
+      );
+    this.#liveFor(record).session.send(CONTINUE);
+  }
+
+  answerPermission(runId: string, id: string, d: PermissionDecision): boolean {
+    return this.#live.get(runId)?.broker.answer(id, d) ?? false;
+  }
+
+  list(): RunView[] {
+    return this.#deps.runs.runs().map((r) => {
+      const live = this.#live.get(r.id);
+      return {
+        ...(live?.record ?? r),
+        pending: live?.broker.pending() ?? [],
+        lastText: live?.lastText ?? null,
+      };
+    });
+  }
+
+  // ponytail: only what this process saw; a run from an earlier server shows none of its
+  // history until it resumes. Restore the saved session here if the sessions view needs it.
+  transcript(runId: string): PanelEvent[] {
+    this.#record(runId);
+    return this.#live.get(runId)?.session.transcript() ?? [];
+  }
+
+  // Records keep their last status, so start() reads the active ones as interrupted.
+  async close(): Promise<void> {
+    this.#closing = true;
+    await Promise.all(
+      [...this.#live.values()].map((live) => {
+        live.broker.cancelAll(INTERRUPTED);
+        return live.session.close();
+      }),
+    );
+  }
+
+  #record(runId: string): RunRecord {
+    const record = this.#live.get(runId)?.record ?? this.#deps.runs.run(runId);
+    if (!record) throw new NotFoundError(`run ${runId} not found`);
+    return record;
+  }
+
+  // ponytail: the launch's permission mode is not saved, so a session reopened after a
+  // restart runs with the default; add it to RunRecord if that surprises anyone.
+  #liveFor(record: RunRecord): Live {
+    return this.#live.get(record.id) ?? this.#open(record, "acceptEdits");
+  }
+
+  #open(
+    record: RunRecord,
+    permissionMode: LaunchOptions["permissionMode"],
+  ): Live {
+    const { hub, sdk } = this.#deps;
+    const runId = record.id;
+    let asked = new Set<string>();
+    const broker = new PermissionBroker({
+      onChange: (pending) => {
+        if (this.#closing) return;
+        for (const p of pending)
+          if (!asked.has(p.id))
+            hub.broadcast({
+              type: "run.event",
+              runId,
+              event: { kind: "permission", ...p },
+            });
+        asked = new Set(pending.map((p) => p.id));
+        this.#derive(live);
+      },
+    });
+    const session = new PlanSession(
+      {
+        query: sdk.query,
+        getSessionMessages: sdk.getSessionMessages,
+        cwd: record.worktree,
+        options: {
+          systemPrompt: { type: "preset", preset: "claude_code" },
+          permissionMode,
+          hooks: {
+            PreToolUse: [
+              {
+                matcher: "Write|Edit|MultiEdit|NotebookEdit",
+                hooks: [denyBoardWrites(record.worktree)],
+              },
+            ],
+          },
+          canUseTool: (tool, input, { signal, suggestions, toolUseID }) =>
+            broker.ask({ toolUseID, tool, input, suggestions, signal }),
+        },
+        onEvent: (event) => {
+          if (event.kind === "assistant_text" && !event.partial)
+            live.turnText = live.lastText = event.text;
+          if (event.kind === "result") {
+            live.endedText = live.turnText;
+            live.turnText = null;
+            if (event.costUsd !== null)
+              this.#patch(live, { costUsd: live.costBase + event.costUsd });
+          }
+          hub.broadcast({ type: "run.event", runId, event });
+        },
+        onStatus: (status, message) => {
+          if (this.#closing) return;
+          // A new CLI process: its cost totals start from zero, and no turn text is ours yet.
+          if (status === "starting") {
+            live.costBase = live.record.costUsd;
+            live.turnText = live.endedText = null;
+          }
+          live.base = this.#fromSession(live, status, message);
+          this.#derive(live);
+        },
+        onSessionId: (sessionId) => this.#patch(live, { sessionId }),
+      },
+      record.sessionId || undefined,
+    );
+    const live: Live = {
+      record: { ...record },
+      session,
+      broker,
+      base: { status: record.status },
+      turnText: null,
+      endedText: null,
+      lastText: null,
+      costBase: record.costUsd,
+    };
+    this.#live.set(runId, live);
+    return live;
+  }
+
+  #fromSession(live: Live, status: AgentStatus, message?: string): Derived {
+    switch (status) {
+      case "idle": {
+        const prUrl = prUrlIn(live.endedText ?? "");
+        return prUrl ? { status: "done", prUrl } : { status: "idle" };
+      }
+      case "error":
+        return { status: "failed", message };
+      case "stopped":
+        return { status: "idle" };
+      default:
+        return { status: "working" };
+    }
+  }
+
+  // A waiting permission ask overrides the session; a change patches and broadcasts.
+  #derive(live: Live): void {
+    const next: Derived =
+      live.broker.pending().length > 0 ? { status: "needs_you" } : live.base;
+    if (next.status === live.record.status && next.message === live.message)
+      return;
+    live.message = next.message;
+    const ended = next.status === "done" || next.status === "failed";
+    this.#patch(live, {
+      status: next.status,
+      endedAt: ended ? now() : null,
+      ...(next.prUrl ? { prUrl: next.prUrl } : {}),
+    });
+    this.#deps.hub.broadcast({
+      type: "run.status",
+      runId: live.record.id,
+      status: next.status,
+      ...(next.message ? { message: next.message } : {}),
+    });
+  }
+
+  #patch(live: Live, patch: Partial<RunRecord>): void {
+    live.record = { ...live.record, ...patch };
+    this.#deps.runs.patchRun(live.record.id, patch).then(
+      () => this.#deps.hub.broadcast({ type: "runs.changed" }),
+      (err) => console.error(`could not save run ${live.record.id}`, err),
+    );
+  }
+}
