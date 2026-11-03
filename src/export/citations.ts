@@ -58,6 +58,8 @@ const CITED_ASIDE = new RegExp(
 // One separator beside a citation: a comma or semicolon with its spaces, or spaces alone.
 const SEPARATOR_BEFORE = /(?:[,;][ \t]*|[ \t]+)$/;
 const SEPARATOR_AFTER = /^(?:[,;][ \t]*|[ \t]+)/;
+const PUNCT_BEFORE = /[,;][ \t]*$/;
+const PUNCT_AFTER = /^[,;]/;
 
 // Each unknown citation goes with one separator beside it, so a list of them leaves no
 // stray commas; an aside whose citations are all unknown goes whole.
@@ -75,10 +77,18 @@ export function dropUnknownCitations(
   for (const m of asidesGone.matchAll(CITATION)) {
     out += asidesGone.slice(pos, m.index);
     pos = m.index + m[0].length;
-    if (!unknown.has(m[0])) out += m[0];
-    else if (SEPARATOR_BEFORE.test(out))
-      out = out.replace(SEPARATOR_BEFORE, "");
-    else pos += SEPARATOR_AFTER.exec(asidesGone.slice(pos))?.[0].length ?? 0;
+    if (!unknown.has(m[0])) {
+      out += m[0];
+      continue;
+    }
+    // The comma or semicolon goes, wherever it is: one after a citation that leads a
+    // list ("See [[x]], A"), else the separator before it, else the one after it.
+    const after = asidesGone.slice(pos);
+    const takeAfter = PUNCT_AFTER.test(after)
+      ? !PUNCT_BEFORE.test(out)
+      : !SEPARATOR_BEFORE.test(out);
+    if (takeAfter) pos += SEPARATOR_AFTER.exec(after)?.[0].length ?? 0;
+    else out = out.replace(SEPARATOR_BEFORE, "");
   }
   return { text: out + asidesGone.slice(pos), dropped };
 }

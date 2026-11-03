@@ -94,3 +94,15 @@ test("an unknown citation goes with one adjacent separator", () => {
   );
   expect(clean("- Login [[board:main#x]]\n- Home")).toBe("- Login\n- Home");
 });
+
+test("an unknown citation leading a list takes the comma after it", () => {
+  const index = new Set(["board:main#a"]);
+  const clean = (text: string) => dropUnknownCitations(text, index).text;
+  expect(clean("Statement [[board:main#x]], [[board:main#a]].")).toBe(
+    "Statement [[board:main#a]].",
+  );
+  expect(clean("Login (see [[board:main#x]], [[board:main#a]]) fast.")).toBe(
+    "Login (see [[board:main#a]]) fast.",
+  );
+  expect(clean("See [[board:main#x]], [[board:main#y]], A.")).toBe("See A.");
+});
