@@ -159,6 +159,8 @@ test("compile and split", async ({ page, start }) => {
 
   await page.getByRole("link", { name: "Spec" }).click();
   await page.getByRole("button", { name: "Split into tasks" }).click();
+  // The split starts, then ends: the button reads Splitting… until the tasks are written.
+  await expect(page.getByRole("button", { name: "Splitting…" })).toBeDisabled();
   await expect(
     page.getByRole("button", { name: "Split into tasks" }),
   ).toBeEnabled();
