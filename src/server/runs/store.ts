@@ -70,6 +70,11 @@ export class RunStore {
     return id;
   }
 
+  // Resolves once every write queued so far has landed or failed.
+  settled(): Promise<unknown> {
+    return this.queue;
+  }
+
   // Memory moves to the next state only once it is on disk.
   private write(next: (s: SessionsFile) => SessionsFile): Promise<void> {
     const p = this.queue.then(async () => {

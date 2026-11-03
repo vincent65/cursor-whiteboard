@@ -62,6 +62,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  // A run's last writes can still be landing when its test ends.
+  await runs.settled();
   await rm(root, { recursive: true, force: true });
 });
 
@@ -424,8 +426,11 @@ test("events and statuses carry the run id for two concurrent runs", async () =>
   ]);
   expect(statusesOf(a.id)).toEqual(["idle"]);
   expect(statusesOf(b.id)).toEqual(["idle"]);
-  expect(runs.run(a.id)?.sessionId).toBe("sess-alpha");
-  expect(runs.run(b.id)?.sessionId).toBe("sess-beta");
+  // The store's writes land one at a time, after the live status has moved on.
+  await vi.waitFor(() => {
+    expect(runs.run(a.id)?.sessionId).toBe("sess-alpha");
+    expect(runs.run(b.id)?.sessionId).toBe("sess-beta");
+  });
   expect(() => manager.transcript("run_000000")).toThrow(NotFoundError);
   await manager.close();
 });
