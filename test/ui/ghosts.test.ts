@@ -131,6 +131,39 @@ test("placeBeside and the anchor fall back from near ids to the selection to eve
   expect(at([], [])).toMatchObject({ x: 1180, y: 0 });
 });
 
+test("placement beside the anchor shifts right past shapes it would overlap", () => {
+  const a = { x: 0, y: 0, w: 100, h: 50 };
+  const size = { w: 100, h: 50 };
+  // Nothing in the way: 80 px right of the anchor.
+  expect(placeBeside(a, viewport, size, 0, [el({ id: "a" })])).toEqual({
+    x: 180,
+    y: 0,
+  });
+  // A shape on the spot, and a second one the first shift would land on: the group
+  // lands 80 px right of the last one it overlapped.
+  const blockers = [
+    el({ id: "a" }),
+    el({ id: "b", x: 200, y: 20, width: 120 }),
+    el({ id: "c", x: 380, y: -30, width: 60 }),
+    // Deleted, and out of the group's rows: neither moves it.
+    el({ id: "d", x: 520, y: 0, isDeleted: true }),
+    el({ id: "e", x: 520, y: 60 }),
+  ];
+  expect(placeBeside(a, viewport, size, 0, blockers)).toEqual({ x: 520, y: 0 });
+
+  // Through applyProposal: the note avoids the shape beside its anchor.
+  const placed = byId(
+    applyProposal(
+      [el({ id: "a" }), el({ id: "b", x: 150, y: 0 })],
+      { ...p, ops: [{ op: "add_note", text: "n", near: ["a"] }] },
+      new Map([[0, [el({ id: "n" })]]]),
+      { selectedIds: [], viewport },
+    ).elements,
+    "n",
+  );
+  expect(placed).toMatchObject({ x: 330, y: 0 });
+});
+
 test("update snapshots before values, dashes the stroke, and rewrites the bound label", () => {
   const b = el({ id: "b" });
   const t = el({
@@ -682,7 +715,8 @@ test("a node with one connecting arrow stays beside its anchor", () => {
     cacheNode(),
     ctx,
   );
-  expect(byId(elements, "n")).toMatchObject({ x: 180, y: 0 });
+  // Beside a, not between a and b: past the a to b arrow and b, which fill a's row.
+  expect(byId(elements, "n")).toMatchObject({ x: 580, y: 0 });
   expect(arrows(elements)[1].endBinding?.elementId).toBe("n");
 });
 

@@ -94,13 +94,31 @@ export function anchor(
   return of(nearIds) ?? of(selectedIds) ?? bounds(elements);
 }
 
+// Right of the anchor, shifted right past any live element the group would
+// overlap, GAP_X clear of the last one; centered in the viewport without an anchor.
 export function placeBeside(
   anchor: Bounds | null,
   viewport: Viewport,
   size: { w: number; h: number },
   offsetY: number,
+  elements: readonly El[] = [],
 ): { x: number; y: number } {
-  if (anchor) return { x: anchor.x + anchor.w + GAP_X, y: anchor.y + offsetY };
+  if (anchor) {
+    const y = anchor.y + offsetY;
+    let x = anchor.x + anchor.w + GAP_X;
+    for (;;) {
+      const hit = elements.filter(
+        (e) =>
+          !e.isDeleted &&
+          e.x < x + size.w &&
+          x < e.x + e.width &&
+          e.y < y + size.h &&
+          y < e.y + e.height,
+      );
+      if (hit.length === 0) return { x, y };
+      x = Math.max(...hit.map((e) => e.x + e.width)) + GAP_X;
+    }
+  }
   return {
     x: viewport.x + (viewport.w - size.w) / 2,
     y: viewport.y + (viewport.h - size.h) / 2 + offsetY,
@@ -287,7 +305,7 @@ export function applyProposal(
         to =
           !a && stackTop
             ? { x: stackTop.x, y: stackTop.y + offsetY }
-            : placeBeside(a, ctx.viewport, b, offsetY);
+            : placeBeside(a, ctx.viewport, b, offsetY, out);
         if (!a) stackTop ??= to;
         offsetY += b.h + GAP_Y;
       }
