@@ -34,7 +34,8 @@ const failed = (text: string): ToolResult => ({
 });
 
 // The CLI reaches an SDK server's tools over MCP; the fake calls them directly, through the
-// server's tool registry, which is private.
+// server's tool registry, which is private. A renamed registry reads as no tools, so a
+// tool step fails as a tool error rather than ending the session.
 type Registered = {
   inputSchema?: z.ZodType;
   handler(
@@ -45,10 +46,12 @@ type Registered = {
 function toolsOf(server: McpServerConfig | undefined) {
   if (!server || !("instance" in server)) return {};
   return (
-    server.instance as unknown as {
-      _registeredTools: Record<string, Registered>;
-    }
-  )._registeredTools;
+    (
+      server.instance as unknown as {
+        _registeredTools?: Record<string, Registered>;
+      }
+    )._registeredTools ?? {}
+  );
 }
 
 const FIRST_NODE = /\{\{board:([^:}]+):first\}\}/g;

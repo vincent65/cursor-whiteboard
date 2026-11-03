@@ -234,6 +234,38 @@ describe("query", () => {
     expect(msgs.at(-1)).toMatchObject({ type: "result", subtype: "success" });
   });
 
+  test("a server whose private tool registry is gone yields a tool error, not a dead session", async () => {
+    const sdk = await fake({
+      plan: [
+        {
+          match: ".",
+          steps: [
+            { do: "tool", server: "blueprint", name: "echo", input: {} },
+            { do: "say", text: "still here" },
+          ],
+        },
+      ],
+    });
+    // As if a future SDK renamed _registeredTools.
+    const blueprint = { type: "sdk", name: "blueprint", instance: {} };
+    const msgs = await collect(
+      sdk.query({
+        prompt: prompts("go"),
+        options: { mcpServers: { blueprint } } as unknown as Options,
+      }),
+    );
+    expect(
+      events(msgs).flatMap((e) =>
+        e.kind === "tool_result" ? [[e.ok, e.summary]] : [],
+      ),
+    ).toEqual([[false, "no blueprint tool named echo"]]);
+    expect(msgs.at(-1)).toMatchObject({
+      type: "result",
+      subtype: "success",
+      result: "still here",
+    });
+  });
+
   test("a write rule writes under cwd and refuses a path outside it", async () => {
     const cwd = join(dir, "repo");
     const sdk = await fake({
