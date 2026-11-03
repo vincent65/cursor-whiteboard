@@ -25,6 +25,7 @@ export type RunRecord = {
   id: string;
   taskSlug: string;
   sessionId: string;
+  // Relative to the repository root; records saved before this read as absolute.
   worktree: string;
   branch: string;
   status: RunStatus;

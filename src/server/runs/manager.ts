@@ -1,3 +1,4 @@
+import { relative, resolve } from "node:path";
 import type * as claudeSdk from "@anthropic-ai/claude-agent-sdk";
 import type { AgentStatus } from "../../shared/messages.js";
 import type { PanelEvent, PermissionDecision } from "../../shared/panel.js";
@@ -98,7 +99,8 @@ export class RunManager {
       id: runs.newRunId(),
       taskSlug: opts.taskSlug,
       sessionId: "",
-      worktree,
+      // sessions.json is committed, so the path is relative to the root.
+      worktree: relative(root, worktree),
       branch,
       status: "working",
       permissionMode: opts.permissionMode,
@@ -161,6 +163,7 @@ export class RunManager {
       const live = this.#live.get(r.id);
       return {
         ...r,
+        worktree: this.#worktree(r),
         title: titles.get(r.taskSlug) ?? r.taskSlug,
         pending: live?.broker.pending() ?? [],
         lastText: live?.lastText ?? null,
@@ -231,9 +234,15 @@ export class RunManager {
     return this.#live.get(record.id) ?? this.#open(record);
   }
 
+  // The run's worktree as an absolute path; records saved absolute resolve to themselves.
+  #worktree(record: RunRecord): string {
+    return resolve(this.#deps.root, record.worktree);
+  }
+
   #open(record: RunRecord): Live {
     const { hub, sdk } = this.#deps;
     const runId = record.id;
+    const worktree = this.#worktree(record);
     let asked = new Set<string>();
     const broker = new PermissionBroker({
       onChange: (pending) => {
@@ -253,7 +262,7 @@ export class RunManager {
       {
         query: sdk.query,
         getSessionMessages: sdk.getSessionMessages,
-        cwd: record.worktree,
+        cwd: worktree,
         options: {
           systemPrompt: { type: "preset", preset: "claude_code" },
           permissionMode: record.permissionMode,
@@ -265,10 +274,7 @@ export class RunManager {
               {
                 matcher: "Write|Edit|MultiEdit|NotebookEdit",
                 hooks: [
-                  denyBoardWrites(
-                    [this.#deps.root, record.worktree],
-                    BOARD_READ_ONLY,
-                  ),
+                  denyBoardWrites([this.#deps.root, worktree], BOARD_READ_ONLY),
                 ],
               },
             ],

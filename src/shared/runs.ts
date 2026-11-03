@@ -6,7 +6,8 @@ export type LaunchOptions = {
   permissionMode: RunPermissionMode;
 };
 
-// title: the task file's title, or the slug once the task file is gone.
+// title: the task file's title, or the slug once the task file is gone; worktree: an
+// absolute path.
 export type RunView = RunRecord & {
   title: string;
   pending: PendingPermission[];

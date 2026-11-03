@@ -1,6 +1,6 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
   CanUseTool,
   HookCallbackMatcher,
@@ -108,6 +108,7 @@ const statusesOf = (runId: string) =>
     m.type === "run.status" && m.runId === runId ? [m.status] : [],
   );
 // The record on disk once every queued write has landed: what the manager holds now.
+// The disk holds the worktree relative to the root; the view holds it resolved.
 async function saved(manager: RunManager, id: string): Promise<RunRecord> {
   const {
     title: _title,
@@ -115,12 +116,14 @@ async function saved(manager: RunManager, id: string): Promise<RunRecord> {
     lastText: _lastText,
     ...record
   } = (await view(manager, id)) ?? {};
-  await vi.waitFor(async () =>
-    expect((await store.readSessions()).runs.find((r) => r.id === id)).toEqual(
+  let disk: RunRecord | undefined;
+  await vi.waitFor(async () => {
+    disk = (await store.readSessions()).runs.find((r) => r.id === id);
+    expect(disk && { ...disk, worktree: resolve(root, disk.worktree) }).toEqual(
       record,
-    ),
-  );
-  return record as RunRecord;
+    );
+  });
+  return disk as RunRecord;
 }
 
 // Holds every turn until released.
@@ -153,9 +156,10 @@ test("launch creates a worktree, a working record, and sends the run prompt", as
   });
   const worktree = join(root, ".blueprint", "worktrees", "alpha");
   expect(git.createWorktree).toHaveBeenCalledWith(root, "alpha");
+  // sessions.json is committed, so it holds no machine's absolute path.
   expect(record).toMatchObject({
     taskSlug: "alpha",
-    worktree,
+    worktree: ".blueprint/worktrees/alpha",
     branch: "blueprint/alpha",
     status: "working",
     prUrl: null,
@@ -217,10 +221,15 @@ test("launch creates a worktree, a working record, and sends the run prompt", as
   );
   // The session id lands on the record once the CLI reports it.
   await vi.waitFor(() => expect(runs.run(record.id)?.sessionId).toBe("sess-a"));
+  expect(
+    (await store.readSessions()).runs.find((r) => r.id === record.id)?.worktree,
+  ).toBe(".blueprint/worktrees/alpha");
+  // The view resolves it, so the copied resume command works from any directory.
   expect(await view(manager, record.id)).toMatchObject({
     title: "Build alpha",
     status: "working",
     pending: [],
+    worktree,
   });
   release();
   await vi.waitFor(async () =>
@@ -521,6 +530,7 @@ test("start marks active records interrupted and resume continues the saved sess
   );
 
   await manager.start();
+  // Records saved with an absolute worktree still load as they are.
   expect(getSessionMessages).toHaveBeenCalledWith("sess-run_aaaaaa", {
     dir: "/w/run_aaaaaa",
   });
