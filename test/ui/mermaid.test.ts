@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
 import {
   renderMermaid,
@@ -91,4 +92,25 @@ test("renderNode makes a shape with a bound label", () => {
     expect(shape.width).toBeGreaterThan(0);
   }
   expect(renderNode("x", "box")[0].id).not.toBe(renderNode("x", "box")[0].id);
+});
+
+// Sized to the label alone, a box's border touched its text; a drawn box has room.
+test("renderNode leaves room around its label", () => {
+  for (const kind of ["box", "ellipse", "diamond"] as const) {
+    const [snug] = convertToExcalidrawElements(
+      [
+        {
+          type: kind === "box" ? "rectangle" : kind,
+          x: 0,
+          y: 0,
+          label: { text: "Read notes.json" },
+        },
+      ],
+      { regenerateIds: true },
+    );
+    const [shape, label] = renderNode("Read notes.json", kind);
+    expect(shape.width).toBe(snug.width + 40);
+    expect(shape.height).toBe(snug.height + 30);
+    expect((label as { text: string }).text).toBe("Read notes.json");
+  }
 });

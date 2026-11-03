@@ -29,13 +29,23 @@ export function renderNote(text: string): ExcalidrawElement[] {
   );
 }
 
+// Room around a node's label: sized to the label alone, its border touches the text.
+// ponytail: fixed, a drawn box's usual margin at the default 20 px label.
+const NODE_PAD = { x: 20, y: 15 };
+
 export function renderNode(
   label: string,
   kind: "box" | "ellipse" | "diamond",
 ): ExcalidrawElement[] {
   const type = kind === "box" ? "rectangle" : kind;
-  return convertToExcalidrawElements(
-    [{ type, x: 0, y: 0, label: { text: label } }],
-    { regenerateIds: true },
-  );
+  const node = (size: { width?: number; height?: number }) =>
+    convertToExcalidrawElements(
+      [{ type, x: 0, y: 0, ...size, label: { text: label } }],
+      { regenerateIds: true },
+    );
+  const [snug] = node({});
+  return node({
+    width: snug.width + 2 * NODE_PAD.x,
+    height: snug.height + 2 * NODE_PAD.y,
+  });
 }
