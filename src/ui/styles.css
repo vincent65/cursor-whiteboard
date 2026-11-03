@@ -450,8 +450,9 @@ pre {
 }
 
 /* Less padding after than before, so punctuation that follows sits close.
-   A tool row's command (.cmd) is the same chip. */
+   A tool row's command (.cmd) and code in a one-line field are the same chip. */
 .md code,
+.md-inline code,
 .cmd {
   padding: 0 calc(var(--space) / 4) 0 calc(var(--space) / 2);
   border-radius: var(--radius-sm);

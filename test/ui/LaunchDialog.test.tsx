@@ -100,3 +100,18 @@ test("LaunchDialog closes on Cancel and on Escape, including from the select", a
   await user.keyboard("{Escape}");
   expect(onClose).toHaveBeenCalledTimes(3);
 });
+
+test("LaunchDialog renders inline code in the task title", () => {
+  render(
+    <LaunchDialog
+      title="`notes add` command"
+      gate={{ ok: true, branch: "blueprint/add", missing: [] }}
+      onLaunch={vi.fn(async () => {})}
+      onClose={vi.fn()}
+    />,
+  );
+  const dialog = screen.getByRole("dialog", {
+    name: "Launch notes add command",
+  });
+  expect(dialog.querySelector("h3 code")).toHaveTextContent("notes add");
+});

@@ -8,6 +8,7 @@ import {
 import type { PanelEvent, PermissionDecision } from "../../shared/panel";
 import type { RunView } from "../../shared/runs";
 import type { RunStatus } from "../../shared/types";
+import { Inline } from "../markdown";
 import { PermissionDialog } from "../panel/PermissionDialog";
 import { TranscriptList } from "../panel/TranscriptList";
 
@@ -134,7 +135,7 @@ export function RunCard({
     <article className="run-card" aria-label={run.taskSlug}>
       <header className="run-head">
         <h2 className="run-title" title={run.title}>
-          {run.title}
+          <Inline text={run.title} />
         </h2>
         <span
           role="status"
@@ -159,7 +160,9 @@ export function RunCard({
       </p>
       {run.lastText && (
         // Line by line, as Claude wrote it; a blank line would waste one of the two shown.
-        <p className="run-last">{run.lastText.replace(/\n\s*\n/g, "\n")}</p>
+        <p className="run-last">
+          <Inline text={run.lastText.replace(/\n\s*\n/g, "\n")} />
+        </p>
       )}
       <div className="run-actions">
         <button

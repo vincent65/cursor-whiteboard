@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { GateResult, MissingDependency } from "../../shared/runs";
 import type { RunPermissionMode } from "../../shared/types";
+import { Inline } from "../markdown";
 
 const REASONS: Record<MissingDependency["reason"], string> = {
   "no run": "no run",
@@ -63,7 +64,7 @@ export function LaunchDialog({
       onKeyDown={(e) => e.key === "Escape" && onClose()}
     >
       <h3 id={`${id}-title`} className="launch-title">
-        Launch {title}
+        Launch <Inline text={title} />
       </h3>
       <p className="muted">
         Starts a session on branch <code>{gate.branch}</code> in its own

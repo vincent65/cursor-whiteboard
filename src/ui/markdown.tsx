@@ -198,3 +198,8 @@ export function Markdown({
 }): JSX.Element {
   return <div className="md">{blocks(text, renderCitation)}</div>;
 }
+
+// One line of Markdown, such as a task title: spans only, no blocks.
+export function Inline({ text }: { text: string }): JSX.Element {
+  return <span className="md-inline">{inline(text)}</span>;
+}

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
-import { Markdown } from "../../src/ui/markdown";
+import { Inline, Markdown } from "../../src/ui/markdown";
 
 const md = (text: string) => render(<Markdown text={text} />).container;
 
@@ -176,4 +176,16 @@ test("an item indented under another starts a nested list", () => {
   ]);
   expect(outer?.children[0].firstChild?.textContent).toBe("one");
   expect(c.querySelector(".md > ol li > ol li")).toHaveTextContent("three a");
+});
+
+// A one-line field, such as a task title, has spans but no blocks.
+test("Inline renders code and emphasis in one line, and HTML stays text", () => {
+  const { container } = render(
+    <Inline text={"`notes add <text>` is **one** <b>line</b>"} />,
+  );
+  expect(container.querySelector("code")).toHaveTextContent("notes add <text>");
+  expect(container.querySelector("strong")).toHaveTextContent("one");
+  expect(container.querySelector("b")).toBeNull();
+  expect(container.querySelector("p")).toBeNull();
+  expect(container).toHaveTextContent("notes add <text> is one <b>line</b>");
 });

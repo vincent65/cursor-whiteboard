@@ -267,3 +267,22 @@ test("RunCard's preview keeps the reply's line breaks, without blank lines", () 
     "Added src/login.ts.\nhttps://github.com/o/r/pull/1\nThe check is a stub.",
   );
 });
+
+test("RunCard renders inline code in its title and preview, not backticks", () => {
+  const { container } = render(
+    <RunCard
+      run={run({
+        title: "`notes add` command",
+        lastText: "Committed on `blueprint/add` as **1440336**.",
+      })}
+      transcript={[]}
+      {...handlers()}
+    />,
+  );
+  const title = screen.getByRole("heading", { name: "notes add command" });
+  expect(title.querySelector("code")).toHaveTextContent("notes add");
+  const last = container.querySelector(".run-last");
+  expect(last?.textContent).toBe("Committed on blueprint/add as 1440336.");
+  expect(last?.querySelector("code")).toHaveTextContent("blueprint/add");
+  expect(last?.querySelector("strong")).toHaveTextContent("1440336");
+});

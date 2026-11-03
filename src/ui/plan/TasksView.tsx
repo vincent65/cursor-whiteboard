@@ -5,6 +5,7 @@ import type { TaskFile } from "../../shared/tasks";
 import type { RunPermissionMode } from "../../shared/types";
 import * as api from "../api";
 import { routeHash } from "../hooks/useHashRoute";
+import { Inline } from "../markdown";
 import { useServerEvent } from "../server-events";
 import { CitationLink } from "./citations";
 import { LaunchDialog } from "./LaunchDialog";
@@ -129,7 +130,9 @@ export function TasksView({ cost }: { cost: number | null }) {
       {tasks?.map(({ file, task }) => (
         <article key={file} className="task-card">
           <p className="task-file">{file}</p>
-          <h2 className="task-title">{task.title}</h2>
+          <h2 className="task-title">
+            <Inline text={task.title} />
+          </h2>
           {task.dependsOn.length > 0 && (
             <p className="task-meta">Depends on: {task.dependsOn.join(", ")}</p>
           )}
@@ -137,7 +140,9 @@ export function TasksView({ cost }: { cost: number | null }) {
             <ul className="task-list">
               {task.acceptance.map((a, i) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: lines can repeat and never move
-                <li key={i}>{a}</li>
+                <li key={i}>
+                  <Inline text={a} />
+                </li>
               ))}
             </ul>
           )}

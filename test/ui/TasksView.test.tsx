@@ -309,3 +309,25 @@ test("an open launch dialog checks its gate again on runs.changed", async () => 
   expect(api.gate).toHaveBeenCalledTimes(2);
   expect(within(dialog).getByRole("button", { name: "Launch" })).toBeEnabled();
 });
+
+// Claude writes titles and checks in Markdown; a card shows code, not backticks.
+test("a task card renders inline code in its title and acceptance checks", async () => {
+  vi.mocked(api.listTasks).mockResolvedValue([
+    {
+      file: "01-add.md",
+      task: task("add", {
+        title: "`notes add <text>` command",
+        acceptance: ["`notes add a` exits 0"],
+      }),
+    },
+  ]);
+  vi.mocked(api.listRuns).mockResolvedValue([]);
+  render(<TasksView cost={null} />);
+  const title = await screen.findByRole("heading", {
+    name: "notes add <text> command",
+  });
+  expect(title.querySelector("code")).toHaveTextContent("notes add <text>");
+  expect(screen.getByRole("listitem").querySelector("code")).toHaveTextContent(
+    "notes add a",
+  );
+});
