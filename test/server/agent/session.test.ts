@@ -53,7 +53,7 @@ type Script = (text: string, turn: number) => AsyncIterable<SDKMessage>;
 
 // A fake `query` that reads the prompt iterable in the background, like the SDK does, and
 // yields the scripted messages for each user message in order.
-function fakeQuery(script: Script) {
+function fakeQuery(script: Script, endAfter?: number) {
   const runs: {
     options: Options | undefined;
     inputEnded: boolean;
@@ -88,6 +88,7 @@ function fakeQuery(script: Script) {
           const text = received.shift();
           if (text !== undefined) {
             yield* script(text, turn++);
+            if (turn === endAfter) return;
           } else if (run.inputEnded) {
             return;
           } else {
@@ -115,9 +116,11 @@ function setup(
   opts: {
     resumeId?: string;
     getSessionMessages?: SessionDeps["getSessionMessages"];
+    onEvent?: (e: PanelEvent) => void;
+    endAfter?: number;
   } = {},
 ) {
-  const { query, runs } = fakeQuery(script);
+  const { query, runs } = fakeQuery(script, opts.endAfter);
   const events: PanelEvent[] = [];
   const statuses: [string, string | undefined][] = [];
   const sessionIds: string[] = [];
@@ -127,7 +130,10 @@ function setup(
       opts.getSessionMessages ?? vi.fn(async () => [] as SessionMessage[]),
     cwd: "/proj",
     options: { model: "claude-test" },
-    onEvent: (e) => events.push(e),
+    onEvent: (e) => {
+      opts.onEvent?.(e);
+      events.push(e);
+    },
     onStatus: (s, m) => statuses.push([s, m]),
     onSessionId: (id) => sessionIds.push(id),
   };
@@ -297,6 +303,64 @@ test("an error result sets status error and the next send starts a fresh query w
   expect(query).toHaveBeenCalledTimes(2);
   expect(runs[0].close).toHaveBeenCalled();
   expect(runs[0].inputEnded).toBe(true);
+  expect(runs[1].options?.resume).toBe("sess-1");
+});
+
+test("a throwing event handler closes the run and the next send starts exactly one new query", async () => {
+  let thrown = false;
+  const { session, query, runs, statuses } = setup(
+    (_text, turn) =>
+      turnsOf(
+        ...(turn === 0 ? [init("sess-1")] : []),
+        ...textTurn("m", "x", "r"),
+      ),
+    {
+      onEvent: (e) => {
+        if (e.kind === "assistant_text" && !thrown) {
+          thrown = true;
+          throw new Error("broadcast failed");
+        }
+      },
+    },
+  );
+
+  session.send("one");
+  await vi.waitFor(() => expect(session.status).toBe("error"));
+  expect(statuses.at(-1)).toEqual(["error", "broadcast failed"]);
+  expect(runs[0].close).toHaveBeenCalled();
+  await vi.waitFor(() => expect(runs[0].inputEnded).toBe(true));
+
+  session.send("two");
+  await vi.waitFor(() => expect(session.status).toBe("idle"));
+  expect(query).toHaveBeenCalledTimes(2);
+  expect(runs[1].options?.resume).toBe("sess-1");
+});
+
+test("a query that ends on its own sets error and the next send starts a new query with resume", async () => {
+  const { session, query, runs, events, statuses } = setup(
+    (_text, turn) =>
+      turnsOf(
+        ...(turn === 0 ? [init("sess-1")] : []),
+        ...textTurn("m", "x", "r"),
+      ),
+    { endAfter: 1 },
+  );
+
+  session.send("one");
+  await vi.waitFor(() => expect(session.status).toBe("error"));
+  expect(statuses.at(-1)).toEqual(["error", "Claude session ended"]);
+  expect(events.at(-1)).toMatchObject({
+    kind: "error",
+    message: "Claude session ended",
+  });
+  expect(runs[0].close).toHaveBeenCalled();
+
+  session.send("two");
+  // The second run answers its turn, then also ends because the fake ends every run after one.
+  await vi.waitFor(() =>
+    expect(events.filter((e) => e.kind === "result")).toHaveLength(2),
+  );
+  expect(query).toHaveBeenCalledTimes(2);
   expect(runs[1].options?.resume).toBe("sess-1");
 });
 

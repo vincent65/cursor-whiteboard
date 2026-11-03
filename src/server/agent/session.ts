@@ -183,6 +183,7 @@ export class PlanSession {
 
   async #consume(run: Run): Promise<void> {
     const mapper = new SdkEventMapper();
+    let message = "Claude session ended";
     try {
       for await (const msg of run.query) {
         if (this.#run !== run) return;
@@ -208,12 +209,13 @@ export class PlanSession {
         }
       }
     } catch (err) {
-      if (this.#run !== run) return;
-      const message = err instanceof Error ? err.message : String(err);
-      this.#run = undefined;
-      this.#emit({ kind: "error", id: randomUUID(), message, at: now() });
-      this.#setStatus("error", message);
+      message = err instanceof Error ? err.message : String(err);
     }
+    // Thrown or ended on its own, this run is done: reap it so the next send resumes afresh.
+    if (this.#run !== run) return;
+    this.#stopRun();
+    this.#emit({ kind: "error", id: randomUUID(), message, at: now() });
+    this.#setStatus("error", message);
   }
 
   #emit(e: PanelEvent): void {
