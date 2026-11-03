@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { extname, join, resolve, sep } from "node:path";
 import { serve } from "@hono/node-server";
 import { createNodeWebSocket } from "@hono/node-ws";
+import { createAgent } from "./agent/index.js";
 import { createApp } from "./app.js";
 import { FileStore } from "./files.js";
 import { watchPlan } from "./watch.js";
@@ -31,7 +32,8 @@ export async function startServer(opts: {
   const store = new FileStore(opts.root);
   await store.init();
   const hub = new WsHub();
-  const app = createApp(store);
+  const agent = await createAgent({ store, hub, cwd: opts.root });
+  const app = createApp(store, agent);
   const { injectWebSocket, upgradeWebSocket, wss } = createNodeWebSocket({
     app,
   });
@@ -44,7 +46,6 @@ export async function startServer(opts: {
       onClose: (_ev, ws) => hub.remove(ws),
     })),
   );
-  app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
   app.get("*", async (c) => {
     if (!opts.uiDir) return c.notFound();
     const uiDir = resolve(opts.uiDir);
@@ -82,6 +83,7 @@ export async function startServer(opts: {
     port: (server.address() as AddressInfo).port,
     async close() {
       await stopWatching();
+      await agent.close();
       for (const client of wss.clients) client.terminate();
       await new Promise<void>((resolve, reject) =>
         server.close((err) => (err ? reject(err) : resolve())),
