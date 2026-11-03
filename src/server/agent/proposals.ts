@@ -1,0 +1,102 @@
+import { randomBytes } from "node:crypto";
+import type {
+  Decision,
+  Proposal,
+  ProposalLogEntry,
+} from "../../shared/proposals.js";
+import { type FileStore, NotFoundError } from "../files.js";
+
+const now = () => new Date().toISOString();
+
+// Pending proposals, replayed from .blueprint/proposals.jsonl so a restart
+// forgets nothing. Records handed out are shared; callers must not mutate them.
+export class ProposalStore {
+  private readonly pendingById = new Map<string, Proposal>();
+  private readonly seen = new Set<string>();
+  private notes: string[] = [];
+  // Mutations run one at a time so a pending check still holds when its
+  // line is appended; two racing accepts of one proposal log it once.
+  private queue: Promise<unknown> = Promise.resolve();
+
+  constructor(
+    private readonly files: Pick<FileStore, "appendProposal" | "readProposals">,
+  ) {}
+
+  async load(): Promise<void> {
+    for (const entry of await this.files.readProposals()) this.apply(entry);
+  }
+
+  pending(): Proposal[] {
+    return [...this.pendingById.values()];
+  }
+
+  get(id: string): Proposal | undefined {
+    return this.pendingById.get(id);
+  }
+
+  newId(): string {
+    let id: string;
+    do id = `p_${randomBytes(4).toString("hex")}`;
+    while (this.seen.has(id));
+    this.seen.add(id);
+    return id;
+  }
+
+  proposed(p: Proposal): Promise<void> {
+    return this.serial(() =>
+      this.log({ event: "proposed", at: now(), proposal: p }),
+    );
+  }
+
+  revised(p: Proposal): Promise<void> {
+    return this.serial(async () => {
+      this.pendingOrThrow(p.id);
+      await this.log({ event: "revised", at: now(), proposal: p });
+    });
+  }
+
+  decided(id: string, decision: Decision): Promise<Proposal> {
+    return this.serial(async () => {
+      const p = this.pendingOrThrow(id);
+      await this.log({ event: decision, at: now(), id });
+      const title = p.title === null ? "" : ` ${JSON.stringify(p.title)}`;
+      this.notes.push(`[Proposal ${id}${title} was ${decision}.]`);
+      return p;
+    });
+  }
+
+  takeNotes(): string[] {
+    const notes = this.notes;
+    this.notes = [];
+    return notes;
+  }
+
+  private serial<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(fn);
+    this.queue = run.catch(() => {});
+    return run;
+  }
+
+  private pendingOrThrow(id: string): Proposal {
+    const p = this.pendingById.get(id);
+    if (!p) throw new NotFoundError(`proposal ${id} is not pending`);
+    return p;
+  }
+
+  // Memory changes only after the line is on disk, so a failed append
+  // leaves memory matching the log.
+  private async log(entry: ProposalLogEntry): Promise<void> {
+    await this.files.appendProposal(entry);
+    this.apply(entry);
+  }
+
+  private apply(entry: ProposalLogEntry): void {
+    if ("proposal" in entry) {
+      this.seen.add(entry.proposal.id);
+      this.pendingById.set(entry.proposal.id, entry.proposal);
+    } else {
+      this.seen.add(entry.id);
+      this.pendingById.delete(entry.id);
+    }
+  }
+}
