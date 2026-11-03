@@ -454,6 +454,10 @@ test("citationIndex covers board elements and doc headings", async () => {
   await store.createDoc("api");
   await store.writeDoc("api", "# Auth Flow\n\n## Tokens\n");
   expect(await store.citationIndex()).toEqual(
-    new Set(["board:main#e1", "doc:api.md#auth-flow", "doc:api.md#tokens"]),
+    new Map([
+      ["board:main#e1", ""],
+      ["doc:api.md#auth-flow", "Auth Flow"],
+      ["doc:api.md#tokens", "Tokens"],
+    ]),
   );
 });

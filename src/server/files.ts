@@ -340,8 +340,8 @@ export class FileStore {
     return files;
   }
 
-  // Every citable id: board elements as the export graph sees them, doc headings by file.
-  async citationIndex(): Promise<Set<string>> {
+  // Every citable id and its label: board elements as the export graph sees them, doc headings by file.
+  async citationIndex(): Promise<Map<string, string>> {
     const boards: Record<string, BoardGraph> = {};
     for (const { name } of await this.listBoards())
       boards[name] = excalidrawToBoardGraph(await this.readBoard(name), name);

@@ -9,11 +9,18 @@ export const citationHash = (c: Citation): string =>
     focus: [c.id],
   });
 
-// A citation as a small link chip to what it cites; the raw form is its tooltip.
-export function CitationLink({ citation }: { citation: Citation }) {
+// A citation as a small link chip to what it cites, named by its label or else its
+// id; the raw form, with the id, is its tooltip.
+export function CitationLink({
+  citation,
+  label,
+}: {
+  citation: Citation;
+  label?: string;
+}) {
   return (
     <a className="cite" href={citationHash(citation)} title={citation.raw}>
-      {citation.page}#{citation.id}
+      {label || `${citation.page}#${citation.id}`}
     </a>
   );
 }

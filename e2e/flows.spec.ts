@@ -149,7 +149,8 @@ test("compile and split", async ({ page, start }) => {
   await page.getByRole("button", { name: "Compile" }).click();
   await expect(page.getByText(/Wrote \.blueprint\/spec\.md/)).toBeVisible();
   await page.getByRole("link", { name: "Spec" }).click();
-  const citation = page.getByRole("link", { name: "main#login" });
+  // The chip shows the cited box's label; its tooltip keeps the id.
+  const citation = page.getByRole("link", { name: "Login" });
   await expect(citation).toHaveAttribute("title", "[[board:main#login]]");
 
   await citation.click();

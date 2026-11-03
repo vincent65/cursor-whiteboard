@@ -56,14 +56,20 @@ test("index keys are board:<name>#<id> for nodes, edges and loose, and doc:<file
       docs: { "api.md": "# Auth Flow\n## Tokens" },
     }),
   ).toEqual(
-    new Set([
-      "board:main#r1",
-      "board:main#a1",
-      "board:main#d1",
-      "doc:api.md#auth-flow",
-      "doc:api.md#tokens",
+    new Map([
+      ["board:main#r1", "API"],
+      ["board:main#a1", ""],
+      ["board:main#d1", ""],
+      ["doc:api.md#auth-flow", "Auth Flow"],
+      ["doc:api.md#tokens", "Tokens"],
     ]),
   );
+});
+
+test("a repeated heading slug keeps the first heading's text", () => {
+  expect(
+    buildCitationIndex({ boards: {}, docs: { "a.md": "# Setup\n## setup" } }),
+  ).toEqual(new Map([["doc:a.md#setup", "Setup"]]));
 });
 
 test("unknown citations are removed from the text and reported", () => {

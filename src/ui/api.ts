@@ -89,10 +89,12 @@ export async function saveDoc(name: string, text: string): Promise<void> {
   });
 }
 
-// Unknown citations are cut from the served text and listed in `dropped`.
+// Unknown citations are cut from the served text and listed in `dropped`;
+// `labels` names each kept citation that has a label, by its citationKey.
 export const getSpec = async (): Promise<{
   text: string | null;
   dropped: Citation[];
+  labels: Record<string, string>;
 }> => (await request("/spec")).json();
 
 export const listTasks = async (): Promise<TaskFile[]> =>

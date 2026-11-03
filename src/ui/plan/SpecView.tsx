@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { citationKey } from "../../export/citations";
 import * as api from "../api";
 import { Markdown } from "../markdown";
 import { useServerEvent } from "../server-events";
@@ -94,7 +95,9 @@ export function SpecView() {
         <article className="spec-doc">
           <Markdown
             text={text}
-            renderCitation={(c) => <CitationLink citation={c} />}
+            renderCitation={(c) => (
+              <CitationLink citation={c} label={spec?.labels[citationKey(c)]} />
+            )}
           />
         </article>
       )}

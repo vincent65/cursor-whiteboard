@@ -411,25 +411,49 @@ test("PUT /api/boards/:name still saves when the reconcile cannot append to the 
   warn.mockRestore();
 });
 
-test("GET /api/spec drops unknown citations and reports them", async () => {
+test("GET /api/spec drops unknown citations, reports them, and labels the rest", async () => {
   await store.createBoard("main");
   await putScene("main", {
     elements: [
-      { id: "e1", type: "rectangle", x: 0, y: 0, width: 10, height: 10 },
+      {
+        id: "e1",
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        boundElements: [{ id: "e1-label", type: "text" }],
+      },
+      {
+        id: "e1-label",
+        type: "text",
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        text: "Login",
+        containerId: "e1",
+      },
+      { id: "e2", type: "rectangle", x: 50, y: 0, width: 10, height: 10 },
     ],
     appState: {},
     files: {},
   });
-  const text = "## Goals\n\nShip [[board:main#e1]] and [[board:main#gone]].\n";
+  await store.createDoc("api");
+  await store.writeDoc("api", "# Auth Flow\n");
+  const text =
+    "## Goals\n\nShip [[board:main#e1]], [[board:main#e2]], [[doc:api.md#auth-flow]] and [[board:main#gone]].\n";
   await writeFile(join(store.dir, "spec.md"), text);
 
   const res = await app.request("/api/spec");
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({
-    text: "## Goals\n\nShip [[board:main#e1]] and.\n",
+    text: "## Goals\n\nShip [[board:main#e1]], [[board:main#e2]], [[doc:api.md#auth-flow]] and.\n",
     dropped: [
       { kind: "board", page: "main", id: "gone", raw: "[[board:main#gone]]" },
     ],
+    // A shape without a label has no entry; its chip falls back to the id.
+    labels: { "board:main#e1": "Login", "doc:api.md#auth-flow": "Auth Flow" },
   });
   // Served clean, never rewritten on disk.
   expect(await readFile(join(store.dir, "spec.md"), "utf8")).toBe(text);
@@ -438,7 +462,7 @@ test("GET /api/spec drops unknown citations and reports them", async () => {
 test("GET /api/spec without a spec returns null text", async () => {
   const res = await app.request("/api/spec");
   expect(res.status).toBe(200);
-  expect(await res.json()).toEqual({ text: null, dropped: [] });
+  expect(await res.json()).toEqual({ text: null, dropped: [], labels: {} });
 });
 
 test("GET /api/tasks lists parsed task files", async () => {

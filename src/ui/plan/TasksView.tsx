@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { parseCitations } from "../../export/citations";
+import { citationKey, parseCitations } from "../../export/citations";
 import type { GateResult } from "../../shared/runs";
 import type { TaskFile } from "../../shared/tasks";
 import type { RunPermissionMode } from "../../shared/types";
@@ -12,9 +12,19 @@ import { LaunchDialog } from "./LaunchDialog";
 
 const SESSIONS = routeHash({ kind: "sessions" });
 
-function Source({ source }: { source: string }) {
+function Source({
+  source,
+  labels,
+}: {
+  source: string;
+  labels: Record<string, string>;
+}) {
   const [c] = parseCitations(source);
-  return c ? <CitationLink citation={c} /> : <span>{source}</span>;
+  return c ? (
+    <CitationLink citation={c} label={labels[citationKey(c)]} />
+  ) : (
+    <span>{source}</span>
+  );
 }
 
 // The last split's cost. A split usually finishes while the spec view is
@@ -34,6 +44,9 @@ export function useSplitCost(): number | null {
 
 export function TasksView({ cost }: { cost: number | null }) {
   const [tasks, setTasks] = useState<TaskFile[] | null>(null);
+  // What each cited shape or heading is called, from the spec route; a chip without
+  // one, or a failed load, shows the id.
+  const [labels, setLabels] = useState<Record<string, string>>({});
   // Slugs that have a run. A task runs once: its branch already exists after.
   const [ran, setRan] = useState<Set<string>>(new Set());
   // The task whose launch dialog is open, with its gate.
@@ -48,10 +61,12 @@ export function TasksView({ cost }: { cost: number | null }) {
   // The task whose Launch button takes focus back once its dialog closes.
   const refocus = useRef<string | null>(null);
 
-  const load = useCallback(
-    () => api.listTasks().then(setTasks, (err: Error) => setError(err.message)),
-    [],
-  );
+  const load = useCallback(() => {
+    api.getSpec().then((s) => setLabels(s.labels), console.error);
+    return api
+      .listTasks()
+      .then(setTasks, (err: Error) => setError(err.message));
+  }, []);
   const loadRuns = useCallback(
     () =>
       api.listRuns().then(
@@ -150,7 +165,7 @@ export function TasksView({ cost }: { cost: number | null }) {
             <p className="task-sources">
               {task.sources.map((s, i) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: sources can repeat and never move
-                <Source key={i} source={s} />
+                <Source key={i} source={s} labels={labels} />
               ))}
             </p>
           )}

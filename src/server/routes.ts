@@ -1,8 +1,10 @@
 import { type Context, Hono } from "hono";
 import {
   boardGraphToMarkdown,
+  citationKey,
   dropUnknownCitations,
   excalidrawToBoardGraph,
+  parseCitations,
 } from "../export/index.js";
 import type { IncomingScene } from "../shared/types.js";
 import type { ProposalStore } from "./agent/proposals.js";
@@ -81,11 +83,20 @@ export function routes(store: FileStore, proposals?: ProposalStore): Hono {
         return c.body(null, 204);
       })
       // Unknown citations are cut from what is served and listed in `dropped` for
-      // the UI to warn about; spec.md itself is never rewritten.
+      // the UI to warn about; spec.md itself is never rewritten. `labels` names
+      // each kept citation that has a label, by its key.
       .get("/spec", async (c) => {
         const text = await store.readSpec();
-        if (text === null) return c.json({ text: null, dropped: [] });
-        return c.json(dropUnknownCitations(text, await store.citationIndex()));
+        if (text === null)
+          return c.json({ text: null, dropped: [], labels: {} });
+        const index = await store.citationIndex();
+        const spec = dropUnknownCitations(text, index);
+        const labels: Record<string, string> = {};
+        for (const cite of parseCitations(spec.text)) {
+          const label = index.get(citationKey(cite));
+          if (label) labels[citationKey(cite)] = label;
+        }
+        return c.json({ ...spec, labels });
       })
       .get("/tasks", async (c) => c.json(await store.listTasks()))
       .get("/assets/:file", async (c) => {

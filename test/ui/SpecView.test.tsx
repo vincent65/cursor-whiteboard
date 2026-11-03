@@ -45,7 +45,11 @@ beforeEach(() => {
 });
 
 test("SpecView shows the empty state, then the spec with marked citations on file-changed", async () => {
-  vi.mocked(api.getSpec).mockResolvedValueOnce({ text: null, dropped: [] });
+  vi.mocked(api.getSpec).mockResolvedValueOnce({
+    text: null,
+    dropped: [],
+    labels: {},
+  });
   const { container } = render(<SpecView />);
   expect(
     await screen.findByText("No spec yet. Press Compile in the Claude panel."),
@@ -56,6 +60,7 @@ test("SpecView shows the empty state, then the spec with marked citations on fil
     dropped: [
       { kind: "board", page: "main", id: "gone", raw: "[[board:main#gone]]" },
     ],
+    labels: { "board:main#a1": "Login" },
   });
   await emit({ type: "file-changed", kind: "spec", name: "spec" });
   expect(
@@ -66,13 +71,31 @@ test("SpecView shows the empty state, then the spec with marked citations on fil
   // A document, not an editor: headings and a citation chip, nothing editable.
   expect(screen.getByRole("heading", { name: "Goals" })).toBeInTheDocument();
   expect(container.querySelector("[contenteditable]")).toBeNull();
-  const cite = screen.getByRole("link", { name: "main#a1" });
+  // The chip shows the cited shape's label; the id is in its tooltip.
+  const cite = screen.getByRole("link", { name: "Login" });
   expect(cite).toHaveClass("cite");
   expect(cite).toHaveAttribute("title", "[[board:main#a1]]");
 });
 
+test("a citation chip without a label shows the cited id", async () => {
+  vi.mocked(api.getSpec).mockResolvedValue({
+    text: spec,
+    dropped: [],
+    labels: { "board:main#other": "Other" },
+  });
+  render(<SpecView />);
+  expect(await screen.findByRole("link", { name: "main#a1" })).toHaveAttribute(
+    "title",
+    "[[board:main#a1]]",
+  );
+});
+
 test("a citation chip opens what it cites", async () => {
-  vi.mocked(api.getSpec).mockResolvedValue({ text: spec, dropped: [] });
+  vi.mocked(api.getSpec).mockResolvedValue({
+    text: spec,
+    dropped: [],
+    labels: {},
+  });
   location.hash = "#/spec";
   render(<SpecView />);
   await userEvent.click(await screen.findByRole("link", { name: "main#a1" }));
@@ -80,12 +103,17 @@ test("a citation chip opens what it cites", async () => {
 });
 
 test("a reloaded spec replaces the shown one", async () => {
-  vi.mocked(api.getSpec).mockResolvedValueOnce({ text: spec, dropped: [] });
+  vi.mocked(api.getSpec).mockResolvedValueOnce({
+    text: spec,
+    dropped: [],
+    labels: {},
+  });
   render(<SpecView />);
   await screen.findByRole("heading", { name: "Goals" });
   vi.mocked(api.getSpec).mockResolvedValueOnce({
     text: "## Scope\n\nOnly login.\n",
     dropped: [],
+    labels: {},
   });
   await emit({ type: "file-changed", kind: "spec", name: "spec" });
   expect(
@@ -95,7 +123,11 @@ test("a reloaded spec replaces the shown one", async () => {
 });
 
 test("Split into tasks shows Splitting… until done, and errors from the split", async () => {
-  vi.mocked(api.getSpec).mockResolvedValue({ text: spec, dropped: [] });
+  vi.mocked(api.getSpec).mockResolvedValue({
+    text: spec,
+    dropped: [],
+    labels: {},
+  });
   vi.mocked(api.agentSplit).mockResolvedValue();
   render(<SpecView />);
   const button = await screen.findByRole("button", {
@@ -119,7 +151,11 @@ test("Split into tasks shows Splitting… until done, and errors from the split"
 });
 
 test("a rejected split shows the server's message", async () => {
-  vi.mocked(api.getSpec).mockResolvedValue({ text: spec, dropped: [] });
+  vi.mocked(api.getSpec).mockResolvedValue({
+    text: spec,
+    dropped: [],
+    labels: {},
+  });
   vi.mocked(api.agentSplit).mockRejectedValueOnce(
     new api.ApiError("a split is already running", 409),
   );
@@ -136,7 +172,11 @@ test("a rejected split shows the server's message", async () => {
 });
 
 test("a view that mounts during a split shows it running until it ends", async () => {
-  vi.mocked(api.getSpec).mockResolvedValue({ text: spec, dropped: [] });
+  vi.mocked(api.getSpec).mockResolvedValue({
+    text: spec,
+    dropped: [],
+    labels: {},
+  });
   vi.mocked(api.agentState).mockResolvedValue(agentState(true));
   render(<SpecView />);
   expect(
@@ -150,7 +190,11 @@ test("a view that mounts during a split shows it running until it ends", async (
 });
 
 test("a split status heard before the state arrives wins over it", async () => {
-  vi.mocked(api.getSpec).mockResolvedValue({ text: spec, dropped: [] });
+  vi.mocked(api.getSpec).mockResolvedValue({
+    text: spec,
+    dropped: [],
+    labels: {},
+  });
   let answer: (s: ReturnType<typeof agentState>) => void = () => {};
   vi.mocked(api.agentState).mockReturnValue(
     new Promise((r) => {
@@ -177,6 +221,7 @@ test("the dropped line names each citation once and counts them", async () => {
   vi.mocked(api.getSpec).mockResolvedValue({
     text: spec,
     dropped: [gone("x"), gone("y"), gone("x")],
+    labels: {},
   });
   render(<SpecView />);
   expect(
@@ -187,7 +232,11 @@ test("the dropped line names each citation once and counts them", async () => {
 });
 
 test("an error clears on any split status and on a successful reload", async () => {
-  vi.mocked(api.getSpec).mockResolvedValue({ text: spec, dropped: [] });
+  vi.mocked(api.getSpec).mockResolvedValue({
+    text: spec,
+    dropped: [],
+    labels: {},
+  });
   render(<SpecView />);
   await screen.findByRole("button", { name: "Split into tasks" });
 
@@ -208,7 +257,11 @@ test("an error clears on any split status and on a successful reload", async () 
 });
 
 test("a split started here wins over a state that arrives after it", async () => {
-  vi.mocked(api.getSpec).mockResolvedValue({ text: spec, dropped: [] });
+  vi.mocked(api.getSpec).mockResolvedValue({
+    text: spec,
+    dropped: [],
+    labels: {},
+  });
   vi.mocked(api.agentSplit).mockResolvedValue();
   let answer: (s: ReturnType<typeof agentState>) => void = () => {};
   vi.mocked(api.agentState).mockReturnValue(

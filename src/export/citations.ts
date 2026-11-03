@@ -10,7 +10,7 @@ export type Citation = {
 const CITATION = /\[\[(board|doc):([^#\]]+)#([^\]]+)\]\]/g;
 const ATX_HEADING = /^#{1,6} (.*)$/gm;
 
-const key = (c: Citation) => `${c.kind}:${c.page}#${c.id}`;
+export const citationKey = (c: Citation) => `${c.kind}:${c.page}#${c.id}`;
 
 export function parseCitations(text: string): Citation[] {
   return [...text.matchAll(CITATION)].map(([raw, kind, page, id]) => ({
@@ -21,30 +21,36 @@ export function parseCitations(text: string): Citation[] {
   }));
 }
 
-// ponytail: no "-1" suffix for duplicate headings; the index is a Set, add it when anchors must be unique.
+const headings = (markdown: string): string[] =>
+  [...markdown.matchAll(ATX_HEADING)].map(([, heading]) => heading.trim());
+
+const slugOf = (heading: string): string =>
+  heading
+    .toLowerCase()
+    .replace(/[^\p{L}\p{Nd} -]/gu, "")
+    .replace(/ /g, "-");
+
+// ponytail: no "-1" suffix for duplicate headings; the first one wins the slug, add it when anchors must be unique.
 export function headingSlugs(markdown: string): string[] {
-  return [...markdown.matchAll(ATX_HEADING)].map(([, heading]) =>
-    heading
-      .trim()
-      .toLowerCase()
-      .replace(/[^\p{L}\p{Nd} -]/gu, "")
-      .replace(/ /g, "-"),
-  );
+  return headings(markdown).map(slugOf);
 }
 
+// Every citable key, with what a chip shows for it: a shape's or arrow's label, or a
+// heading's text; "" when the element has no label.
 export function buildCitationIndex(input: {
   boards: Record<string, BoardGraph>;
   docs: Record<string, string>;
-}): Set<string> {
-  const index = new Set<string>();
+}): Map<string, string> {
+  const index = new Map<string, string>();
   for (const [name, graph] of Object.entries(input.boards)) {
-    for (const { id } of [...graph.nodes, ...graph.edges, ...graph.loose]) {
-      index.add(`board:${name}#${id}`);
+    for (const e of [...graph.nodes, ...graph.edges, ...graph.loose]) {
+      index.set(`board:${name}#${e.id}`, "label" in e ? e.label : "");
     }
   }
   for (const [file, markdown] of Object.entries(input.docs)) {
-    for (const slug of headingSlugs(markdown)) {
-      index.add(`doc:${file}#${slug}`);
+    for (const heading of headings(markdown)) {
+      const key = `doc:${file}#${slugOf(heading)}`;
+      if (!index.has(key)) index.set(key, heading);
     }
   }
   return index;
@@ -65,9 +71,11 @@ const PUNCT_AFTER = /^[,;]/;
 // stray commas; an aside whose citations are all unknown goes whole.
 export function dropUnknownCitations(
   text: string,
-  index: Set<string>,
+  index: { has(key: string): boolean },
 ): { text: string; dropped: Citation[] } {
-  const dropped = parseCitations(text).filter((c) => !index.has(key(c)));
+  const dropped = parseCitations(text).filter(
+    (c) => !index.has(citationKey(c)),
+  );
   const unknown = new Set(dropped.map((c) => c.raw));
   const asidesGone = text.replace(CITED_ASIDE, (aside) =>
     parseCitations(aside).every((c) => unknown.has(c.raw)) ? "" : aside,

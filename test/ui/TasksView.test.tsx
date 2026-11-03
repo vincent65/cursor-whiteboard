@@ -9,6 +9,7 @@ import * as api from "../../src/ui/api";
 import { TasksView, useSplitCost } from "../../src/ui/plan/TasksView";
 
 vi.mock("../../src/ui/api", () => ({
+  getSpec: vi.fn(),
   listTasks: vi.fn(),
   listRuns: vi.fn(),
   gate: vi.fn(),
@@ -89,6 +90,11 @@ beforeEach(() => {
   vi.resetAllMocks();
   handlers.clear();
   vi.mocked(api.listRuns).mockResolvedValue([]);
+  vi.mocked(api.getSpec).mockResolvedValue({
+    text: "",
+    dropped: [],
+    labels: { "board:main#a1": "Login" },
+  });
   location.hash = "#/tasks";
 });
 
@@ -110,7 +116,8 @@ test("TasksView renders cards with dependencies and source links, and the empty 
   expect(c.getAllByRole("listitem").map((li) => li.textContent)).toEqual(
     expect.arrayContaining(["Login works", "Logout works"]),
   );
-  expect(c.getByRole("link", { name: "main#a1" })).toHaveAttribute(
+  // A source chip shows its shape's label, and falls back to the id without one.
+  expect(c.getByRole("link", { name: "Login" })).toHaveAttribute(
     "href",
     "#/boards/main?focus=a1",
   );
@@ -168,7 +175,7 @@ test("a repeated acceptance line or source renders each time without a key warni
   render(<TasksView cost={null} />);
 
   expect(await screen.findAllByText("It works")).toHaveLength(2);
-  expect(screen.getAllByRole("link", { name: "main#a1" })).toHaveLength(2);
+  expect(await screen.findAllByRole("link", { name: "Login" })).toHaveLength(2);
   expect(error).not.toHaveBeenCalled();
   error.mockRestore();
 });
