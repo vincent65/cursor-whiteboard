@@ -50,7 +50,7 @@ const renderPanel = () =>
   render(
     <SelectionProvider>
       <Selected />
-      <ClaudePanel />
+      <ClaudePanel onBoard />
     </SelectionProvider>,
   );
 
@@ -291,7 +291,7 @@ const renderRefine = () =>
   render(
     <RefineProvider>
       <RefineButton />
-      <ClaudePanel />
+      <ClaudePanel onBoard />
     </RefineProvider>,
   );
 
@@ -352,4 +352,23 @@ test("selection labels come from bound text, own text, then the element type", (
     "loose note",
     "arrow",
   ]);
+});
+
+test("the input asks about the board only on a board route", async () => {
+  vi.mocked(api.agentState).mockResolvedValue(state({}));
+  const { rerender } = render(
+    <SelectionProvider>
+      <ClaudePanel onBoard />
+    </SelectionProvider>,
+  );
+  expect(
+    await screen.findByPlaceholderText("Ask Claude about this board"),
+  ).toBeInTheDocument();
+
+  rerender(
+    <SelectionProvider>
+      <ClaudePanel onBoard={false} />
+    </SelectionProvider>,
+  );
+  expect(screen.getByPlaceholderText("Ask Claude")).toBeInTheDocument();
 });

@@ -66,7 +66,8 @@ function Item({ item }: { item: TranscriptItem }) {
   }
 }
 
-export function ClaudePanel() {
+// onBoard: a board is the open route, so "this board" means something.
+export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
   const [items, setItems] = useState<TranscriptItem[]>([]);
   const [status, setStatus] = useState<Status>({ status: "starting" });
   const [pending, setPending] = useState<PendingPermission[]>([]);
@@ -259,7 +260,7 @@ export function ClaudePanel() {
         <textarea
           ref={input}
           aria-label="Message Claude"
-          placeholder="Ask Claude about this board"
+          placeholder={onBoard ? "Ask Claude about this board" : "Ask Claude"}
           rows={3}
           value={text}
           disabled={status.status === "starting"}

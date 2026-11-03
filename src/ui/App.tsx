@@ -103,7 +103,7 @@ function Shell() {
         )}
       </main>
       <aside className="right-pane">
-        <ClaudePanel />
+        <ClaudePanel onBoard={route?.kind === "board"} />
       </aside>
     </div>
   );
