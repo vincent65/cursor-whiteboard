@@ -173,12 +173,15 @@ export async function createAgent(deps: {
       const head = await header(selection);
       // From here on nothing awaits, so a decision cannot slip between the check and the
       // send; checked before the notes are taken, so a refused send loses none.
-      if (proposalId !== undefined && !proposals.get(proposalId))
+      const refining =
+        proposalId === undefined ? undefined : proposals.get(proposalId);
+      if (proposalId !== undefined && !refining)
         throw new NotFoundError(`proposal ${proposalId} is not pending`);
       const notes = proposals.takeNotes();
-      if (proposalId !== undefined)
+      // The ops ride along, so a session that lost its context can still revise.
+      if (refining)
         notes.push(
-          `[The user wants proposal ${proposalId} refined. Call revise with proposalId ${proposalId} and the complete new op list.]`,
+          `[The user wants proposal ${refining.id} refined. Call revise with proposalId ${refining.id} and the complete new op list. Its current ops are: ${JSON.stringify(refining.ops)}]`,
         );
       loadErrors = [];
       return session.send(composeUserMessage(text, head, notes), text);

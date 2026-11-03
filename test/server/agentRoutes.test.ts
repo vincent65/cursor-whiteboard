@@ -520,7 +520,7 @@ test("createAgent prefixes decision notes and refine requests to the next messag
   await agent.send("tighter", undefined, "p_2");
   await vi.waitFor(() => expect(fake.received).toHaveLength(2));
   expect(fake.received[1]).toBe(
-    "[The user wants proposal p_2 refined. Call revise with proposalId p_2 and the complete new op list.]\n\ntighter",
+    `[The user wants proposal p_2 refined. Call revise with proposalId p_2 and the complete new op list. Its current ops are: ${JSON.stringify(proposal("p_2").ops)}]\n\ntighter`,
   );
   expect(fake.received[1]).toMatch(/call revise with proposalId p_2/i);
 
