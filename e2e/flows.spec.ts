@@ -159,9 +159,19 @@ test("compile and split", async ({ page, start }) => {
   await expect(page.getByText("1 selected: Login")).toBeVisible();
 
   await page.getByRole("link", { name: "Spec" }).click();
+  // The fake splits at once, so the request waits until the test has seen the split
+  // start; then the button reads Splitting… until the tasks are written.
+  let release = () => {};
+  const held = new Promise<void>((r) => {
+    release = r;
+  });
+  await page.route("**/api/agent/split", async (route) => {
+    await held;
+    await route.continue();
+  });
   await page.getByRole("button", { name: "Split into tasks" }).click();
-  // The split starts, then ends: the button reads Splitting… until the tasks are written.
   await expect(page.getByRole("button", { name: "Splitting…" })).toBeDisabled();
+  release();
   await expect(
     page.getByRole("button", { name: "Split into tasks" }),
   ).toBeEnabled();
