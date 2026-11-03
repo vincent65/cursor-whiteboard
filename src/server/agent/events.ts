@@ -64,7 +64,9 @@ export class SdkEventMapper {
     return this.#sessionId;
   }
 
-  map(msg: SDKMessage): PanelEvent[] {
+  // idBase replaces the message id in a non-streamed text block's event id; restore passes
+  // the transcript line's uuid, since lines split from one response share its message id.
+  map(msg: SDKMessage, idBase?: string): PanelEvent[] {
     // A subagent's own traffic; its Task tool row already shows that it ran.
     if ("parent_tool_use_id" in msg && msg.parent_tool_use_id) return [];
     const at = new Date().toISOString();
@@ -96,12 +98,13 @@ export class SdkEventMapper {
       }
       case "assistant": {
         // With partial messages on, the SDK delivers each finished block as its own assistant
-        // message, so a text block takes the id its stream used; otherwise message id + position.
+        // message, so a text block takes the id its stream used; otherwise id base + position.
         const events = msg.message.content.flatMap(
           (block, index): PanelEvent[] => {
             if (block.type === "text") {
               const id =
-                this.#unfinished.shift() ?? `${msg.message.id}:${index}`;
+                this.#unfinished.shift() ??
+                `${idBase ?? msg.message.id}:${index}`;
               return [
                 {
                   kind: "assistant_text",

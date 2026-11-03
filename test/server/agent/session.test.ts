@@ -543,7 +543,7 @@ test("restore seeds the transcript from the saved session and a failure starts f
     { kind: "user", id: "u1", text: "plan the auth flow" },
     {
       kind: "assistant_text",
-      id: "msg_old:0",
+      id: "a1:0",
       text: "Sure.",
       partial: false,
     },
@@ -577,6 +577,33 @@ test("restore seeds the transcript from the saved session and a failure starts f
   await vi.waitFor(() => expect(failed.session.status).toBe("idle"));
   expect(failed.runs[0].options?.resume).toBeUndefined();
   expect(failed.session.sessionId).toBe("new");
+});
+
+test("restore keeps every text block when transcript lines share one message id", async () => {
+  // Claude Code writes one transcript line per content block, all with the response's id.
+  const line = (uuid: string, text: string) => ({
+    type: "assistant",
+    uuid,
+    session_id: "old",
+    parent_tool_use_id: null,
+    parent_agent_id: null,
+    message: { id: "msg_shared", content: [{ type: "text", text }] },
+  });
+  const saved = [
+    line("a1", "First."),
+    line("a2", "Second."),
+  ] as SessionMessage[];
+  const { session } = setup(() => turnsOf(), {
+    resumeId: "old",
+    getSessionMessages: vi.fn(async () => saved),
+  });
+
+  await session.restore();
+
+  expect(session.transcript()).toMatchObject([
+    { kind: "assistant_text", id: "a1:0", text: "First." },
+    { kind: "assistant_text", id: "a2:0", text: "Second." },
+  ]);
 });
 
 test("restore shows the CLI's interrupt marker as a stopped result, not a user message", async () => {

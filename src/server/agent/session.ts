@@ -143,7 +143,7 @@ export class PlanSession {
               at: now(),
             });
           } else {
-            for (const e of mapper.map(msg as unknown as SDKMessage))
+            for (const e of mapper.map(msg as unknown as SDKMessage, msg.uuid))
               this.#remember(e);
           }
         }
