@@ -228,6 +228,19 @@ test("RunCard's Stop reads Stopping… until the run leaves working and needs_yo
   expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
 });
 
+test("a rejected Stop shows why and gives the Stop button back", async () => {
+  const user = userEvent.setup();
+  const h = handlers();
+  h.onStop.mockRejectedValueOnce(new Error("run r1 is not running"));
+  render(<RunCard run={run()} transcript={[]} {...h} />);
+  await user.click(screen.getByRole("button", { name: "Stop" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "run r1 is not running",
+  );
+  expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+  expect(screen.queryByRole("button", { name: "Stopping…" })).toBeNull();
+});
+
 test("RunCard's transcript renders citations as chips", async () => {
   const user = userEvent.setup();
   render(
