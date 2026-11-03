@@ -196,7 +196,9 @@ export class PlanSession {
     };
     this.#run = run;
     this.#setStatus("starting");
-    void this.#consume(run);
+    void this.#consume(run).catch((err) =>
+      console.error("session loop failed", err),
+    );
   }
 
   #stopRun(): void {
