@@ -88,6 +88,24 @@ test("decided notes omit a null title", async () => {
   expect(store.takeNotes()).toEqual(["[Proposal p_2 was rejected.]"]);
 });
 
+test("requeued notes come back before newer ones, in the order they were requeued", async () => {
+  const store = new ProposalStore(fakeFiles());
+  for (const id of ["p_1", "p_2", "p_3"]) await store.proposed(proposal(id));
+  await store.decided("p_1", "accepted");
+  const first = store.takeNotes();
+  await store.decided("p_2", "accepted");
+  const second = store.takeNotes();
+  await store.decided("p_3", "rejected");
+  store.requeueNotes(first);
+  store.requeueNotes(second);
+  expect(store.takeNotes()).toEqual([
+    "[Proposal p_1 was accepted.]",
+    "[Proposal p_2 was accepted.]",
+    "[Proposal p_3 was rejected.]",
+  ]);
+  expect(store.takeNotes()).toEqual([]);
+});
+
 test("revised and decided reject ids that are not pending", async () => {
   const files = fakeFiles([
     { event: "proposed", at, proposal: proposal("p_1") },

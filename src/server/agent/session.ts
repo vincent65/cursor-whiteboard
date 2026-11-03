@@ -29,7 +29,11 @@ export type SessionDeps = {
   onEvent(e: PanelEvent): void;
   onStatus(s: AgentStatus, message?: string): void;
   onSessionId(id: string): void;
+  // A send that will never run (Stop, run ended), by the user event id send returned.
+  onNotSent?(sendId: string): void;
 };
+
+type Send = { id: string; text: string };
 
 // resumed: started with a saved session id. initialized: the CLI's init message arrived.
 // interrupted: interrupt() was called during the turn in flight, so its result ends the turn.
@@ -43,18 +47,18 @@ type Run = {
   initialized: boolean;
   interrupted: boolean;
   busy: boolean;
-  held: string[];
+  held: Send[];
 };
 
 // The streaming prompt: yields pushed messages in order and stays open until ended.
 // It holds at most the turn in flight, which the SDK takes as soon as the CLI is ready.
 class InputQueue {
-  #items: SDKUserMessage[] = [];
+  #items: { id: string; msg: SDKUserMessage }[] = [];
   #ended = false;
   #wake: (() => void) | undefined;
 
-  push(msg: SDKUserMessage): void {
-    this.#items.push(msg);
+  push(id: string, msg: SDKUserMessage): void {
+    this.#items.push({ id, msg });
     this.#wake?.();
   }
 
@@ -63,18 +67,18 @@ class InputQueue {
     this.#wake?.();
   }
 
-  // Drops the messages the SDK has not taken yet and returns how many there were.
-  drain(): number {
-    const count = this.#items.length;
+  // Drops the messages the SDK has not taken yet and returns their send ids.
+  drain(): string[] {
+    const ids = this.#items.map((i) => i.id);
     this.#items = [];
-    return count;
+    return ids;
   }
 
   async *messages(): AsyncGenerator<SDKUserMessage> {
     while (!this.#ended) {
       const next = this.#items.shift();
       if (next) {
-        yield next;
+        yield next.msg;
         continue;
       }
       await new Promise<void>((resolve) => {
@@ -175,10 +179,10 @@ export class PlanSession {
     const run =
       !this.#run || this.#status === "error" ? this.#start() : this.#run;
     if (run.busy) {
-      run.held.push(text);
+      run.held.push({ id, text });
     } else {
       if (this.#status === "idle") this.#setStatus("working");
-      this.#hand(run, text);
+      this.#hand(run, { id, text });
     }
     return id;
   }
@@ -193,7 +197,10 @@ export class PlanSession {
       this.#setStatus("stopped");
       return;
     }
-    this.#notSent(run.held.splice(0).length, NOT_SENT_STOPPED);
+    this.#notSent(
+      run.held.splice(0).map((h) => h.id),
+      NOT_SENT_STOPPED,
+    );
     if (this.#status !== "idle") run.interrupted = true;
     await run.query.interrupt();
   }
@@ -231,12 +238,16 @@ export class PlanSession {
     return run;
   }
 
-  // Ends the run; returns how many sends it never handed over or the SDK never took.
-  #stopRun(): number {
+  // Ends the run; returns the ids of the sends it never handed over or the SDK never
+  // took, oldest first.
+  #stopRun(): string[] {
     const run = this.#run;
     this.#run = undefined;
-    if (!run) return 0;
-    const dropped = run.input.drain() + run.held.splice(0).length;
+    if (!run) return [];
+    const dropped = [
+      ...run.input.drain(),
+      ...run.held.splice(0).map((h) => h.id),
+    ];
     run.input.end();
     run.query.close();
     return dropped;
@@ -245,11 +256,11 @@ export class PlanSession {
   // Assumes the CLI answers every handed message with exactly one result. If it ever
   // batched two messages into one turn, or dropped a result, busy would never clear and
   // every held send would wait forever (until a Stop or the run ends).
-  #hand(run: Run, text: string): void {
+  #hand(run: Run, send: Send): void {
     run.busy = true;
-    run.input.push({
+    run.input.push(send.id, {
       type: "user",
-      message: { role: "user", content: text },
+      message: { role: "user", content: send.text },
       parent_tool_use_id: null,
     });
   }
@@ -320,9 +331,11 @@ export class PlanSession {
     this.#setStatus("error", message);
   }
 
-  #notSent(count: number, message: string): void {
-    for (let i = 0; i < count; i++)
+  #notSent(ids: string[], message: string): void {
+    for (const id of ids) {
       this.#emit({ kind: "error", id: randomUUID(), message, at: now() });
+      this.#deps.onNotSent?.(id);
+    }
   }
 
   #emit(e: PanelEvent): void {

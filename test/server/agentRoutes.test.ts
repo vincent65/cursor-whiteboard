@@ -473,6 +473,7 @@ function echoSdk() {
       query,
       getSessionMessages: vi.fn(async () => []),
     } as unknown as Parameters<typeof createAgent>[0]["sdk"],
+    query,
     received,
     options: () => options,
   };
@@ -535,6 +536,104 @@ test("createAgent prefixes decision notes and refine requests to the next messag
   await agent.send("next");
   await vi.waitFor(() => expect(fake.received).toHaveLength(3));
   expect(fake.received[2]).toBe("[Proposal p_2 was rejected.]\n\nnext");
+  await agent.close();
+});
+
+// A fake SDK whose first turn waits until it is interrupted; later turns answer at once.
+function stallingSdk() {
+  const received: string[] = [];
+  const query = vi.fn(
+    (params: { prompt: AsyncIterable<SDKUserMessage>; options?: Options }) => {
+      let release: () => void = () => {};
+      async function* run(): AsyncGenerator<SDKMessage> {
+        for await (const m of params.prompt) {
+          received.push(m.message.content as string);
+          yield {
+            type: "system",
+            subtype: "init",
+            session_id: "s1",
+          } as SDKMessage;
+          if (received.length === 1)
+            await new Promise<void>((r) => {
+              release = r;
+            });
+          yield {
+            type: "result",
+            subtype: "success",
+            session_id: "s1",
+            uuid: `r${received.length}`,
+            is_error: false,
+            num_turns: 1,
+            result: "ok",
+            total_cost_usd: 0,
+            duration_ms: 1,
+          } as SDKMessage;
+        }
+      }
+      return Object.assign(run(), {
+        interrupt: vi.fn(async () => release()),
+        close: vi.fn(),
+      });
+    },
+  );
+  return {
+    sdk: {
+      query,
+      getSessionMessages: vi.fn(async () => []),
+    } as unknown as Parameters<typeof createAgent>[0]["sdk"],
+    received,
+  };
+}
+
+test("decision notes on a send that Stop drops ride on the next send instead", async () => {
+  await writeFile(
+    join(store.dir, "proposals.jsonl"),
+    logLine(proposal("p_1")) + logLine(proposal("p_2", null)),
+  );
+  const fake = stallingSdk();
+  const agent = await createAgent({
+    store,
+    hub: new WsHub(),
+    cwd: root,
+    sdk: fake.sdk,
+  });
+
+  await agent.send("first");
+  await vi.waitFor(() => expect(agent.state().status).toBe("working"));
+  await agent.decideProposal("p_1", "accepted");
+  // Held behind the first turn, with the note.
+  await agent.send("second");
+  await agent.interrupt();
+  await vi.waitFor(() => expect(agent.state().status).toBe("idle"));
+  await agent.decideProposal("p_2", "rejected");
+
+  await agent.send("third");
+  await vi.waitFor(() => expect(fake.received).toHaveLength(2));
+  expect(fake.received).toEqual([
+    "first",
+    '[Proposal p_1 "Cache" was accepted.]\n\n[Proposal p_2 was rejected.]\n\nthird',
+  ]);
+  await agent.close();
+});
+
+test("decision notes on a send the session throws on ride on the next send", async () => {
+  await writeFile(join(store.dir, "proposals.jsonl"), logLine(proposal("p_1")));
+  const fake = echoSdk();
+  fake.query.mockImplementationOnce(() => {
+    throw new Error("spawn failed");
+  });
+  const agent = await createAgent({
+    store,
+    hub: new WsHub(),
+    cwd: root,
+    sdk: fake.sdk,
+  });
+
+  await agent.decideProposal("p_1", "accepted");
+  await expect(agent.send("lost")).rejects.toThrow("spawn failed");
+  await agent.send("kept");
+  await vi.waitFor(() => expect(fake.received).toHaveLength(1));
+  expect(fake.received[0]).toBe('[Proposal p_1 "Cache" was accepted.]\n\nkept');
   await agent.close();
 });
 

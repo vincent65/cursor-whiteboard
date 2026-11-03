@@ -96,6 +96,13 @@ export async function createAgent(deps: {
     },
   });
 
+  // Decision notes taken for each send, by its user event id, until its turn ends; a send
+  // the session drops (Stop, run ended) hands them back for the next one. Each turn ends
+  // with one result, in send order, so a result retires the oldest entry.
+  // ponytail: a turn cut off with no result keeps its entry until the next result, so
+  // entries retire a turn late from then on; harmless, as only dropped ids hand notes back.
+  const riding = new Map<string, string[]>();
+
   const session = new PlanSession(
     {
       query: sdk.query,
@@ -129,7 +136,18 @@ export async function createAgent(deps: {
             ? Promise.resolve({ behavior: "allow" })
             : broker.ask({ toolUseID, tool, input, suggestions, signal }),
       },
-      onEvent: (event) => hub.broadcast({ type: "agent.event", event }),
+      onEvent: (event) => {
+        if (event.kind === "result") {
+          const oldest = riding.keys().next();
+          if (!oldest.done) riding.delete(oldest.value);
+        }
+        hub.broadcast({ type: "agent.event", event });
+      },
+      onNotSent: (sendId) => {
+        const notes = riding.get(sendId);
+        riding.delete(sendId);
+        if (notes) proposals.requeueNotes(notes);
+      },
       onStatus: (_status, msg) => {
         message = msg;
         broadcastStatus();
@@ -179,12 +197,24 @@ export async function createAgent(deps: {
         throw new NotFoundError(`proposal ${proposalId} is not pending`);
       const notes = proposals.takeNotes();
       // The ops ride along, so a session that lost its context can still revise.
-      if (refining)
-        notes.push(
-          `[The user wants proposal ${refining.id} refined. Call revise with proposalId ${refining.id} and the complete new op list. Its current ops are: ${JSON.stringify(refining.ops)}]`,
-        );
+      const refine = refining
+        ? [
+            `[The user wants proposal ${refining.id} refined. Call revise with proposalId ${refining.id} and the complete new op list. Its current ops are: ${JSON.stringify(refining.ops)}]`,
+          ]
+        : [];
       loadErrors = [];
-      return session.send(composeUserMessage(text, head, notes), text);
+      let id: string;
+      try {
+        id = session.send(
+          composeUserMessage(text, head, [...notes, ...refine]),
+          text,
+        );
+      } catch (err) {
+        proposals.requeueNotes(notes);
+        throw err;
+      }
+      riding.set(id, notes);
+      return id;
     },
     pendingProposals: () => proposals.pending(),
     decideProposal: (id, decision) => proposals.decided(id, decision),

@@ -159,6 +159,7 @@ function setup(
   const events: PanelEvent[] = [];
   const statuses: [string, string | undefined][] = [];
   const sessionIds: string[] = [];
+  const notSent: string[] = [];
   const deps: SessionDeps = {
     query: query as unknown as SessionDeps["query"],
     getSessionMessages:
@@ -171,9 +172,10 @@ function setup(
     },
     onStatus: (s, m) => statuses.push([s, m]),
     onSessionId: (id) => sessionIds.push(id),
+    onNotSent: (id) => notSent.push(id),
   };
   const session = new PlanSession(deps, opts.resumeId);
-  return { session, query, runs, events, statuses, sessionIds };
+  return { session, query, runs, events, statuses, sessionIds, notSent };
 }
 
 const kinds = (events: PanelEvent[]) =>
@@ -510,7 +512,7 @@ test("messages still queued when a run throws are each reported as not sent", as
   const gate = new Promise<void>((r) => {
     release = r;
   });
-  const { session, runs, events } = setup(() =>
+  const { session, runs, events, notSent } = setup(() =>
     (async function* () {
       yield init("sess-1");
       await gate;
@@ -520,8 +522,7 @@ test("messages still queued when a run throws are each reported as not sent", as
 
   session.send("one");
   await vi.waitFor(() => expect(session.status).toBe("working"));
-  session.send("two");
-  session.send("three");
+  const dropped = [session.send("two"), session.send("three")];
   release();
   await vi.waitFor(() => expect(session.status).toBe("error"));
 
@@ -533,6 +534,8 @@ test("messages still queued when a run throws are each reported as not sent", as
     "Message not sent: Claude session ended before it ran",
     "Message not sent: Claude session ended before it ran",
   ]);
+  // Each by its user event id, oldest first, so its owner can take back what rode on it.
+  expect(notSent).toEqual(dropped);
 });
 
 test("a query that ends on its own sets error and the next send starts a new query with resume", async () => {
@@ -784,7 +787,7 @@ test("interrupt drops the messages still queued, so the SDK never gets them, and
   const gate = new Promise<void>((r) => {
     release = r;
   });
-  const { session, runs, events } = setup((text, turn) =>
+  const { session, runs, events, notSent } = setup((text, turn) =>
     text === "after"
       ? turnsOf(...textTurn("msg_after", "ok", "r-after"))
       : (async function* () {
@@ -807,8 +810,7 @@ test("interrupt drops the messages still queued, so the SDK never gets them, and
 
   session.send("long");
   await vi.waitFor(() => expect(session.status).toBe("working"));
-  session.send("two");
-  session.send("three");
+  const dropped = [session.send("two"), session.send("three")];
   // An initialized SDK writes whatever the prompt yields to the CLI at once.
   await new Promise((r) => setTimeout(r, 10));
   expect(runs[0].read).toEqual(["long"]);
@@ -818,6 +820,7 @@ test("interrupt drops the messages still queued, so the SDK never gets them, and
   expect(
     events.flatMap((e) => (e.kind === "error" ? [e.message] : [])),
   ).toEqual(["Message not sent: stopped", "Message not sent: stopped"]);
+  expect(notSent).toEqual(dropped);
   // A send after Stop waits for the stopped turn's result, then runs.
   session.send("after");
   release();
@@ -830,15 +833,17 @@ test("interrupt drops the messages still queued, so the SDK never gets them, and
   ]);
   expect(runs[0].read).toEqual(["long", "after"]);
   expect(session.status).toBe("idle");
+  expect(notSent).toEqual(dropped);
 });
 
 test("interrupt while the CLI is still starting closes the run instead of interrupting it", async () => {
   // The CLI never initializes, so it takes no input.
-  const { session, query, runs, events, statuses } = setup(() => turnsOf(), {
-    readLimit: 0,
-  });
+  const { session, query, runs, events, statuses, notSent } = setup(
+    () => turnsOf(),
+    { readLimit: 0 },
+  );
 
-  session.send("one");
+  const one = session.send("one");
   expect(session.status).toBe("starting");
   await session.interrupt();
 
@@ -850,6 +855,8 @@ test("interrupt while the CLI is still starting closes the run instead of interr
     kind: "error",
     message: "Message not sent: stopped",
   });
+  // Queued for the SDK but never taken, so it never ran either.
+  expect(notSent).toEqual([one]);
 
   session.send("again");
   expect(query).toHaveBeenCalledTimes(2);

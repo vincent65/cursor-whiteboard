@@ -17,6 +17,9 @@ export class ProposalStore {
   private readonly pendingById = new Map<string, Proposal>();
   private readonly seen = new Set<string>();
   private notes: string[] = [];
+  // Notes handed back by sends that never ran. Taken before every note still in
+  // `notes`, so they are older and go first.
+  private requeued: string[] = [];
   private readonly revising = new Set<string>();
   // Mutations run one at a time so a pending check still holds when its
   // line is appended; two racing accepts of one proposal log it once.
@@ -85,9 +88,14 @@ export class ProposalStore {
   }
 
   takeNotes(): string[] {
-    const notes = this.notes;
+    const notes = [...this.requeued, ...this.notes];
+    this.requeued = [];
     this.notes = [];
     return notes;
+  }
+
+  requeueNotes(notes: string[]): void {
+    this.requeued.push(...notes);
   }
 
   private serial<T>(fn: () => Promise<T>): Promise<T> {
