@@ -105,15 +105,22 @@ type Handler = (
   extra: unknown,
 ) => ReturnType<SdkMcpToolDefinition["handler"]>;
 
+// The proposal store's clock; each setup starts it at the fixtures' time.
+let clock: number;
+
 function setup(activeBoard: string | null = "flow") {
   const hub = { request: vi.fn(), activeBoard };
   const log: ProposalLogEntry[] = [];
-  const proposals = new ProposalStore({
-    appendProposal: async (entry) => {
-      log.push(entry);
+  clock = Date.parse("2026-11-02T00:00:00.000Z");
+  const proposals = new ProposalStore(
+    {
+      appendProposal: async (entry) => {
+        log.push(entry);
+      },
+      readProposals: async () => [...log],
     },
-    readProposals: async () => [...log],
-  });
+    () => clock,
+  );
   const server = createBoardTools({ store, hub, proposals });
   // The SDK only exposes the live McpServer, whose registry is private.
   const tools = (
@@ -321,20 +328,23 @@ test("a revise in flight holds off decisions on its proposal, and releases them 
 test("revise holds off decisions from before it reads the board for id checks", async () => {
   const { hub, call, proposals } = setup();
   await proposals.proposed(pending("p_1"));
-  let read: () => void = () => {};
-  vi.mocked(store.readBoard).mockImplementationOnce(
-    () =>
-      new Promise((resolve) => {
-        read = () => resolve(flow);
-      }),
-  );
+  let read: (() => void) | undefined;
+  // The first read reconciles before the lookup; the second checks ids inside the bracket.
+  vi.mocked(store.readBoard)
+    .mockImplementationOnce(async () => flow)
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          read = () => resolve(flow);
+        }),
+    );
   hub.request.mockResolvedValueOnce({ elementIds: [] });
   const revising = call("revise", { proposalId: "p_1", ops });
-  await vi.waitFor(() => expect(store.readBoard).toHaveBeenCalled());
+  await vi.waitFor(() => expect(read).toBeDefined());
   await expect(proposals.decided("p_1", "accepted")).rejects.toThrow(
     "proposal p_1 is being revised",
   );
-  read();
+  read?.();
   await revising;
 
   // A failed id check releases the proposal too.
@@ -368,7 +378,10 @@ test("propose round-trips to the browser, logs, and returns the proposal id", as
   expect(body.proposal).toMatchObject({ id, board: "flow", title: "Cache" });
   expect(body.proposal.ops).toBe(ops);
   expect(opts).toEqual({ timeoutMs: 30_000 });
-  expect(proposals.pending()).toEqual([body.proposal]);
+  // Stamped with the time it was logged, not the one minted before the round trip.
+  expect(proposals.pending()).toEqual([
+    { ...body.proposal, at: new Date(clock).toISOString() },
+  ]);
   expect(log.map((e) => e.event)).toEqual(["proposed"]);
 
   // No title: null, not undefined.
@@ -554,4 +567,41 @@ test("propose and revise refuse a bad $ reference before checking ids or drawing
       ],
     }),
   ).rejects.toThrow("unknown element id q");
+});
+
+test("every tool reconciles the board it reads, so a proposal whose ghosts stayed gone is rejected", async () => {
+  const { hub, call, proposals } = setup();
+  const text = (r: Awaited<ReturnType<Handler>>) =>
+    (r.content[0] as { text: string }).text;
+  const getBoard = () => {
+    hub.request.mockResolvedValueOnce({ png: PNG });
+    return call("get_board", { board: "flow" });
+  };
+  // Pending with no ghosts on flow, past the propose grace, and marked by one read.
+  const stale = async (id: string) => {
+    await proposals.proposed(pending(id));
+    clock += 10_000;
+    expect(text(await getBoard())).toContain(`${id} (2 ops)`);
+    clock += 3_000;
+  };
+
+  await stale("p_1");
+  expect(text(await getBoard())).not.toContain("Pending proposals");
+  expect(proposals.get("p_1")).toBeUndefined();
+
+  await stale("p_2");
+  hub.request.mockResolvedValueOnce({ ids: [], png: null });
+  await call("get_selection", {});
+  expect(proposals.get("p_2")).toBeUndefined();
+
+  await stale("p_3");
+  hub.request.mockResolvedValueOnce({ elementIds: [] });
+  await call("propose", { ops });
+  expect(proposals.get("p_3")).toBeUndefined();
+
+  // revise reconciles before it looks the proposal up, the stale target included.
+  await stale("p_4");
+  await expect(call("revise", { proposalId: "p_4", ops })).rejects.toThrow(
+    "proposal p_4 is not pending",
+  );
 });

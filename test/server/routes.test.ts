@@ -324,40 +324,86 @@ test("assets are served sandboxed with the right content type and 404 otherwise"
   }
 });
 
-test("PUT /api/boards/:name reconciles pending proposals of that board", async () => {
+// A flow board with pending p_1 and p_2 (no ghosts drawn) and an agent on an injected clock.
+async function withProposals() {
   await store.createBoard("flow");
+  const at = "2020-01-01T00:00:00.000Z";
   const proposal = (id: string) => ({
     id,
     board: "flow",
     title: null,
     ops: [{ op: "add_note" as const, text: "hello" }],
-    at: "2026-11-02T00:00:00.000Z",
+    at,
   });
   for (const id of ["p_1", "p_2"])
     await store.appendProposal({
       event: "proposed",
-      at: "2026-11-02T00:00:00.000Z",
+      at,
       proposal: proposal(id),
     });
+  const clock = { now: Date.parse("2020-01-01T00:01:00.000Z") };
   // The session never starts: nothing here sends.
   const sdk = { query: vi.fn(), getSessionMessages: vi.fn() };
-  const agent = await createAgent({ store, hub: new WsHub(), cwd: root, sdk });
-  app = createApp(store, agent, agent.proposals);
-
-  const ghost = {
-    ...box("r1", "a1"),
-    boundElements: null,
-    customData: { origin: "ai", proposalId: "p_2", ghost: "add" },
+  const agent = await createAgent({
+    store,
+    hub: new WsHub(),
+    cwd: root,
+    sdk,
+    clock: () => clock.now,
+  });
+  app = createApp(store, agent);
+  // Only p_2's ghost is on the saved board.
+  const scene = {
+    elements: [
+      {
+        ...box("r1", "a1"),
+        boundElements: null,
+        customData: { origin: "ai", proposalId: "p_2", ghost: "add" },
+      },
+    ],
+    appState: {},
+    files: {},
   };
-  expect(
-    (await putScene("flow", { elements: [ghost], appState: {}, files: {} }))
-      .status,
-  ).toBe(200);
+  return { proposal, clock, scene };
+}
 
-  const pending = await (await app.request("/api/agent/proposals")).json();
-  expect(pending).toEqual([proposal("p_2")]);
+test("PUT /api/boards/:name rejects a pending proposal whose ghosts stay gone across saves", async () => {
+  const { proposal, clock, scene } = await withProposals();
+  const pendingIds = async () =>
+    (
+      (await (await app.request("/api/agent/proposals")).json()) as {
+        id: string;
+      }[]
+    ).map((p) => p.id);
+
+  // The first save without p_1's ghosts marks it; one 3 s later rejects it.
+  expect((await putScene("flow", scene)).status).toBe(200);
+  expect(await pendingIds()).toEqual(["p_1", "p_2"]);
+  clock.now += 3_000;
+  expect((await putScene("flow", scene)).status).toBe(200);
+
+  expect(await (await app.request("/api/agent/proposals")).json()).toEqual([
+    proposal("p_2"),
+  ]);
   const log = await readFile(join(root, ".blueprint/proposals.jsonl"), "utf8");
   expect(log.trim().split("\n").at(-1)).toMatch(
     /"event":"rejected".*"id":"p_1"/,
   );
+});
+
+test("PUT /api/boards/:name still saves when the reconcile cannot append to the log", async () => {
+  const { clock, scene } = await withProposals();
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(store, "appendProposal").mockRejectedValue(new Error("disk full"));
+
+  expect((await putScene("flow", scene)).status).toBe(200);
+  clock.now += 3_000;
+  const saved = await putScene("flow", scene);
+
+  expect(saved.status).toBe(200);
+  expect(await saved.json()).toMatchObject({ elements: [{ id: "r1" }] });
+  expect(warn).toHaveBeenCalledWith(
+    "could not reconcile proposals on board flow: disk full",
+  );
+  warn.mockRestore();
 });

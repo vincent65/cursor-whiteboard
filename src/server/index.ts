@@ -33,7 +33,7 @@ export async function startServer(opts: {
   await store.init();
   const hub = new WsHub();
   const agent = await createAgent({ store, hub, cwd: opts.root });
-  const app = createApp(store, agent, agent.proposals);
+  const app = createApp(store, agent);
   const { injectWebSocket, upgradeWebSocket, wss } = createNodeWebSocket({
     app,
   });

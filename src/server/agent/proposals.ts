@@ -8,6 +8,9 @@ import { type FileStore, NotFoundError } from "../files.js";
 
 // A save that left the browser before a proposal's ghosts were drawn must not reject it.
 export const RECONCILE_GRACE_MS = 5_000;
+// Ghosts removed by hand may come back with an undo: a proposal is rejected only once a
+// reconcile finds them still gone this long after the first one that missed them.
+export const REMOVAL_GRACE_MS = 3_000;
 
 // A decision or second revise arrived while a revise's browser round trip is in flight.
 export class ProposalBusyError extends Error {}
@@ -22,6 +25,8 @@ export class ProposalStore {
   // `notes`, so they are older and go first.
   private requeued: string[] = [];
   private readonly revising = new Set<string>();
+  // Pending proposals a reconcile found without ghosts, by when it first did.
+  private readonly missingSince = new Map<string, number>();
   // Mutations run one at a time so a pending check still holds when its
   // line is appended; two racing accepts of one proposal log it once.
   private queue: Promise<unknown> = Promise.resolve();
@@ -86,9 +91,9 @@ export class ProposalStore {
     return this.serial(() => this.decide(id, decision));
   }
 
-  // Rejects each pending proposal of board whose ghosts are all gone from the saved
-  // elements; one being revised, or proposed or revised within the grace period, is left
-  // for the next save. Returns the rejected ones.
+  // Rejects each pending proposal of board whose ghosts have been gone from the stored
+  // elements for REMOVAL_GRACE_MS; one being revised, or proposed or revised within
+  // RECONCILE_GRACE_MS, is left for the next call. Returns the rejected ones.
   reconcile(
     board: string,
     elements: readonly {
@@ -104,14 +109,22 @@ export class ProposalStore {
           .map((e) => e.customData?.proposalId),
       );
       const rejected: Proposal[] = [];
-      for (const p of this.pending())
+      for (const p of this.pending()) {
+        if (p.board !== board) continue;
+        if (ghosted.has(p.id)) {
+          this.missingSince.delete(p.id);
+          continue;
+        }
         if (
-          p.board === board &&
-          !ghosted.has(p.id) &&
-          !this.revising.has(p.id) &&
-          nowMs - Date.parse(p.at) >= RECONCILE_GRACE_MS
+          this.revising.has(p.id) ||
+          nowMs - Date.parse(p.at) < RECONCILE_GRACE_MS
         )
+          continue;
+        const since = this.missingSince.get(p.id);
+        if (since === undefined) this.missingSince.set(p.id, nowMs);
+        else if (nowMs - since >= REMOVAL_GRACE_MS)
           rejected.push(await this.decide(p.id, "rejected"));
+      }
       return rejected;
     });
   }
@@ -164,7 +177,11 @@ export class ProposalStore {
     this.apply(entry);
   }
 
+  // Any new entry, a revision or a decision, clears the proposal's removal mark.
   private apply(entry: ProposalLogEntry): void {
+    this.missingSince.delete(
+      "proposal" in entry ? entry.proposal.id : entry.id,
+    );
     if ("proposal" in entry) {
       this.seen.add(entry.proposal.id);
       this.pendingById.set(entry.proposal.id, entry.proposal);

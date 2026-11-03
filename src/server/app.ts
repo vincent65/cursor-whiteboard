@@ -1,7 +1,7 @@
 import { Hono, type MiddlewareHandler } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { Agent } from "./agent/index.js";
-import { ProposalBusyError, type ProposalStore } from "./agent/proposals.js";
+import { ProposalBusyError } from "./agent/proposals.js";
 import { agentRoutes } from "./agentRoutes.js";
 import {
   ExistsError,
@@ -47,16 +47,12 @@ const sameOrigin: MiddlewareHandler = async (c, next) => {
   await next();
 };
 
-export function createApp(
-  store: FileStore,
-  agent?: Agent,
-  proposals?: ProposalStore,
-): Hono {
+export function createApp(store: FileStore, agent?: Agent): Hono {
   const app = new Hono();
   // Also guards the WebSocket upgrade, which @hono/node-ws routes through app.
   app.use(sameOrigin);
   if (agent) app.route("/api/agent", agentRoutes(agent));
-  app.route("/api", routes(store, proposals));
+  app.route("/api", routes(store, agent?.proposals));
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
   app.onError((err, c) => {
     const status = statusFor(err);

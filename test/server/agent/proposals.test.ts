@@ -226,38 +226,77 @@ test("revise can retitle", async () => {
   expect(replayed.get("p_1")?.title).toBe("Redis cache");
 });
 
-test("reconcile rejects a pending proposal with no ghost left on the board and skips one being revised", async () => {
+test("reconcile rejects a pending proposal whose ghosts stay gone, and skips one being revised", async () => {
   const files = fakeFiles();
   const store = newStore(files);
   const onMain = (id: string) => ({ ...proposal(id), board: "main" });
   for (const id of ["p_1", "p_2", "p_3"]) await store.proposed(onMain(id));
   await store.proposed(proposal("p_4"));
   await store.beginRevise("p_3");
-  clock += 10_000;
-
-  const rejected = await store.reconcile("main", [
+  const saved = [
     // A deleted ghost and an accepted element (no ghost tag) do not keep p_1 alive.
     { isDeleted: true, customData: { proposalId: "p_1", ghost: "add" } },
     { customData: { origin: "ai", proposalId: "p_1" } },
     { customData: { proposalId: "p_2", ghost: "update" } },
     {},
-  ]);
+  ];
 
-  expect(rejected).toEqual([onMain("p_1")]);
+  // The first save that misses p_1's ghosts only marks it.
+  clock += 10_000;
+  expect(await store.reconcile("main", saved)).toEqual([]);
+  clock += 3_000;
+  expect(await store.reconcile("main", saved)).toEqual([onMain("p_1")]);
+
   expect(store.pending().map((p) => p.id)).toEqual(["p_2", "p_3", "p_4"]);
   expect(files.log.at(-1)).toMatchObject({ event: "rejected", id: "p_1" });
   expect(store.takeNotes()).toEqual(["[Proposal p_1 was rejected.]"]);
 });
 
-test("reconcile leaves a proposal younger than the grace period for the next save", async () => {
+test("reconcile leaves a proposal younger than the propose grace period unmarked", async () => {
   const store = newStore(fakeFiles());
   await store.proposed(proposal("p_1"));
 
   clock += 1_000;
   expect(await store.reconcile("flow", [])).toEqual([]);
+  // 10 s after logging is its first strike, not its second.
+  clock += 9_000;
+  expect(await store.reconcile("flow", [])).toEqual([]);
   expect(store.pending().map((p) => p.id)).toEqual(["p_1"]);
 
-  clock += 9_000;
+  clock += 3_000;
   expect(await store.reconcile("flow", [])).toEqual([proposal("p_1")]);
   expect(store.pending()).toEqual([]);
+});
+
+test("reconcile rejects only once the ghosts have been gone for the removal grace period", async () => {
+  const store = newStore(fakeFiles());
+  await store.proposed(proposal("p_1"));
+  const ghost = [{ customData: { proposalId: "p_1", ghost: "add" } }];
+  clock += 10_000;
+
+  // Marked, kept 1 s later, then an undo brings the ghosts back and clears the mark.
+  expect(await store.reconcile("flow", [])).toEqual([]);
+  clock += 1_000;
+  expect(await store.reconcile("flow", [])).toEqual([]);
+  clock += 1_000;
+  expect(await store.reconcile("flow", ghost)).toEqual([]);
+  // Missing again 3 s after the first mark: a fresh mark, not a rejection.
+  clock += 1_000;
+  expect(await store.reconcile("flow", [])).toEqual([]);
+  clock += 2_999;
+  expect(await store.reconcile("flow", [])).toEqual([]);
+  clock += 1;
+  expect(await store.reconcile("flow", [])).toEqual([proposal("p_1")]);
+});
+
+test("a revision clears the removal mark", async () => {
+  const store = newStore(fakeFiles());
+  await store.proposed(proposal("p_1"));
+  clock += 10_000;
+  expect(await store.reconcile("flow", [])).toEqual([]);
+  await store.revised({ ...proposal("p_1"), ops: newOps });
+  // Past both grace periods: the revision's own first strike, not the old mark's second.
+  clock += 5_000;
+  expect(await store.reconcile("flow", [])).toEqual([]);
+  expect(store.pending().map((p) => p.id)).toEqual(["p_1"]);
 });

@@ -54,6 +54,8 @@ export async function createAgent(deps: {
   hub: WsHub;
   cwd: string;
   sdk?: Pick<typeof claudeSdk, "query" | "getSessionMessages">;
+  // The proposal store's clock; tests inject one.
+  clock?: () => number;
 }): Promise<Agent> {
   const { store, hub, cwd } = deps;
   const sdk = deps.sdk ?? claudeSdk;
@@ -66,7 +68,7 @@ export async function createAgent(deps: {
     );
     return { plan: null, runs: [] };
   });
-  const proposals = new ProposalStore(store);
+  const proposals = new ProposalStore(store, deps.clock);
   await proposals.load().catch((err) => {
     loadErrors.push(
       `proposals.jsonl could not be read: ${(err as Error).message}. Fix or delete .blueprint/proposals.jsonl.`,

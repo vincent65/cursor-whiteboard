@@ -5,6 +5,7 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import {
+  type BoardFile,
   type BoardGraph,
   boardGraphToMarkdown,
   excalidrawToBoardGraph,
@@ -58,8 +59,13 @@ export function createBoardTools(deps: {
   proposals: ProposalStore;
 }): McpSdkServerConfigWithInstance {
   const { store, hub, proposals } = deps;
-  const graphOf = async (board: string) =>
-    excalidrawToBoardGraph(await store.readBoard(board), board);
+  // Every read settles the board's pending proposals first, so the list Claude sees or
+  // checks against never holds one whose ghosts the user removed long enough ago.
+  const read = async (board: string) => {
+    const file = await store.readBoard(board);
+    await proposals.reconcile(board, file.elements);
+    return file;
+  };
   const withPending = (text: string, board: string) => {
     const pending = proposals.pending().filter((p) => p.board === board);
     if (pending.length === 0) return text;
@@ -75,9 +81,9 @@ export function createBoardTools(deps: {
     return hub.activeBoard;
   };
   // Add ghosts are not on the board yet, so ops cannot point at them (the reads hide them too).
-  const checkIds = async (board: string, ops: Op[]) => {
+  const checkIds = (file: BoardFile, ops: Op[]) => {
     const live = new Set(
-      (await store.readBoard(board)).elements
+      file.elements
         .filter((e) => !e.isDeleted && e.customData?.ghost !== "add")
         .map((e) => e.id),
     );
@@ -104,10 +110,8 @@ export function createBoardTools(deps: {
     async (args) => {
       const board = args.board ?? (await store.listBoards())[0]?.name;
       if (!board) throw new Error("there are no boards yet");
-      const text = withPending(
-        boardGraphToMarkdown(await graphOf(board)),
-        board,
-      );
+      const graph = excalidrawToBoardGraph(await read(board), board);
+      const text = withPending(boardGraphToMarkdown(graph), board);
       // Only a tab showing this board can render it; anything else would wait out the timeout.
       if (hub.activeBoard !== board) {
         const note = `(No PNG: board ${board} is not open)`;
@@ -134,23 +138,21 @@ export function createBoardTools(deps: {
       // No board open (a doc or the sidebar only): nothing can be selected, so don't ask.
       const board = hub.activeBoard;
       const nothingText = "Nothing is selected on the board.";
+      if (board === null)
+        return { content: [{ type: "text", text: nothingText }] };
+      const file = await read(board);
       const nothing = {
         content: [
-          {
-            type: "text" as const,
-            text:
-              board === null ? nothingText : withPending(nothingText, board),
-          },
+          { type: "text" as const, text: withPending(nothingText, board) },
         ],
       };
-      if (board === null) return nothing;
       const snap = await hub.request<{ ids: string[]; png: string | null }>({
         kind: "selection.snapshot",
       });
       const graph =
         snap.ids.length === 0
           ? null
-          : selectionGraph(await graphOf(board), snap.ids);
+          : selectionGraph(excalidrawToBoardGraph(file, board), snap.ids);
       // Ids outside the graph (e.g. only a shape's bound label text) select nothing.
       if (!graph || (graph.nodes.length === 0 && graph.edges.length === 0))
         return nothing;
@@ -168,7 +170,7 @@ export function createBoardTools(deps: {
     async (args) => {
       const board = openBoard();
       checkRefs(args.ops);
-      await checkIds(board, args.ops);
+      checkIds(await read(board), args.ops);
       const p: Proposal = {
         id: proposals.newId(),
         board,
@@ -188,6 +190,7 @@ export function createBoardTools(deps: {
     Revise.shape,
     async (args) => {
       const board = openBoard();
+      await read(board);
       const prev = proposals.get(args.proposalId);
       if (!prev)
         throw new NotFoundError(`proposal ${args.proposalId} is not pending`);
@@ -200,7 +203,8 @@ export function createBoardTools(deps: {
       await proposals.beginRevise(prev.id);
       try {
         checkRefs(args.ops);
-        await checkIds(board, args.ops);
+        // Read again inside the bracket: the ids are checked against the board as it is now.
+        checkIds(await store.readBoard(board), args.ops);
         const p: Proposal = {
           ...prev,
           title: args.title ?? prev.title,
