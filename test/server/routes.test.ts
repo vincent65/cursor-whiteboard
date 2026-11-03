@@ -424,7 +424,7 @@ test("GET /api/spec drops unknown citations and reports them", async () => {
   const res = await app.request("/api/spec");
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({
-    text: "## Goals\n\nShip [[board:main#e1]] and .\n",
+    text: "## Goals\n\nShip [[board:main#e1]] and.\n",
     dropped: [
       { kind: "board", page: "main", id: "gone", raw: "[[board:main#gone]]" },
     ],

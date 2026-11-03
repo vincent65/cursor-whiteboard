@@ -50,14 +50,35 @@ export function buildCitationIndex(input: {
   return index;
 }
 
+// An aside made only of citations, like " (see [[a]], [[b]])", with the space before it.
+const CITED_ASIDE = new RegExp(
+  `[ \\t]?\\((?:[Ss]ee |cf\\. )?${CITATION.source}(?:[,;]? ?${CITATION.source})*\\)`,
+  "g",
+);
+// One separator beside a citation: a comma or semicolon with its spaces, or spaces alone.
+const SEPARATOR_BEFORE = /(?:[,;][ \t]*|[ \t]+)$/;
+const SEPARATOR_AFTER = /^(?:[,;][ \t]*|[ \t]+)/;
+
+// Each unknown citation goes with one separator beside it, so a list of them leaves no
+// stray commas; an aside whose citations are all unknown goes whole.
 export function dropUnknownCitations(
   text: string,
   index: Set<string>,
 ): { text: string; dropped: Citation[] } {
   const dropped = parseCitations(text).filter((c) => !index.has(key(c)));
   const unknown = new Set(dropped.map((c) => c.raw));
-  return {
-    text: text.replace(CITATION, (raw) => (unknown.has(raw) ? "" : raw)),
-    dropped,
-  };
+  const asidesGone = text.replace(CITED_ASIDE, (aside) =>
+    parseCitations(aside).every((c) => unknown.has(c.raw)) ? "" : aside,
+  );
+  let out = "";
+  let pos = 0;
+  for (const m of asidesGone.matchAll(CITATION)) {
+    out += asidesGone.slice(pos, m.index);
+    pos = m.index + m[0].length;
+    if (!unknown.has(m[0])) out += m[0];
+    else if (SEPARATOR_BEFORE.test(out))
+      out = out.replace(SEPARATOR_BEFORE, "");
+    else pos += SEPARATOR_AFTER.exec(asidesGone.slice(pos))?.[0].length ?? 0;
+  }
+  return { text: out + asidesGone.slice(pos), dropped };
 }

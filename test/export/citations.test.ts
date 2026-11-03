@@ -71,6 +71,26 @@ test("unknown citations are removed from the text and reported", () => {
     "x [[board:main#r1]] y [[board:main#zzz]]",
     new Set(["board:main#r1"]),
   );
-  expect(r.text).toBe("x [[board:main#r1]] y ");
+  expect(r.text).toBe("x [[board:main#r1]] y");
   expect(r.dropped.map((c) => c.raw)).toEqual(["[[board:main#zzz]]"]);
+});
+
+test("an unknown citation goes with one adjacent separator", () => {
+  const index = new Set(["board:main#a"]);
+  const clean = (text: string) => dropUnknownCitations(text, index).text;
+  expect(clean("See A, B, [[board:main#x]], [[board:main#y]].")).toBe(
+    "See A, B.",
+  );
+  expect(clean("(see [[board:main#x]])")).toBe("");
+  expect(clean("Login (see [[board:main#x]]; [[doc:a.md#y]]) fast.")).toBe(
+    "Login fast.",
+  );
+  expect(clean("Login (see [[board:main#a]], [[board:main#x]]) fast.")).toBe(
+    "Login (see [[board:main#a]]) fast.",
+  );
+  expect(clean("Login [[board:main#x]] fast.")).toBe("Login fast.");
+  expect(clean("[[board:main#x]], [[board:main#a]] first")).toBe(
+    "[[board:main#a]] first",
+  );
+  expect(clean("- Login [[board:main#x]]\n- Home")).toBe("- Login\n- Home");
 });
