@@ -9,7 +9,9 @@ export default defineConfig({
   build: { outDir: "../../dist/ui", emptyOutDir: true },
   server: {
     proxy: {
-      "/api/": "http://localhost:4242",
+      // Object form: the string shorthand sets changeOrigin, which rewrites Host
+      // to the API port and makes the server's same-origin check refuse writes.
+      "/api/": { target: "http://localhost:4242", changeOrigin: false },
       "/ws": { target: "ws://localhost:4242", ws: true },
     },
   },
