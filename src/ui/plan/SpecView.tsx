@@ -95,6 +95,7 @@ export function SpecView() {
         <article className="spec-doc">
           <Markdown
             text={text}
+            headingBase={1}
             renderCitation={(c) => (
               <CitationLink citation={c} label={spec?.labels[citationKey(c)]} />
             )}

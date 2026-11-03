@@ -73,7 +73,11 @@ const indent = (line: string) => line.length - line.trimStart().length;
 
 // A list item's lines: its text, then from the first indented item on, the
 // nested blocks it holds, dedented.
-function listItem(item: string[], cite?: RenderCitation): ReactNode[] {
+function listItem(
+  item: string[],
+  base: number,
+  cite?: RenderCitation,
+): ReactNode[] {
   const k = item.findIndex((l, n) => n > 0 && ITEM.test(l));
   if (k < 0) return lines(item, cite);
   const nested = item.slice(k);
@@ -81,7 +85,7 @@ function listItem(item: string[], cite?: RenderCitation): ReactNode[] {
   return [
     <Fragment key="text">{lines(item.slice(0, k), cite)}</Fragment>,
     <Fragment key="nested">
-      {blocks(nested.map((l) => l.slice(cut)).join("\n"), cite)}
+      {blocks(nested.map((l) => l.slice(cut)).join("\n"), base, cite)}
     </Fragment>,
   ];
 }
@@ -91,7 +95,12 @@ const startsBlock = (line: string) =>
 
 const ordered = (marker: string) => /\d/.test(marker);
 
-function blocks(text: string, cite?: RenderCitation): ReactNode[] {
+// base: the level a # heading renders at.
+function blocks(
+  text: string,
+  base: number,
+  cite?: RenderCitation,
+): ReactNode[] {
   const src = text.split(/\r?\n/);
   const out: ReactNode[] = [];
   let i = 0;
@@ -119,8 +128,7 @@ function blocks(text: string, cite?: RenderCitation): ReactNode[] {
     }
     const heading = HEADING.exec(line);
     if (heading) {
-      // The panel's title is an h2, so Claude's headings sit below it.
-      const Tag = `h${Math.min(heading[1].length + 2, 6)}` as "h3";
+      const Tag = `h${Math.min(heading[1].length + base - 1, 6)}` as "h3";
       out.push(<Tag key={key}>{inline(heading[2], cite)}</Tag>);
       i++;
       continue;
@@ -130,7 +138,9 @@ function blocks(text: string, cite?: RenderCitation): ReactNode[] {
       for (; i < src.length && QUOTE.test(src[i]); i++)
         inner.push(src[i].replace(QUOTE, ""));
       out.push(
-        <blockquote key={key}>{blocks(inner.join("\n"), cite)}</blockquote>,
+        <blockquote key={key}>
+          {blocks(inner.join("\n"), base, cite)}
+        </blockquote>,
       );
       continue;
     }
@@ -161,7 +171,7 @@ function blocks(text: string, cite?: RenderCitation): ReactNode[] {
       }
       const lis = items.map((item, n) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: items never move
-        <li key={n}>{listItem(item, cite)}</li>
+        <li key={n}>{listItem(item, base, cite)}</li>
       ));
       const start = Number.parseInt(first[1], 10);
       out.push(
@@ -189,14 +199,18 @@ function blocks(text: string, cite?: RenderCitation): ReactNode[] {
   return out;
 }
 
+// headingBase: the level a # heading renders at. The panel's title is an h2, so by
+// default Claude's headings sit below it; a page with no heading above it passes 1.
 export function Markdown({
   text,
   renderCitation,
+  headingBase = 3,
 }: {
   text: string;
   renderCitation?: RenderCitation;
+  headingBase?: number;
 }): JSX.Element {
-  return <div className="md">{blocks(text, renderCitation)}</div>;
+  return <div className="md">{blocks(text, headingBase, renderCitation)}</div>;
 }
 
 // One line of Markdown, such as a task title: spans only, no blocks.

@@ -19,6 +19,21 @@ test("headings keep their text, below the panel's own heading level", () => {
   expect(screen.getByRole("heading", { name: "Notes", level: 5 })).toBeTruthy();
 });
 
+test("headingBase sets the level a # heading takes, inside quotes too, up to h6", () => {
+  render(
+    <Markdown
+      text={"# Spec\n\n## Goals\n\n> ### Quoted\n\n###### Deep"}
+      headingBase={1}
+    />,
+  );
+  expect(screen.getByRole("heading", { name: "Spec", level: 1 })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Goals", level: 2 })).toBeTruthy();
+  expect(
+    screen.getByRole("heading", { name: "Quoted", level: 3 }),
+  ).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Deep", level: 6 })).toBeTruthy();
+});
+
 test("strong, emphasis, and inline code", () => {
   const c = md("**bold** and *it* and __b2__ and _i2_ and `a *b* c`");
   expect([...c.querySelectorAll("strong")].map((e) => e.textContent)).toEqual([

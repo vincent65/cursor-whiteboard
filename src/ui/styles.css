@@ -703,15 +703,25 @@ pre {
   margin-top: calc(var(--space) * 1.5);
 }
 
-.spec-doc .md h3 {
+/* The spec's headings render at their real levels: # is h1. */
+.spec-doc .md :is(h1, h2, h3) {
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.spec-doc .md h1 {
   font-size: var(--fs-xl);
 }
 
-.spec-doc .md h4 {
+.spec-doc .md h2 {
   font-size: var(--fs-lg);
 }
 
-.spec-doc .md > :is(h3, h4, h5, h6):not(:first-child) {
+.spec-doc .md h3 {
+  font-size: var(--fs-md);
+}
+
+.spec-doc .md > :is(h1, h2, h3, h4, h5, h6):not(:first-child) {
   margin-top: calc(var(--space) * 3);
 }
 

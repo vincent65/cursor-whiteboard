@@ -69,7 +69,10 @@ test("SpecView shows the empty state, then the spec with marked citations on fil
     ),
   ).toBeInTheDocument();
   // A document, not an editor: headings and a citation chip, nothing editable.
-  expect(screen.getByRole("heading", { name: "Goals" })).toBeInTheDocument();
+  // At its real level: the spec view has no heading above it.
+  expect(
+    screen.getByRole("heading", { name: "Goals", level: 2 }),
+  ).toBeInTheDocument();
   expect(container.querySelector("[contenteditable]")).toBeNull();
   // The chip shows the cited shape's label; the id is in its tooltip.
   const cite = screen.getByRole("link", { name: "Login" });
