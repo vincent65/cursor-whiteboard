@@ -14,6 +14,8 @@ import { resultError, SdkEventMapper } from "./events.js";
 
 const TRANSCRIPT_LIMIT = 500;
 const RESTORE_FAILED = "previous session could not be loaded; starting fresh";
+const resumeFailed = (cause: string) =>
+  `The previous session could not be loaded (${cause}); starting fresh.`;
 const NOT_SENT_ENDED = "Message not sent: Claude session ended before it ran";
 const NOT_SENT_STOPPED = "Message not sent: stopped";
 // The CLI saves a Stop as a user message with this text (or "... for tool use]").
@@ -31,15 +33,21 @@ export type SessionDeps = {
 
 // resumed: started with a saved session id. initialized: the CLI's init message arrived.
 // interrupted: interrupt() was called during the turn in flight, so its result ends the turn.
+// busy: a turn was handed to the SDK and its result has not arrived. held: sends waiting
+// for that result; the SDK writes whatever the prompt yields to the CLI at once, so only
+// sends kept here can still be dropped by a Stop.
 type Run = {
   input: InputQueue;
   query: Query;
   resumed: boolean;
   initialized: boolean;
   interrupted: boolean;
+  busy: boolean;
+  held: string[];
 };
 
 // The streaming prompt: yields pushed messages in order and stays open until ended.
+// It holds at most the turn in flight, which the SDK takes as soon as the CLI is ready.
 class InputQueue {
   #items: SDKUserMessage[] = [];
   #ended = false;
@@ -160,20 +168,22 @@ export class PlanSession {
     this.#setStatus("idle");
   }
 
-  send(text: string): string {
+  // `text` goes to Claude; the user event shows `shown`, what the user typed.
+  send(text: string, shown: string = text): string {
     const id = randomUUID();
-    this.#emit({ kind: "user", id, text, at: now() });
-    if (!this.#run || this.#status === "error") this.#start();
-    else if (this.#status === "idle") this.#setStatus("working");
-    this.#run?.input.push({
-      type: "user",
-      message: { role: "user", content: text },
-      parent_tool_use_id: null,
-    });
+    this.#emit({ kind: "user", id, text: shown, at: now() });
+    const run =
+      !this.#run || this.#status === "error" ? this.#start() : this.#run;
+    if (run.busy) {
+      run.held.push(text);
+    } else {
+      if (this.#status === "idle") this.#setStatus("working");
+      this.#hand(run, text);
+    }
     return id;
   }
 
-  // Stop also drops the messages queued behind the turn, so none runs after it.
+  // Stop also drops the sends held behind the turn, so none runs after it.
   async interrupt(): Promise<void> {
     const run = this.#run;
     if (!run) return;
@@ -183,7 +193,7 @@ export class PlanSession {
       this.#setStatus("stopped");
       return;
     }
-    this.#notSent(run.input.drain(), NOT_SENT_STOPPED);
+    this.#notSent(run.held.splice(0).length, NOT_SENT_STOPPED);
     if (this.#status !== "idle") run.interrupted = true;
     await run.query.interrupt();
   }
@@ -193,7 +203,7 @@ export class PlanSession {
     this.#setStatus("stopped");
   }
 
-  #start(): void {
+  #start(): Run {
     this.#stopRun();
     const input = new InputQueue();
     const run: Run = {
@@ -210,22 +220,44 @@ export class PlanSession {
       resumed: this.#sessionId !== undefined,
       initialized: false,
       interrupted: false,
+      busy: false,
+      held: [],
     };
     this.#run = run;
     this.#setStatus("starting");
     void this.#consume(run).catch((err) =>
       console.error("session loop failed", err),
     );
+    return run;
   }
 
-  // Ends the run; returns how many queued messages it never sent.
+  // Ends the run; returns how many sends it never handed over or the SDK never took.
   #stopRun(): number {
     const run = this.#run;
     this.#run = undefined;
-    const dropped = run?.input.drain() ?? 0;
-    run?.input.end();
-    run?.query.close();
+    if (!run) return 0;
+    const dropped = run.input.drain() + run.held.splice(0).length;
+    run.input.end();
+    run.query.close();
     return dropped;
+  }
+
+  #hand(run: Run, text: string): void {
+    run.busy = true;
+    run.input.push({
+      type: "user",
+      message: { role: "user", content: text },
+      parent_tool_use_id: null,
+    });
+  }
+
+  // A result ended the turn: hand over the next held send, if any. Returns whether it did.
+  #turnEnded(run: Run): boolean {
+    run.busy = false;
+    const next = run.held.shift();
+    if (next === undefined) return false;
+    this.#hand(run, next);
+    return true;
   }
 
   async #consume(run: Run): Promise<void> {
@@ -255,21 +287,17 @@ export class PlanSession {
             durationMs: msg.duration_ms,
             at: now(),
           });
-          this.#setStatus("idle");
+          this.#setStatus(this.#turnEnded(run) ? "working" : "idle");
           continue;
         }
         for (const e of mapper.map(msg)) this.#emit(e);
         if (msg.type === "result") {
+          // A held send runs next on this run, even after an error result, as a queued
+          // send did before sends were held; its error stays in the transcript.
           const error = resultError(msg);
-          if (error === undefined) this.#setStatus("idle");
+          if (this.#turnEnded(run)) this.#setStatus("working");
+          else if (error === undefined) this.#setStatus("idle");
           else this.#setStatus("error", error);
-        } else if (
-          this.#status === "idle" &&
-          (msg.type === "stream_event" || msg.type === "assistant")
-        ) {
-          // ponytail: a turn queued behind another reads idle between the first result and its
-          // first streamed message; counting sends against results breaks if the CLI batches them.
-          this.#setStatus("working");
         }
       }
     } catch (err) {
@@ -278,7 +306,7 @@ export class PlanSession {
       if (run.resumed && !run.initialized && this.#run === run) {
         console.warn(`could not resume session ${this.#sessionId}: ${message}`);
         this.#sessionId = undefined;
-        message = RESTORE_FAILED;
+        message = resumeFailed(message);
       }
     }
     // Thrown or ended on its own, this run is done: reap it so the next send resumes afresh.

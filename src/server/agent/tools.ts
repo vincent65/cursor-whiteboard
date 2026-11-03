@@ -69,13 +69,13 @@ export function createBoardTools(deps: {
       withoutAddGhosts(await store.readBoard(board)),
       board,
     );
-  const withPending = (text: string) => {
-    const pending = proposals.pending();
+  const withPending = (text: string, board: string) => {
+    const pending = proposals.pending().filter((p) => p.board === board);
     if (pending.length === 0) return text;
     const list = pending.map(
       (p) => `${p.id} (${p.ops.length} op${p.ops.length === 1 ? "" : "s"})`,
     );
-    return `${text}\n\nPending proposals: ${list.join(", ")}`;
+    return `${text}\n\nPending proposals on this board: ${list.join(", ")}`;
   };
 
   const openBoard = (): string => {
@@ -83,10 +83,11 @@ export function createBoardTools(deps: {
       throw new Error("open a board in the browser first");
     return hub.activeBoard;
   };
+  // Add ghosts are not on the board yet, so ops cannot point at them (the reads hide them too).
   const checkIds = async (board: string, ops: Op[]) => {
     const live = new Set(
-      (await store.readBoard(board)).elements
-        .filter((e) => !e.isDeleted)
+      withoutAddGhosts(await store.readBoard(board))
+        .elements.filter((e) => !e.isDeleted)
         .map((e) => e.id),
     );
     const unknown = referencedIds(ops).find((id) => !live.has(id));
@@ -112,7 +113,10 @@ export function createBoardTools(deps: {
     async (args) => {
       const board = args.board ?? (await store.listBoards())[0]?.name;
       if (!board) throw new Error("there are no boards yet");
-      const text = withPending(boardGraphToMarkdown(await graphOf(board)));
+      const text = withPending(
+        boardGraphToMarkdown(await graphOf(board)),
+        board,
+      );
       // Only a tab showing this board can render it; anything else would wait out the timeout.
       if (hub.activeBoard !== board) {
         const note = `(No PNG: board ${board} is not open)`;
@@ -136,16 +140,18 @@ export function createBoardTools(deps: {
     "Read the elements the user has selected on the open board, as Markdown plus a PNG crop of them.",
     {},
     async () => {
+      // No board open (a doc or the sidebar only): nothing can be selected, so don't ask.
+      const board = hub.activeBoard;
+      const nothingText = "Nothing is selected on the board.";
       const nothing = {
         content: [
           {
             type: "text" as const,
-            text: withPending("Nothing is selected on the board."),
+            text:
+              board === null ? nothingText : withPending(nothingText, board),
           },
         ],
       };
-      // No board open (a doc or the sidebar only): nothing can be selected, so don't ask.
-      const board = hub.activeBoard;
       if (board === null) return nothing;
       const snap = await hub.request<{ ids: string[]; png: string | null }>({
         kind: "selection.snapshot",
@@ -157,7 +163,7 @@ export function createBoardTools(deps: {
       // Ids outside the graph (e.g. only a shape's bound label text) select nothing.
       if (!graph || (graph.nodes.length === 0 && graph.edges.length === 0))
         return nothing;
-      const text = withPending(boardGraphToMarkdown(graph));
+      const text = withPending(boardGraphToMarkdown(graph), board);
       const content: Content[] = [{ type: "text", text }];
       if (snap.png) content.push(image(snap.png));
       return { content };
@@ -204,8 +210,14 @@ export function createBoardTools(deps: {
         ops: args.ops,
         at: new Date().toISOString(),
       };
-      await apply(p, true);
-      await proposals.revised(p);
+      // A decision arriving mid round trip is refused rather than racing the redraw.
+      proposals.beginRevise(p.id);
+      try {
+        await apply(p, true);
+        await proposals.revised(p);
+      } finally {
+        proposals.endRevise(p.id);
+      }
       return answer(p);
     },
   );

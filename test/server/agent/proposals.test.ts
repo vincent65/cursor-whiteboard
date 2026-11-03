@@ -1,4 +1,7 @@
-import { ProposalStore } from "../../../src/server/agent/proposals.js";
+import {
+  ProposalBusyError,
+  ProposalStore,
+} from "../../../src/server/agent/proposals.js";
 import { NotFoundError } from "../../../src/server/files.js";
 import type {
   Op,
@@ -134,4 +137,23 @@ test("concurrent decisions on one proposal log it once", async () => {
   expect(results.map((r) => r.status)).toEqual(["fulfilled", "rejected"]);
   expect(files.log.map((e) => e.event)).toEqual(["proposed", "accepted"]);
   expect(store.takeNotes()).toHaveLength(1);
+});
+
+test("a proposal cannot be decided or revised again while a revise is in flight", async () => {
+  const files = fakeFiles();
+  const store = new ProposalStore(files);
+  await store.proposed(proposal("p_1"));
+
+  store.beginRevise("p_1");
+  await expect(store.decided("p_1", "accepted")).rejects.toThrow(
+    new ProposalBusyError("proposal p_1 is being revised"),
+  );
+  expect(() => store.beginRevise("p_1")).toThrow(
+    new ProposalBusyError("proposal p_1 is being revised"),
+  );
+  expect(files.log.map((e) => e.event)).toEqual(["proposed"]);
+
+  store.endRevise("p_1");
+  await store.decided("p_1", "accepted");
+  expect(files.log.map((e) => e.event)).toEqual(["proposed", "accepted"]);
 });

@@ -76,10 +76,11 @@ type Script = (text: string, turn: number) => AsyncIterable<SDKMessage>;
 // A fake `query` that reads the prompt iterable in the background, like the SDK does, and
 // yields the scripted messages for each user message in order. With readLimit it stops
 // reading after that many, like a CLI that has not taken the rest (the SDK writes nothing
-// before the CLI is initialized), which stay queued.
+// before the CLI is initialized), which stay queued. `read` records every message taken.
 function fakeQuery(script: Script, endAfter?: number, readLimit?: number) {
   const runs: {
     options: Options | undefined;
+    read: string[];
     inputEnded: boolean;
     interrupt: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
@@ -91,6 +92,7 @@ function fakeQuery(script: Script, endAfter?: number, readLimit?: number) {
     }) => {
       const run = {
         options: params.options,
+        read: [] as string[],
         inputEnded: false,
         interrupt: vi.fn(async () => undefined),
         close: vi.fn(),
@@ -110,6 +112,7 @@ function fakeQuery(script: Script, endAfter?: number, readLimit?: number) {
             return;
           }
           received.push(next.value.message.content as string);
+          run.read.push(next.value.message.content as string);
           wake?.();
         }
       })();
@@ -178,6 +181,16 @@ const kinds = (events: PanelEvent[]) =>
     e.kind === "assistant_text" ? `${e.kind}:${e.partial}` : e.kind,
   );
 
+test("send shows the typed text in the user event and sends the composed text", async () => {
+  const { session, runs, events } = setup((_text, turn) =>
+    turnsOf(...(turn === 0 ? [init("s")] : []), ...textTurn("m", "x", "r")),
+  );
+  session.send("[note]\n\nhi", "hi");
+  expect(events[0]).toMatchObject({ kind: "user", text: "hi" });
+  await vi.waitFor(() => expect(session.status).toBe("idle"));
+  expect(runs[0].read).toEqual(["[note]\n\nhi"]);
+});
+
 test("send starts the query, streams events, and goes idle on result", async () => {
   const { session, query, runs, events, statuses, sessionIds } = setup(
     (text, turn) =>
@@ -218,12 +231,12 @@ test("send starts the query, streams events, and goes idle on result", async () 
   ]);
 });
 
-test("a second send during a turn queues and is processed after the first result", async () => {
+test("a second send during a turn is held by the session and handed over after the first result", async () => {
   let release: () => void = () => {};
   const gate = new Promise<void>((r) => {
     release = r;
   });
-  const { session, query, events, statuses } = setup((text, turn) =>
+  const { session, query, runs, events, statuses } = setup((text, turn) =>
     (async function* () {
       if (turn === 0) yield init("sess-1");
       const [result, ...rest] = textTurn(
@@ -246,6 +259,9 @@ test("a second send during a turn queues and is processed after the first result
     id: second,
     text: "second",
   });
+  // The SDK gets only the turn in flight; the second waits in the session.
+  await new Promise((r) => setTimeout(r, 10));
+  expect(runs[0].read).toEqual(["first"]);
   release();
   await vi.waitFor(() =>
     expect(events.filter((e) => e.kind === "result")).toHaveLength(2),
@@ -268,8 +284,10 @@ test("a second send during a turn queues and is processed after the first result
     "r1",
   ]);
   expect(events.at(-1)).toMatchObject({ kind: "result", id: "r1" });
+  expect(runs[0].read).toEqual(["first", "second"]);
   expect(session.status).toBe("idle");
-  expect(statuses.at(-1)).toEqual(["idle", undefined]);
+  // Handed over at the first result, the second turn never reads idle in between.
+  expect(statuses.map(([s]) => s)).toEqual(["starting", "working", "idle"]);
 });
 
 test("a thrown query becomes an error event and status error, and the next send starts a new query with resume", async () => {
@@ -326,14 +344,13 @@ test("a resumed run that throws before init drops the saved id and the next send
     "could not resume session old: No conversation found with session ID: old",
   );
   warn.mockRestore();
+  const restoreFailed =
+    "The previous session could not be loaded (No conversation found with session ID: old); starting fresh.";
   expect(events.at(-1)).toMatchObject({
     kind: "error",
-    message: "previous session could not be loaded; starting fresh",
+    message: restoreFailed,
   });
-  expect(statuses.at(-1)).toEqual([
-    "error",
-    "previous session could not be loaded; starting fresh",
-  ]);
+  expect(statuses.at(-1)).toEqual(["error", restoreFailed]);
 
   session.send("two");
   await vi.waitFor(() => expect(session.status).toBe("idle"));
@@ -383,6 +400,46 @@ test("an error result sets status error and the next send starts a fresh query w
   expect(runs[0].close).toHaveBeenCalled();
   expect(runs[0].inputEnded).toBe(true);
   expect(runs[1].options?.resume).toBe("sess-1");
+});
+
+test("a send held behind a turn that ends in an error result still runs on the same query", async () => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const { session, query, events, statuses } = setup((text) =>
+    text === "one"
+      ? (async function* () {
+          yield init("sess-1");
+          await gate;
+          yield sdk({
+            type: "result",
+            subtype: "error_max_turns",
+            session_id: "sess-1",
+            uuid: "r-err",
+            is_error: true,
+            num_turns: 3,
+            errors: ["max turns reached"],
+            total_cost_usd: 0,
+            duration_ms: 1,
+          } satisfies ErrorFixture);
+        })()
+      : turnsOf(...textTurn("m", "x", "r-ok")),
+  );
+
+  session.send("one");
+  await vi.waitFor(() => expect(session.status).toBe("working"));
+  session.send("two");
+  release();
+  await vi.waitFor(() =>
+    expect(events.at(-1)).toMatchObject({ kind: "result", id: "r-ok" }),
+  );
+
+  expect(query).toHaveBeenCalledTimes(1);
+  expect(events).toContainEqual(
+    expect.objectContaining({ kind: "error", id: "r-err" }),
+  );
+  expect(statuses.map(([s]) => s)).toEqual(["starting", "working", "idle"]);
 });
 
 test("a success result flagged is_error sets status error with its result text", async () => {
@@ -453,14 +510,12 @@ test("messages still queued when a run throws are each reported as not sent", as
   const gate = new Promise<void>((r) => {
     release = r;
   });
-  const { session, events } = setup(
-    () =>
-      (async function* () {
-        yield init("sess-1");
-        await gate;
-        throw new Error("process exited");
-      })(),
-    { readLimit: 1 },
+  const { session, runs, events } = setup(() =>
+    (async function* () {
+      yield init("sess-1");
+      await gate;
+      throw new Error("process exited");
+    })(),
   );
 
   session.send("one");
@@ -470,6 +525,7 @@ test("messages still queued when a run throws are each reported as not sent", as
   release();
   await vi.waitFor(() => expect(session.status).toBe("error"));
 
+  expect(runs[0].read).toEqual(["one"]);
   expect(
     events.flatMap((e) => (e.kind === "error" ? [e.message] : [])),
   ).toEqual([
@@ -723,45 +779,57 @@ test("an error result after interrupt ends the turn as interrupted, not as an er
   expect(events.at(-1)).toMatchObject({ kind: "error", id: "r-err" });
 });
 
-test("interrupt drops the messages still queued and reports each as not sent", async () => {
+test("interrupt drops the messages still queued, so the SDK never gets them, and reports each as not sent", async () => {
   let release: () => void = () => {};
   const gate = new Promise<void>((r) => {
     release = r;
   });
-  const { session, runs, events } = setup(
-    () =>
-      (async function* () {
-        yield init("sess-1");
-        yield textTurn("msg_long", "partial answer", "unused")[0];
-        await gate;
-        yield sdk({
-          type: "result",
-          subtype: "error_during_execution",
-          session_id: "sess-1",
-          uuid: "r-stop",
-          is_error: true,
-          num_turns: 1,
-          errors: ["[ede_diagnostic] interrupted"],
-          total_cost_usd: 0.02,
-          duration_ms: 7,
-        } satisfies ErrorFixture);
-      })(),
-    { readLimit: 1 },
+  const { session, runs, events } = setup((text, turn) =>
+    text === "after"
+      ? turnsOf(...textTurn("msg_after", "ok", "r-after"))
+      : (async function* () {
+          if (turn === 0) yield init("sess-1");
+          yield textTurn("msg_long", "partial answer", "unused")[0];
+          await gate;
+          yield sdk({
+            type: "result",
+            subtype: "error_during_execution",
+            session_id: "sess-1",
+            uuid: "r-stop",
+            is_error: true,
+            num_turns: 1,
+            errors: ["[ede_diagnostic] interrupted"],
+            total_cost_usd: 0.02,
+            duration_ms: 7,
+          } satisfies ErrorFixture);
+        })(),
   );
 
   session.send("long");
   await vi.waitFor(() => expect(session.status).toBe("working"));
   session.send("two");
   session.send("three");
+  // An initialized SDK writes whatever the prompt yields to the CLI at once.
+  await new Promise((r) => setTimeout(r, 10));
+  expect(runs[0].read).toEqual(["long"]);
   await session.interrupt();
 
   expect(runs[0].interrupt).toHaveBeenCalledTimes(1);
   expect(
     events.flatMap((e) => (e.kind === "error" ? [e.message] : [])),
   ).toEqual(["Message not sent: stopped", "Message not sent: stopped"]);
+  // A send after Stop waits for the stopped turn's result, then runs.
+  session.send("after");
   release();
-  await vi.waitFor(() => expect(session.status).toBe("idle"));
-  expect(events.at(-1)).toMatchObject({ kind: "result", id: "r-stop" });
+  await vi.waitFor(() =>
+    expect(events.at(-1)).toMatchObject({ kind: "result", id: "r-after" }),
+  );
+  expect(events.filter((e) => e.kind === "result").map((e) => e.id)).toEqual([
+    "r-stop",
+    "r-after",
+  ]);
+  expect(runs[0].read).toEqual(["long", "after"]);
+  expect(session.status).toBe("idle");
 });
 
 test("interrupt while the CLI is still starting closes the run instead of interrupting it", async () => {

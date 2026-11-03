@@ -272,6 +272,52 @@ test("propose validates ids against the stored board and logs nothing on failure
   expect(proposals.pending()).toEqual([]);
 });
 
+test("propose treats add ghosts as unknown ids, as the board reads do", async () => {
+  const { hub, call } = setup("ghosted");
+  await expect(
+    call("propose", { ops: [{ op: "add_note", text: "x", near: ["g"] }] }),
+  ).rejects.toThrow("unknown element id g");
+  await expect(
+    call("propose", { ops: [{ op: "delete", id: "tg" }] }),
+  ).rejects.toThrow("unknown element id tg");
+  expect(hub.request).not.toHaveBeenCalled();
+});
+
+test("a revise in flight holds off decisions on its proposal, and releases them on failure too", async () => {
+  const { hub, call, proposals } = setup();
+  await proposals.proposed(pending("p_1"));
+  let answer: (v: unknown) => void = () => {};
+  let fail: (e: Error) => void = () => {};
+  hub.request.mockImplementationOnce(
+    () =>
+      new Promise((resolve, reject) => {
+        answer = resolve;
+        fail = reject;
+      }),
+  );
+  const revising = call("revise", { proposalId: "p_1", ops });
+  await vi.waitFor(() => expect(hub.request).toHaveBeenCalledOnce());
+  await expect(proposals.decided("p_1", "accepted")).rejects.toThrow(
+    "proposal p_1 is being revised",
+  );
+  answer({ elementIds: [] });
+  await revising;
+
+  hub.request.mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      }),
+  );
+  const failing = call("revise", { proposalId: "p_1", ops });
+  await vi.waitFor(() => expect(hub.request).toHaveBeenCalledTimes(2));
+  fail(new Error("Parse error on line 2"));
+  await expect(failing).rejects.toThrow("Parse error on line 2");
+  await expect(proposals.decided("p_1", "rejected")).resolves.toMatchObject({
+    id: "p_1",
+  });
+});
+
 test("propose rejects ids of deleted elements", async () => {
   boards.gone = { ...flow, elements: [el({ id: "a", isDeleted: true })] };
   const { hub, call } = setup("gone");
@@ -382,6 +428,7 @@ test("board reads hide add ghosts and list pending proposals", async () => {
   );
 
   await proposals.proposed(pending("p_1", "ghosted"));
+  await proposals.proposed(pending("p_3", "flow"));
   await proposals.proposed({
     ...pending("p_2", "ghosted"),
     ops: [{ op: "delete", id: "a" }],
@@ -391,14 +438,19 @@ test("board reads hide add ghosts and list pending proposals", async () => {
   const text = (board.content[0] as { text: string }).text;
   expect(text).toContain("Login");
   expect(text).not.toContain("Cache");
-  expect(text).toMatch(/\n\nPending proposals: p_1 \(2 ops\), p_2 \(1 op\)$/);
+  // Only this board's proposals: p_3 waits on flow.
+  expect(text).toMatch(
+    /\n\nPending proposals on this board: p_1 \(2 ops\), p_2 \(1 op\)$/,
+  );
 
   hub.request.mockResolvedValueOnce({ ids: ["a", "g"], png: null });
   const selection = await call("get_selection", {});
   const selected = (selection.content[0] as { text: string }).text;
   expect(selected).toContain("Login");
   expect(selected).not.toContain("Cache");
-  expect(selected).toMatch(/Pending proposals: p_1 \(2 ops\), p_2 \(1 op\)$/);
+  expect(selected).toMatch(
+    /Pending proposals on this board: p_1 \(2 ops\), p_2 \(1 op\)$/,
+  );
 });
 
 test("selectionGraph keeps only selected nodes, edges between them, and selected loose items", () => {

@@ -6,8 +6,9 @@ import type {
   PendingPermission,
   PermissionDecision,
 } from "../../shared/panel.js";
+import type { Decision, Proposal } from "../../shared/proposals.js";
 import type { SessionsFile } from "../../shared/types.js";
-import type { FileStore } from "../files.js";
+import { type FileStore, NotFoundError } from "../files.js";
 import type { WsHub } from "../ws.js";
 import { PermissionBroker } from "./broker.js";
 import { denyBoardWrites } from "./hooks.js";
@@ -21,11 +22,16 @@ import { PlanSession } from "./session.js";
 import { createBoardTools } from "./tools.js";
 
 export type Agent = {
-  // Composes the selection header from the stored board; returns the user event id.
+  // Prefixes decision notes, a refine request for proposalId (NotFoundError unless it is
+  // pending), and the selection header from the stored board; returns the user event id.
   send(
     text: string,
     selection?: { board: string; ids: string[] },
+    proposalId?: string,
   ): Promise<string>;
+  pendingProposals(): Proposal[];
+  // NotFoundError unless pending; ProposalBusyError while it is being revised.
+  decideProposal(id: string, decision: Decision): Promise<Proposal>;
   // Cancels pending permissions, then interrupts the session.
   interrupt(): Promise<void>;
   answerPermission(id: string, d: PermissionDecision): boolean;
@@ -49,11 +55,20 @@ export async function createAgent(deps: {
 }): Promise<Agent> {
   const { store, hub, cwd } = deps;
   const sdk = deps.sdk ?? claudeSdk;
-  // A corrupt index must not take the server down: start fresh and say so until the first send.
-  let loadError: string | undefined;
+  // A corrupt index or log must not take the server down: start fresh and say so until the
+  // first send. Appends to a torn log still land; the next start reports it again.
+  let loadErrors: string[] = [];
   const saved = await store.readSessions().catch((err): SessionsFile => {
-    loadError = `sessions.json could not be read: ${(err as Error).message}. Fix or delete .blueprint/sessions.json.`;
+    loadErrors.push(
+      `sessions.json could not be read: ${(err as Error).message}. Fix or delete .blueprint/sessions.json.`,
+    );
     return { plan: null, runs: [] };
+  });
+  const proposals = new ProposalStore(store);
+  await proposals.load().catch((err) => {
+    loadErrors.push(
+      `proposals.jsonl could not be read: ${(err as Error).message}. Fix or delete .blueprint/proposals.jsonl.`,
+    );
   });
   let message: string | undefined;
 
@@ -61,8 +76,8 @@ export async function createAgent(deps: {
   const status = (): { status: AgentStatus; message?: string } =>
     broker.pending().length > 0
       ? { status: "needs_you" }
-      : loadError
-        ? { status: "error", message: loadError }
+      : loadErrors.length > 0
+        ? { status: "error", message: loadErrors.join(" ") }
         : { status: session.status, ...(message ? { message } : {}) };
   const broadcastStatus = () =>
     hub.broadcast({ type: "agent.status", ...status() });
@@ -93,14 +108,7 @@ export async function createAgent(deps: {
           append: SYSTEM_PROMPT_APPEND,
         },
         permissionMode: "default",
-        // ponytail: not loaded from the log yet; Task 4 loads it and adds the proposal routes.
-        mcpServers: {
-          blueprint: createBoardTools({
-            store,
-            hub,
-            proposals: new ProposalStore(store),
-          }),
-        },
+        mcpServers: { blueprint: createBoardTools({ store, hub, proposals }) },
         hooks: {
           PreToolUse: [
             {
@@ -161,11 +169,22 @@ export async function createAgent(deps: {
   }
 
   return {
-    async send(text, selection) {
-      const composed = composeUserMessage(text, await header(selection));
-      loadError = undefined;
-      return session.send(composed);
+    async send(text, selection, proposalId) {
+      const head = await header(selection);
+      // From here on nothing awaits, so a decision cannot slip between the check and the
+      // send; checked before the notes are taken, so a refused send loses none.
+      if (proposalId !== undefined && !proposals.get(proposalId))
+        throw new NotFoundError(`proposal ${proposalId} is not pending`);
+      const notes = proposals.takeNotes();
+      if (proposalId !== undefined)
+        notes.push(
+          `[The user wants proposal ${proposalId} refined. Call revise with proposalId ${proposalId} and the complete new op list.]`,
+        );
+      loadErrors = [];
+      return session.send(composeUserMessage(text, head, notes), text);
     },
+    pendingProposals: () => proposals.pending(),
+    decideProposal: (id, decision) => proposals.decided(id, decision),
     async interrupt() {
       broker.cancelAll(INTERRUPTED);
       await session.interrupt();

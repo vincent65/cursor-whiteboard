@@ -83,11 +83,15 @@ export async function startServer(opts: {
     port: (server.address() as AddressInfo).port,
     async close() {
       await stopWatching();
-      await agent.close();
-      for (const client of wss.clients) client.terminate();
-      await new Promise<void>((resolve, reject) =>
-        server.close((err) => (err ? reject(err) : resolve())),
-      );
+      // A hung or failing session must not keep the clients or the port.
+      try {
+        await agent.close();
+      } finally {
+        for (const client of wss.clients) client.terminate();
+        await new Promise<void>((resolve, reject) =>
+          server.close((err) => (err ? reject(err) : resolve())),
+        );
+      }
     },
   };
 }

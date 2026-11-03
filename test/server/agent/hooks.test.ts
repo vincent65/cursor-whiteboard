@@ -28,7 +28,7 @@ test("denyBoardWrites denies a Write under .blueprint/boards and allows src/x.ts
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
       permissionDecisionReason:
-        "Blueprint board files are read-only here. Describe the change in your reply, or ask the user to draw it.",
+        "Blueprint board files are read-only here. Propose changes with the propose tool instead.",
     },
   });
   expect(await run(pre("Write", { file_path: "src/x.ts" }))).toEqual({});

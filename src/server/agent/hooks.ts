@@ -3,7 +3,7 @@ import type { HookCallback } from "@anthropic-ai/claude-agent-sdk";
 
 const WRITE_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 const REASON =
-  "Blueprint board files are read-only here. Describe the change in your reply, or ask the user to draw it.";
+  "Blueprint board files are read-only here. Propose changes with the propose tool instead.";
 
 export function isProtectedPath(root: string, filePath: string): boolean {
   const path = resolve(root, filePath);

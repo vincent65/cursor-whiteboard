@@ -8,12 +8,16 @@ import { type FileStore, NotFoundError } from "../files.js";
 
 const now = () => new Date().toISOString();
 
+// A decision or second revise arrived while a revise's browser round trip is in flight.
+export class ProposalBusyError extends Error {}
+
 // Pending proposals, replayed from .blueprint/proposals.jsonl so a restart
 // forgets nothing. Records handed out are shared; callers must not mutate them.
 export class ProposalStore {
   private readonly pendingById = new Map<string, Proposal>();
   private readonly seen = new Set<string>();
   private notes: string[] = [];
+  private readonly revising = new Set<string>();
   // Mutations run one at a time so a pending check still holds when its
   // line is appended; two racing accepts of one proposal log it once.
   private queue: Promise<unknown> = Promise.resolve();
@@ -55,9 +59,20 @@ export class ProposalStore {
     });
   }
 
+  // Brackets a revise's browser round trip; the caller must endRevise, also on failure.
+  beginRevise(id: string): void {
+    this.throwIfRevising(id);
+    this.revising.add(id);
+  }
+
+  endRevise(id: string): void {
+    this.revising.delete(id);
+  }
+
   decided(id: string, decision: Decision): Promise<Proposal> {
     return this.serial(async () => {
       const p = this.pendingOrThrow(id);
+      this.throwIfRevising(id);
       await this.log({ event: decision, at: now(), id });
       const title = p.title === null ? "" : ` ${JSON.stringify(p.title)}`;
       this.notes.push(`[Proposal ${id}${title} was ${decision}.]`);
@@ -75,6 +90,11 @@ export class ProposalStore {
     const run = this.queue.then(fn);
     this.queue = run.catch(() => {});
     return run;
+  }
+
+  private throwIfRevising(id: string): void {
+    if (this.revising.has(id))
+      throw new ProposalBusyError(`proposal ${id} is being revised`);
   }
 
   private pendingOrThrow(id: string): Proposal {

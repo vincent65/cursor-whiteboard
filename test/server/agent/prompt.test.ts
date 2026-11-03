@@ -61,14 +61,30 @@ test("composeUserMessage puts the header and a blank line before the text", () =
   expect(composeUserMessage("hello", "")).toBe("hello");
 });
 
+test("composeUserMessage puts notes before the header and the text", () => {
+  expect(composeUserMessage("hi", "[Selection]", ["[note]"])).toBe(
+    "[note]\n\n[Selection]\n\nhi",
+  );
+  expect(composeUserMessage("hi", "", [])).toBe("hi");
+  expect(composeUserMessage("hi", "", ["[a]", "[b]"])).toBe("[a]\n\n[b]\n\nhi");
+});
+
+test("the prompt explains propose and revise", () => {
+  expect(SYSTEM_PROMPT_APPEND).toMatch(/call propose with ops/);
+  expect(SYSTEM_PROMPT_APPEND).toMatch(/call revise with its proposalId/);
+});
+
 test("SYSTEM_PROMPT_APPEND covers its topics in order", () => {
   const order = [
     ".blueprint/",
     "spec.md",
     "tasks/",
     "get_board",
-    "selection header",
-    "Mermaid",
+    "call propose with ops",
+    "ghosts the user accepts or rejects",
+    "call revise with its proposalId",
+    "selection header like",
+    "Diagrams must be",
     "long descriptions",
     ".blueprint/docs/",
     "short rows",

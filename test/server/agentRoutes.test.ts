@@ -8,10 +8,12 @@ import type {
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { type Agent, createAgent } from "../../src/server/agent/index.js";
+import { ProposalBusyError } from "../../src/server/agent/proposals.js";
 import { createApp } from "../../src/server/app.js";
-import { FileStore } from "../../src/server/files.js";
+import { FileStore, NotFoundError } from "../../src/server/files.js";
 import { WsHub } from "../../src/server/ws.js";
 import type { ServerMessage } from "../../src/shared/messages.js";
+import type { Proposal } from "../../src/shared/proposals.js";
 
 let root: string;
 let store: FileStore;
@@ -32,9 +34,34 @@ const post = (body: unknown): RequestInit => ({
   headers: { "Content-Type": "application/json" },
 });
 
+const proposal = (id: string, title: string | null = "Cache"): Proposal => ({
+  id,
+  board: "main",
+  title,
+  ops: [{ op: "add_note", text: "hello" }],
+  at: "2026-11-02T00:00:00.000Z",
+});
+
 function fakeAgent() {
   return {
-    send: vi.fn(async () => "u1"),
+    send: vi.fn(
+      async (
+        _text: string,
+        _selection?: { board: string; ids: string[] },
+        proposalId?: string,
+      ) => {
+        if (proposalId === "p_9")
+          throw new NotFoundError("proposal p_9 is not pending");
+        return "u1";
+      },
+    ),
+    pendingProposals: vi.fn(() => [proposal("p_1")]),
+    decideProposal: vi.fn(async (id: string) => {
+      if (id === "p_1") return proposal("p_1");
+      if (id === "p_2")
+        throw new ProposalBusyError("proposal p_2 is being revised");
+      throw new NotFoundError(`proposal ${id} is not pending`);
+    }),
     interrupt: vi.fn(async () => undefined),
     answerPermission: vi.fn((id: string) => id === "p1"),
     state: vi.fn(() => ({
@@ -58,7 +85,7 @@ test("send returns 202 with the id and rejects empty text with 400", async () =>
   );
   expect(ok.status).toBe(202);
   expect(await ok.json()).toEqual({ id: "u1" });
-  expect(agent.send).toHaveBeenCalledWith("hi", selection);
+  expect(agent.send).toHaveBeenCalledWith("hi", selection, undefined);
 
   for (const body of [{ text: "" }, { text: "  \n" }, {}, { text: 3 }]) {
     const res = await app.request("/api/agent/send", post(body));
@@ -71,6 +98,63 @@ test("send returns 202 with the id and rejects empty text with 400", async () =>
   );
   expect(badSelection.status).toBe(400);
   expect(agent.send).toHaveBeenCalledTimes(1);
+});
+
+test("send forwards proposalId and 404s when it is not pending", async () => {
+  const agent = fakeAgent();
+  const app = createApp(store, agent);
+
+  const ok = await app.request(
+    "/api/agent/send",
+    post({ text: "tighter", proposalId: "p_1" }),
+  );
+  expect(ok.status).toBe(202);
+  expect(agent.send).toHaveBeenCalledWith("tighter", undefined, "p_1");
+
+  const gone = await app.request(
+    "/api/agent/send",
+    post({ text: "tighter", proposalId: "p_9" }),
+  );
+  expect(gone.status).toBe(404);
+  expect(await gone.json()).toEqual({ error: "proposal p_9 is not pending" });
+
+  const bad = await app.request(
+    "/api/agent/send",
+    post({ text: "tighter", proposalId: 9 }),
+  );
+  expect(bad.status).toBe(400);
+});
+
+test("proposal routes list pending proposals and record decisions", async () => {
+  const agent = fakeAgent();
+  const app = createApp(store, agent);
+
+  const list = await app.request("/api/agent/proposals");
+  expect(list.status).toBe(200);
+  expect(await list.json()).toEqual([proposal("p_1")]);
+
+  const decision = (id: string, body: unknown) =>
+    app.request(`/api/agent/proposals/${id}/decision`, post(body));
+  const ok = await decision("p_1", { decision: "accepted" });
+  expect(ok.status).toBe(204);
+  expect(agent.decideProposal).toHaveBeenCalledWith("p_1", "accepted");
+
+  const gone = await decision("p_9", { decision: "rejected" });
+  expect(gone.status).toBe(404);
+  expect(await gone.json()).toEqual({ error: "proposal p_9 is not pending" });
+
+  const busy = await decision("p_2", { decision: "accepted" });
+  expect(busy.status).toBe(409);
+  expect(await busy.json()).toEqual({
+    error: "proposal p_2 is being revised",
+  });
+
+  for (const body of [{ decision: "maybe" }, {}, "accepted"]) {
+    const res = await decision("p_1", body);
+    expect(res.status, JSON.stringify(body)).toBe(400);
+    expect(await res.json()).toHaveProperty("error");
+  }
+  expect(agent.decideProposal).toHaveBeenCalledTimes(3);
 });
 
 test("permission answers map to the broker and unknown ids are 404", async () => {
@@ -350,5 +434,164 @@ test("createAgent survives a corrupt sessions.json and reports it until the firs
     expect((await store.readSessions()).plan?.sessionId).toBe("s1"),
   );
   expect(fake.options()?.resume).toBeUndefined();
+  await agent.close();
+});
+
+// A fake SDK that answers every user message with a successful turn, so sends run in order.
+function echoSdk() {
+  const received: string[] = [];
+  let options: Options | undefined;
+  const query = vi.fn(
+    (params: { prompt: AsyncIterable<SDKUserMessage>; options?: Options }) => {
+      options = params.options;
+      async function* run(): AsyncGenerator<SDKMessage> {
+        for await (const m of params.prompt) {
+          received.push(m.message.content as string);
+          yield {
+            type: "system",
+            subtype: "init",
+            session_id: "s1",
+          } as SDKMessage;
+          yield {
+            type: "result",
+            subtype: "success",
+            session_id: "s1",
+            uuid: `r${received.length}`,
+            is_error: false,
+            num_turns: 1,
+            result: "ok",
+            total_cost_usd: 0,
+            duration_ms: 1,
+          } as SDKMessage;
+        }
+      }
+      return Object.assign(run(), { interrupt: vi.fn(), close: vi.fn() });
+    },
+  );
+  return {
+    sdk: {
+      query,
+      getSessionMessages: vi.fn(async () => []),
+    } as unknown as Parameters<typeof createAgent>[0]["sdk"],
+    received,
+    options: () => options,
+  };
+}
+
+const logLine = (p: Proposal) =>
+  `${JSON.stringify({ event: "proposed", at: p.at, proposal: p })}\n`;
+
+test("createAgent prefixes decision notes and refine requests to the next message", async () => {
+  await writeFile(
+    join(store.dir, "proposals.jsonl"),
+    logLine(proposal("p_1")) + logLine(proposal("p_2", null)),
+  );
+  const fake = echoSdk();
+  const agent = await createAgent({
+    store,
+    hub: new WsHub(),
+    cwd: root,
+    sdk: fake.sdk,
+  });
+  expect(agent.pendingProposals().map((p) => p.id)).toEqual(["p_1", "p_2"]);
+
+  expect(await agent.decideProposal("p_1", "accepted")).toEqual(
+    proposal("p_1"),
+  );
+  expect(agent.pendingProposals().map((p) => p.id)).toEqual(["p_2"]);
+  expect(await store.readProposals()).toMatchObject([
+    { event: "proposed" },
+    { event: "proposed" },
+    { event: "accepted", id: "p_1" },
+  ]);
+  await expect(agent.decideProposal("p_1", "rejected")).rejects.toThrow(
+    new NotFoundError("proposal p_1 is not pending"),
+  );
+
+  await agent.send("ok");
+  await vi.waitFor(() => expect(fake.received).toHaveLength(1));
+  expect(fake.received[0]).toBe('[Proposal p_1 "Cache" was accepted.]\n\nok');
+  // The bubble shows what the user typed, not the notes.
+  expect(agent.state().transcript.at(0)).toMatchObject({
+    kind: "user",
+    text: "ok",
+  });
+
+  await agent.send("tighter", undefined, "p_2");
+  await vi.waitFor(() => expect(fake.received).toHaveLength(2));
+  expect(fake.received[1]).toBe(
+    "[The user wants proposal p_2 refined. Call revise with proposalId p_2 and the complete new op list.]\n\ntighter",
+  );
+  expect(fake.received[1]).toMatch(/call revise with proposalId p_2/i);
+
+  // A refine of a proposal no longer pending is refused, and keeps the notes for the next send.
+  await agent.decideProposal("p_2", "rejected");
+  await expect(agent.send("again", undefined, "p_2")).rejects.toThrow(
+    new NotFoundError("proposal p_2 is not pending"),
+  );
+  await expect(agent.send("again", undefined, "p_9")).rejects.toBeInstanceOf(
+    NotFoundError,
+  );
+  await agent.send("next");
+  await vi.waitFor(() => expect(fake.received).toHaveLength(3));
+  expect(fake.received[2]).toBe("[Proposal p_2 was rejected.]\n\nnext");
+  await agent.close();
+});
+
+test("createAgent survives a torn proposals.jsonl: reports it, starts with nothing pending, and still appends", async () => {
+  await store.createBoard("main");
+  await writeFile(
+    join(store.dir, "proposals.jsonl"),
+    `${logLine(proposal("p_1"))}{"event":"acc`,
+  );
+  // A browser tab with board main open that draws every proposal it is sent.
+  const hub = new WsHub();
+  const tab = {
+    send(data: string) {
+      const msg = JSON.parse(data);
+      if (msg.type === "request")
+        queueMicrotask(() =>
+          hub.handle(
+            tab,
+            JSON.stringify({
+              type: "response",
+              id: msg.id,
+              ok: true,
+              payload: { elementIds: ["n1"] },
+            }),
+          ),
+        );
+    },
+  };
+  hub.add(tab);
+  hub.handle(
+    tab,
+    JSON.stringify({ type: "selection.changed", board: "main", ids: [] }),
+  );
+  const fake = echoSdk();
+  const agent = await createAgent({ store, hub, cwd: root, sdk: fake.sdk });
+
+  expect(agent.state()).toMatchObject({ status: "error" });
+  expect(agent.state().message).toMatch(
+    /^proposals\.jsonl could not be read: proposals\.jsonl line 2: .+\. Fix or delete \.blueprint\/proposals\.jsonl\.$/,
+  );
+  expect(agent.pendingProposals()).toEqual([]);
+
+  await agent.send("hi");
+  expect(agent.state().status).not.toBe("error");
+  // The SDK only exposes the live McpServer, whose registry is private.
+  const server = fake.options()?.mcpServers?.blueprint as unknown as {
+    instance: {
+      _registeredTools: Record<
+        string,
+        { handler(args: unknown, extra: unknown): Promise<unknown> }
+      >;
+    };
+  };
+  await server.instance._registeredTools.propose.handler(
+    { ops: [{ op: "add_note", text: "hello" }] },
+    {},
+  );
+  expect(agent.pendingProposals()).toHaveLength(1);
   await agent.close();
 });
