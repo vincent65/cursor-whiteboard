@@ -59,6 +59,11 @@ export function createBoardTools(deps: {
       const board = args.board ?? (await store.listBoards())[0]?.name;
       if (!board) throw new Error("there are no boards yet");
       const text = boardGraphToMarkdown(await graphOf(board));
+      // Only a tab showing this board can render it; anything else would wait out the timeout.
+      if (hub.activeBoard !== board) {
+        const note = `(No PNG: board ${board} is not open)`;
+        return { content: [{ type: "text", text: `${text}\n${note}` }] };
+      }
       try {
         const { png } = await hub.request<{ png: string }>({
           kind: "board.png",
@@ -77,21 +82,24 @@ export function createBoardTools(deps: {
     "Read the elements the user has selected on the open board, as Markdown plus a PNG crop of them.",
     {},
     async () => {
+      const nothing = {
+        content: [
+          { type: "text" as const, text: "Nothing is selected on the board." },
+        ],
+      };
+      // No board open (a doc or the sidebar only): nothing can be selected, so don't ask.
+      const board = hub.activeBoard;
+      if (board === null) return nothing;
       const snap = await hub.request<{ ids: string[]; png: string | null }>({
         kind: "selection.snapshot",
       });
-      const board = hub.activeBoard;
       const graph =
-        board === null || snap.ids.length === 0
+        snap.ids.length === 0
           ? null
           : selectionGraph(await graphOf(board), snap.ids);
       // Ids outside the graph (e.g. only a shape's bound label text) select nothing.
       if (!graph || (graph.nodes.length === 0 && graph.edges.length === 0))
-        return {
-          content: [
-            { type: "text", text: "Nothing is selected on the board." },
-          ],
-        };
+        return nothing;
       const text = boardGraphToMarkdown(graph);
       const content: Content[] = [{ type: "text", text }];
       if (snap.png) content.push(image(snap.png));

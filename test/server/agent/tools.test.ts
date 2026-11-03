@@ -109,6 +109,7 @@ test("get_board returns markdown and the PNG from the browser, or a note when th
     text: expect.stringContaining("Login"),
   });
 
+  hub.activeBoard = "zeta";
   hub.request.mockRejectedValueOnce(new Error("no browser tab is connected"));
   const failed = await call("get_board", { board: "zeta" });
   expect(hub.request).toHaveBeenLastCalledWith({
@@ -119,6 +120,22 @@ test("get_board returns markdown and the PNG from the browser, or a note when th
   const text = (failed.content[0] as { text: string }).text;
   expect(text).toMatch(/^# Board: zeta/);
   expect(text).toMatch(/\(No PNG: no browser tab is connected\)$/);
+});
+
+test("get_board asks for a PNG only when the board is the one open in the tab", async () => {
+  for (const activeBoard of [null, "flow"]) {
+    const { hub, call } = setup(activeBoard);
+    const result = await call("get_board", { board: "zeta" });
+    expect(hub.request).not.toHaveBeenCalled();
+    expect(result.content).toEqual([
+      {
+        type: "text",
+        text: expect.stringMatching(
+          /^# Board: zeta[\s\S]*\(No PNG: board zeta is not open\)$/,
+        ),
+      },
+    ]);
+  }
 });
 
 test("get_board fails clearly when there are no boards or the board is unknown", async () => {
@@ -176,6 +193,15 @@ test("get_selection returns nothing-selected text, or the filtered graph markdow
   const noCrop = await call("get_selection", {});
   expect(noCrop.content).toEqual([
     { type: "text", text: expect.stringContaining("Notes") },
+  ]);
+});
+
+test("get_selection answers nothing-selected without asking the browser when no board is open", async () => {
+  const { hub, call } = setup(null);
+  const result = await call("get_selection", {});
+  expect(hub.request).not.toHaveBeenCalled();
+  expect(result.content).toEqual([
+    { type: "text", text: "Nothing is selected on the board." },
   ]);
 });
 
