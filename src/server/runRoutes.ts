@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { type FileStore, NotFoundError } from "./files.js";
+import { PermissionBody, parse } from "./http.js";
 import { checkGate, GateError } from "./runs/gate.js";
 import type { RunManager } from "./runs/manager.js";
 
@@ -19,15 +20,6 @@ const LaunchBody = z.object({
 const MessageBody = z.object({
   text: z.string().refine((t) => t.trim() !== "", "text must not be empty"),
 });
-
-const PermissionBody = z.object({
-  id: z.string(),
-  behavior: z.enum(["allow", "deny", "always"]),
-  message: z.string().optional(),
-});
-
-const parse = async <T>(schema: z.ZodType<T>, req: Request) =>
-  schema.safeParse(await req.json().catch(() => undefined));
 
 // Unknown tasks and runs (404), a failed gate and a resume of a run that is not
 // interrupted (409) map in the app's error handler.

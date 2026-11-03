@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Agent } from "./agent/index.js";
+import { PermissionBody, parse } from "./http.js";
 
 const SendBody = z.object({
   text: z.string().refine((t) => t.trim() !== "", "text must not be empty"),
@@ -11,15 +12,6 @@ const SendBody = z.object({
 });
 
 const DecisionBody = z.object({ decision: z.enum(["accepted", "rejected"]) });
-
-const PermissionBody = z.object({
-  id: z.string(),
-  behavior: z.enum(["allow", "deny", "always"]),
-  message: z.string().optional(),
-});
-
-const parse = async <T>(schema: z.ZodType<T>, req: Request) =>
-  schema.safeParse(await req.json().catch(() => undefined));
 
 export function agentRoutes(agent: Agent): Hono {
   return new Hono()
