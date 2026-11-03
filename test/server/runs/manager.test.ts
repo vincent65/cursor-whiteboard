@@ -353,6 +353,71 @@ test("a turn ending with a PR URL makes the run done with prUrl and cost; withou
   await manager.close();
 });
 
+test("markDone makes an idle run done, and it stays done through later turns and restarts", async () => {
+  const { gate, release } = gated();
+  const { manager } = setup((text) =>
+    (async function* () {
+      yield init("sess-m");
+      if (text === "wait") await gate;
+      yield* textTurn("m", "Merged it by hand.", "r");
+    })(),
+  );
+
+  const run = await manager.launch({
+    taskSlug: "alpha",
+    permissionMode: "acceptEdits",
+  });
+  await expect(manager.markDone(run.id)).rejects.toThrow(ExistsError);
+  await vi.waitFor(async () =>
+    expect((await view(manager, run.id))?.status).toBe("idle"),
+  );
+  await expect(manager.markDone("run_000000")).rejects.toThrow(NotFoundError);
+
+  await manager.markDone(run.id);
+  expect(statusesOf(run.id)).toEqual(["idle", "done"]);
+  expect(await saved(manager, run.id)).toMatchObject({
+    status: "done",
+    prUrl: null,
+    endedAt: expect.any(String),
+  });
+  // Only an idle run can be marked: a done one is a conflict.
+  await expect(manager.markDone(run.id)).rejects.toThrow(ExistsError);
+  // A dependent task's gate now passes once the branch is merged.
+  const dependent = { ...task("gamma"), dependsOn: ["alpha"] };
+  const merged = async () => true;
+  expect(
+    await checkGate({
+      task: dependent,
+      runs: manager.records(),
+      isAncestor: merged,
+    }),
+  ).toEqual({ ok: true, missing: [] });
+
+  // A later turn with no PR URL leaves it done.
+  await manager.message(run.id, "wait");
+  await vi.waitFor(async () =>
+    expect((await view(manager, run.id))?.status).toBe("working"),
+  );
+  release();
+  await vi.waitFor(() =>
+    expect(statusesOf(run.id)).toEqual(["idle", "done", "working", "done"]),
+  );
+  await manager.close();
+
+  // So does a restart: the saved record is done.
+  await runs.settled();
+  sent = [];
+  const after = setup(() =>
+    turnsOf(init("sess-m"), ...textTurn("m2", "Tidied up.", "r2")),
+  );
+  await after.manager.start();
+  await after.manager.message(run.id, "one more thing");
+  await vi.waitFor(() =>
+    expect(statusesOf(run.id)).toEqual(["working", "done"]),
+  );
+  await after.manager.close();
+});
+
 test("an error result fails the run with the message", async () => {
   const { manager, queries } = setup((text) =>
     text === "try again"

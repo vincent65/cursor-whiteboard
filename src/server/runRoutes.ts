@@ -21,8 +21,9 @@ const MessageBody = z.object({
   text: z.string().refine((t) => t.trim() !== "", "text must not be empty"),
 });
 
-// Unknown tasks and runs (404), a failed gate and a resume of a run that is not
-// interrupted (409) map in the app's error handler.
+// Unknown tasks and runs (404), a failed gate, a resume of a run that is not
+// interrupted, and marking done a run that is not idle (409) map in the app's error
+// handler.
 export function runRoutes(store: FileStore, deps: RunRouteDeps): Hono {
   const { manager, isAncestor } = deps;
   const gate = async (slug: string) => {
@@ -58,6 +59,10 @@ export function runRoutes(store: FileStore, deps: RunRouteDeps): Hono {
     })
     .post("/:id/resume", async (c) => {
       await manager.resume(c.req.param("id"));
+      return c.body(null, 204);
+    })
+    .post("/:id/done", async (c) => {
+      await manager.markDone(c.req.param("id"));
       return c.body(null, 204);
     })
     .post("/:id/permission", async (c) => {

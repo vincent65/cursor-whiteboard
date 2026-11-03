@@ -188,6 +188,7 @@ export function SessionsView() {
             onMessage={(text) => api.runMessage(run.id, text)}
             onStop={() => api.runStop(run.id)}
             onResume={() => api.runResume(run.id)}
+            onDone={() => api.runDone(run.id)}
             onPermission={(pid, decision) => answer(run.id, pid, decision)}
             onExpand={() => expand(run.id)}
           />

@@ -86,6 +86,12 @@ function fakeRuns(views: RunView[] = []) {
       known(id);
       throw new ExistsError(`run ${id} is working, not interrupted`);
     }),
+    markDone: vi.fn(async (id: string) => {
+      known(id);
+      const status = views.find((v) => v.id === id)?.status;
+      if (status !== "idle")
+        throw new ExistsError(`run ${id} is ${status}, not idle`);
+    }),
     answerPermission: vi.fn(
       (id: string, p: string) => id === "run_1" && p === "p1",
     ),
@@ -204,7 +210,7 @@ test("the gate passes a dependency whose newest run is done and merged", async (
   expect(launched.status).toBe(201);
 });
 
-test("run routes forward message, stop, resume, permission, and transcript with the right codes", async () => {
+test("run routes forward message, stop, resume, done, permission, and transcript with the right codes", async () => {
   const view: RunView = {
     ...record("run_1", "base"),
     title: "Base",
@@ -245,6 +251,18 @@ test("run routes forward message, stop, resume, permission, and transcript with 
   expect((await app.request("/api/runs/run_9/resume", post())).status).toBe(
     404,
   );
+
+  // Mark done: only an idle run (the fake's run_1 is working).
+  const early = await app.request("/api/runs/run_1/done", post());
+  expect(early.status).toBe(409);
+  expect(await early.json()).toEqual({
+    error: "run run_1 is working, not idle",
+  });
+  expect((await app.request("/api/runs/run_9/done", post())).status).toBe(404);
+  const idle = fakeRuns([{ ...view, status: "idle" }]);
+  const marked = await idle.app.request("/api/runs/run_1/done", post());
+  expect(marked.status).toBe(204);
+  expect(idle.manager.markDone).toHaveBeenCalledWith("run_1");
 
   const answered = await app.request(
     "/api/runs/run_1/permission",

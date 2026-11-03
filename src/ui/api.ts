@@ -197,6 +197,10 @@ export async function runResume(id: string): Promise<void> {
   await request(`${runPath(id)}/resume`, { method: "POST" });
 }
 
+export async function runDone(id: string): Promise<void> {
+  await request(`${runPath(id)}/done`, { method: "POST" });
+}
+
 export async function runPermission(
   id: string,
   permissionId: string,

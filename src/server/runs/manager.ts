@@ -33,6 +33,8 @@ type Live = {
   lastText: string | null;
   // What the run had spent when the current CLI process started; its totals add to this.
   costBase: number;
+  // The run has been done, so a later turn that ends leaves it done.
+  done: boolean;
 };
 
 const now = () => new Date().toISOString();
@@ -143,6 +145,17 @@ export class RunManager {
     // Checked again: another resume may have started the run during the await.
     this.#interrupted(runId);
     live.session.send(prompt ?? CONTINUE);
+  }
+
+  // For a run the user finished by hand, say by merging without the PR URL Claude would
+  // print. Only an idle run, so no turn in flight can undo it (ExistsError otherwise).
+  async markDone(runId: string): Promise<void> {
+    const record = this.#record(runId);
+    if (record.status !== "idle")
+      throw new ExistsError(`run ${runId} is ${record.status}, not idle`);
+    const live = this.#liveFor(record);
+    live.base = { status: "done" };
+    this.#derive(live);
   }
 
   answerPermission(runId: string, id: string, d: PermissionDecision): boolean {
@@ -326,6 +339,7 @@ export class RunManager {
       endedText: null,
       lastText: null,
       costBase: record.costUsd,
+      done: record.status === "done",
     };
     this.#live.set(runId, live);
     return live;
@@ -333,10 +347,12 @@ export class RunManager {
 
   #fromSession(live: Live, status: AgentStatus, message?: string): Derived {
     switch (status) {
-      // Done sticks: a later turn with no URL leaves a run that opened its PR done.
+      // Done sticks: a later turn with no URL leaves a run that opened its PR, or was
+      // marked done, done.
       case "idle": {
         const prUrl = prUrlIn(live.endedText ?? "") ?? live.record.prUrl;
-        return prUrl ? { status: "done", prUrl } : { status: "idle" };
+        if (prUrl) return { status: "done", prUrl };
+        return { status: live.done ? "done" : "idle" };
       }
       case "error":
         return { status: "failed", message };
@@ -354,6 +370,7 @@ export class RunManager {
     const failure = next.status === "failed" ? (next.message ?? null) : null;
     if (next.status === live.record.status && failure === live.record.failure)
       return;
+    if (next.status === "done") live.done = true;
     const ended = next.status === "done" || next.status === "failed";
     this.#patch(live, {
       status: next.status,

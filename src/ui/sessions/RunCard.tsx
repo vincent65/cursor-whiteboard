@@ -33,6 +33,7 @@ export function RunCard({
   onMessage,
   onStop,
   onResume,
+  onDone,
   onPermission,
   onExpand,
 }: {
@@ -41,6 +42,7 @@ export function RunCard({
   onMessage: Handler<[text: string]>;
   onStop: Handler;
   onResume: Handler;
+  onDone: Handler;
   onPermission: Handler<[id: string, decision: PermissionDecision]>;
   onExpand?(): void;
 }) {
@@ -171,6 +173,16 @@ export function RunCard({
             onClick={() => attempt(onResume)}
           >
             Resume
+          </button>
+        )}
+        {run.status === "idle" && (
+          // For a run the user finished by hand, so its dependents' gate can pass.
+          <button
+            type="button"
+            className="button"
+            onClick={() => attempt(onDone)}
+          >
+            Mark done
           </button>
         )}
         <button

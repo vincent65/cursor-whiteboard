@@ -30,6 +30,7 @@ const handlers = () => ({
   onMessage: vi.fn(async () => {}),
   onStop: vi.fn(async () => {}),
   onResume: vi.fn(async () => {}),
+  onDone: vi.fn(async () => {}),
   onPermission: vi.fn(async () => {}),
   onExpand: vi.fn(),
 });
@@ -60,19 +61,20 @@ test("RunCard shows status, cost, PR link, and the right buttons per status", as
 
   const status = () => screen.getByRole("status").textContent;
   const button = (name: string) => screen.queryByRole("button", { name });
-  const cases: [Partial<RunView>, string, boolean, boolean][] = [
-    [{ status: "working" }, "Working", true, false],
-    [{ status: "needs_you" }, "Needs you", true, false],
-    [{ status: "idle" }, "Idle", false, false],
-    [{ status: "done" }, "Done", false, false],
-    [{ status: "failed" }, "Failed", false, false],
-    [{ status: "interrupted" }, "Interrupted", false, true],
+  const cases: [Partial<RunView>, string, boolean, boolean, boolean][] = [
+    [{ status: "working" }, "Working", true, false, false],
+    [{ status: "needs_you" }, "Needs you", true, false, false],
+    [{ status: "idle" }, "Idle", false, false, true],
+    [{ status: "done" }, "Done", false, false, false],
+    [{ status: "failed" }, "Failed", false, false, false],
+    [{ status: "interrupted" }, "Interrupted", false, true, false],
   ];
-  for (const [over, label, stop, resume] of cases) {
+  for (const [over, label, stop, resume, markDone] of cases) {
     rerender(<RunCard run={run(over)} transcript={transcript} {...h} />);
     expect(status()).toBe(label);
     expect(button("Stop") !== null).toBe(stop);
     expect(button("Resume") !== null).toBe(resume);
+    expect(button("Mark done") !== null).toBe(markDone);
   }
   rerender(
     <RunCard
@@ -104,6 +106,12 @@ test("RunCard shows status, cost, PR link, and the right buttons per status", as
   );
   await user.click(screen.getByRole("button", { name: "Resume" }));
   expect(h.onResume).toHaveBeenCalledOnce();
+  // An idle run the user merged by hand can be marked done.
+  rerender(
+    <RunCard run={run({ status: "idle" })} transcript={transcript} {...h} />,
+  );
+  await user.click(screen.getByRole("button", { name: "Mark done" }));
+  expect(h.onDone).toHaveBeenCalledOnce();
   rerender(<RunCard run={run()} transcript={transcript} {...h} />);
   await user.click(screen.getByRole("button", { name: "Stop" }));
   expect(h.onStop).toHaveBeenCalledOnce();

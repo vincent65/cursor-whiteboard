@@ -15,6 +15,7 @@ vi.mock("../../src/ui/api", () => ({
   runMessage: vi.fn(async () => "u9"),
   runStop: vi.fn(async () => {}),
   runResume: vi.fn(async () => {}),
+  runDone: vi.fn(async () => {}),
   runPermission: vi.fn(async () => {}),
 }));
 
@@ -144,6 +145,9 @@ test("SessionsView routes run.event and run.status to the matching card only", a
   expect(api.runMessage).toHaveBeenCalledWith("r2", "Add an index");
   await user.click(within(second).getByRole("button", { name: "Stop" }));
   expect(api.runStop).toHaveBeenCalledWith("r2");
+  emit({ type: "run.status", runId: "r2", status: "idle" });
+  await user.click(within(second).getByRole("button", { name: "Mark done" }));
+  expect(api.runDone).toHaveBeenCalledWith("r2");
 
   // runs.changed refetches the list.
   vi.mocked(api.listRuns).mockResolvedValue([
