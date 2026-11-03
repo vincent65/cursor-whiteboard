@@ -28,24 +28,39 @@ const TYPES: Record<string, string> = {
 
 const readOrNull = (path: string) => readFile(path).catch(() => null);
 
+// BLUEPRINT_FAKE_SDK names a scenario the fake SDK replays instead of running Claude. The
+// fake is imported only then, so a real session never loads it.
+async function loadSdk(): Promise<
+  Pick<typeof claudeSdk, "query" | "getSessionMessages" | "listSessions">
+> {
+  const scenario = process.env.BLUEPRINT_FAKE_SDK;
+  if (!scenario) return claudeSdk;
+  const path = resolve(scenario);
+  const { createFakeSdk } = await import("./fake/sdk.js");
+  const fake = createFakeSdk(path);
+  console.log(`Using the fake SDK from ${path}`);
+  return fake;
+}
+
 export async function startServer(opts: {
   root: string;
   port: number;
   uiDir?: string;
 }): Promise<{ port: number; close(): Promise<void> }> {
+  const sdk = await loadSdk();
   const store = new FileStore(opts.root);
   await store.init();
   const hub = new WsHub();
   // One store for the plan session and the runs, so their writes share one queue.
   const runs = new RunStore(store);
   // Loads the store; a corrupt file is reported by the agent and the runs start empty.
-  const agent = await createAgent({ store, hub, cwd: opts.root, runs });
+  const agent = await createAgent({ store, hub, cwd: opts.root, runs, sdk });
   const manager = new RunManager({
     store,
     runs,
     hub,
     root: opts.root,
-    sdk: claudeSdk,
+    sdk,
   });
   await manager.start();
   const app = createApp(
@@ -53,8 +68,8 @@ export async function startServer(opts: {
     agent,
     { manager, isAncestor: (branch) => isAncestor(opts.root, branch) },
     {
-      listSessions: claudeSdk.listSessions,
-      getSessionMessages: claudeSdk.getSessionMessages,
+      listSessions: sdk.listSessions,
+      getSessionMessages: sdk.getSessionMessages,
       root: opts.root,
       exclude: () => {
         const plan = agent.state().sessionId;

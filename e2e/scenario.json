@@ -1,0 +1,81 @@
+{
+  "plan": [
+    {
+      "match": "Compile the plan into \\.blueprint/spec\\.md",
+      "steps": [
+        {
+          "do": "write",
+          "path": ".blueprint/spec.md",
+          "content": "# Spec\n\n## Goals\n\n- A user signs in on the Login page and lands on Home. [[board:main#login]]\n\n## Acceptance criteria\n\n- Signing in with a valid account opens Home.\n- A wrong password keeps the user on Login with an error.\n"
+        },
+        {
+          "do": "say",
+          "text": "Wrote .blueprint/spec.md with Goals and Acceptance criteria.\nThe goal cites the Login box on the main board."
+        }
+      ],
+      "costUsd": 0.02
+    },
+    {
+      "match": ".",
+      "steps": [
+        { "do": "say", "text": "I will sketch the sign-in flow as two steps." },
+        {
+          "do": "tool",
+          "server": "blueprint",
+          "name": "propose",
+          "input": {
+            "title": "Sign-in flow",
+            "ops": [
+              { "op": "add_node", "label": "Login" },
+              { "op": "add_node", "label": "Home" },
+              { "op": "add_arrow", "from": "$0", "to": "$1" }
+            ]
+          }
+        },
+        {
+          "do": "say",
+          "text": "I proposed a two-node flowchart: Login leads to Home.\nAccept it to keep it, or select it and ask me to refine it."
+        }
+      ]
+    }
+  ],
+  "run": [
+    {
+      "match": ".",
+      "steps": [
+        {
+          "do": "write",
+          "path": "src/login.ts",
+          "content": "export function signIn(user: string, password: string): boolean {\n  return user.length > 0 && password.length > 0;\n}\n"
+        },
+        {
+          "do": "say",
+          "text": "Added src/login.ts and committed it on this branch.\nhttps://github.com/example/blueprint-demo/pull/1\nThe sign-in check is a stub; the real check is left to the auth service."
+        }
+      ],
+      "costUsd": 0.05
+    }
+  ],
+  "split": {
+    "tasks": [
+      {
+        "slug": "login-page",
+        "title": "Build the Login page",
+        "body": "Add a Login page with user and password fields that signs the user in.",
+        "dependsOn": [],
+        "files": ["src/login.ts"],
+        "acceptance": ["Signing in with a valid account succeeds."],
+        "sources": ["[[board:main#login]]"]
+      },
+      {
+        "slug": "home-page",
+        "title": "Build the Home page",
+        "body": "Add the Home page a signed-in user lands on.",
+        "dependsOn": ["login-page"],
+        "files": ["src/home.ts"],
+        "acceptance": ["A signed-in user sees Home."],
+        "sources": ["[[board:main#login]]"]
+      }
+    ]
+  }
+}
