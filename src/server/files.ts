@@ -3,10 +3,12 @@ import {
   access,
   appendFile,
   mkdir,
+  open,
   readdir,
   readFile,
   rename,
   stat,
+  truncate,
   unlink,
   writeFile,
 } from "node:fs/promises";
@@ -18,6 +20,39 @@ import { SLUG_RE } from "../shared/slug.js";
 import type { IncomingScene, SessionsFile } from "../shared/types.js";
 
 export class InvalidNameError extends Error {}
+
+const isJson = (text: string) => {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// The last line of a file that does not end with a newline, and its byte offset; null when
+// the file is missing, empty, or newline-terminated. Reads one byte unless a tail is there.
+async function unfinishedTail(
+  path: string,
+): Promise<{ line: string; start: number } | null> {
+  const handle = await open(path, "r").catch((err: NodeJS.ErrnoException) => {
+    if (err.code === "ENOENT") return null;
+    throw err;
+  });
+  if (!handle) return null;
+  try {
+    const { size } = await handle.stat();
+    if (size === 0) return null;
+    const last = Buffer.alloc(1);
+    await handle.read(last, 0, 1, size - 1);
+    if (last[0] === 0x0a) return null;
+  } finally {
+    await handle.close();
+  }
+  const data = await readFile(path);
+  const start = data.lastIndexOf(0x0a) + 1;
+  return { line: data.subarray(start).toString("utf8"), start };
+}
 export class NotFoundError extends Error {}
 export class ExistsError extends Error {}
 export class InvalidSceneError extends Error {}
@@ -257,8 +292,15 @@ export class FileStore {
   }
 
   // One JSON line per append; a single small append needs no temp-file rename.
+  // A crash mid-append can leave a last line with no newline: a torn one (not JSON, which
+  // readProposals skips) is cut off, a whole one missing only its newline gets it first.
   async appendProposal(entry: ProposalLogEntry): Promise<void> {
-    await appendFile(this.proposalsPath(), `${JSON.stringify(entry)}\n`);
+    const path = this.proposalsPath();
+    const tail = await unfinishedTail(path);
+    let prefix = "";
+    if (tail && isJson(tail.line)) prefix = "\n";
+    else if (tail) await truncate(path, tail.start);
+    await appendFile(path, `${prefix}${JSON.stringify(entry)}\n`);
   }
 
   async readProposals(): Promise<ProposalLogEntry[]> {
@@ -268,8 +310,15 @@ export class FileStore {
         throw err;
       },
     );
+    const lines = text.split("\n");
+    // Not newline-terminated and not JSON: a crash mid-append, never applied, so skip it.
+    const last = lines.at(-1) ?? "";
+    if (last.trim() !== "" && !isJson(last)) {
+      console.warn("proposals.jsonl: ignoring a torn last line");
+      lines.pop();
+    }
     const entries: ProposalLogEntry[] = [];
-    for (const [i, line] of text.split("\n").entries()) {
+    for (const [i, line] of lines.entries()) {
       if (line.trim() === "") continue;
       let json: unknown;
       try {

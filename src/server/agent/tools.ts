@@ -204,21 +204,21 @@ export function createBoardTools(deps: {
         throw new Error(
           `proposal ${prev.id} belongs to board ${prev.board}, which is not open`,
         );
-      await checkIds(board, args.ops);
-      const p: Proposal = {
-        ...prev,
-        ops: args.ops,
-        at: new Date().toISOString(),
-      };
-      // A decision arriving mid round trip is refused rather than racing the redraw.
-      proposals.beginRevise(p.id);
+      // A decision arriving mid revise is refused rather than racing the id check or redraw.
+      await proposals.beginRevise(prev.id);
       try {
+        await checkIds(board, args.ops);
+        const p: Proposal = {
+          ...prev,
+          ops: args.ops,
+          at: new Date().toISOString(),
+        };
         await apply(p, true);
         await proposals.revised(p);
+        return answer(p);
       } finally {
-        proposals.endRevise(p.id);
+        proposals.endRevise(prev.id);
       }
-      return answer(p);
     },
   );
 

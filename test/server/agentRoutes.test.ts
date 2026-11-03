@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -538,13 +538,8 @@ test("createAgent prefixes decision notes and refine requests to the next messag
   await agent.close();
 });
 
-test("createAgent survives a torn proposals.jsonl: reports it, starts with nothing pending, and still appends", async () => {
-  await store.createBoard("main");
-  await writeFile(
-    join(store.dir, "proposals.jsonl"),
-    `${logLine(proposal("p_1"))}{"event":"acc`,
-  );
-  // A browser tab with board main open that draws every proposal it is sent.
+// A hub with one browser tab that has board main open and draws every proposal it is sent.
+function tabHub() {
   const hub = new WsHub();
   const tab = {
     send(data: string) {
@@ -568,17 +563,11 @@ test("createAgent survives a torn proposals.jsonl: reports it, starts with nothi
     tab,
     JSON.stringify({ type: "selection.changed", board: "main", ids: [] }),
   );
-  const fake = echoSdk();
-  const agent = await createAgent({ store, hub, cwd: root, sdk: fake.sdk });
+  return hub;
+}
 
-  expect(agent.state()).toMatchObject({ status: "error" });
-  expect(agent.state().message).toMatch(
-    /^proposals\.jsonl could not be read: proposals\.jsonl line 2: .+\. Fix or delete \.blueprint\/proposals\.jsonl\.$/,
-  );
-  expect(agent.pendingProposals()).toEqual([]);
-
-  await agent.send("hi");
-  expect(agent.state().status).not.toBe("error");
+// Calls the propose tool the agent handed the SDK, as Claude would.
+async function proposeNote(fake: ReturnType<typeof echoSdk>) {
   // The SDK only exposes the live McpServer, whose registry is private.
   const server = fake.options()?.mcpServers?.blueprint as unknown as {
     instance: {
@@ -592,6 +581,68 @@ test("createAgent survives a torn proposals.jsonl: reports it, starts with nothi
     { ops: [{ op: "add_note", text: "hello" }] },
     {},
   );
+}
+
+test("createAgent survives a corrupt proposals.jsonl: reports it, starts with nothing pending, and still appends", async () => {
+  await store.createBoard("main");
+  await writeFile(
+    join(store.dir, "proposals.jsonl"),
+    `${logLine(proposal("p_1"))}{not json\n`,
+  );
+  const fake = echoSdk();
+  const agent = await createAgent({
+    store,
+    hub: tabHub(),
+    cwd: root,
+    sdk: fake.sdk,
+  });
+
+  expect(agent.state()).toMatchObject({ status: "error" });
+  expect(agent.state().message).toMatch(
+    /^proposals\.jsonl could not be read: proposals\.jsonl line 2: .+\. Fix or delete \.blueprint\/proposals\.jsonl\.$/,
+  );
+  expect(agent.pendingProposals()).toEqual([]);
+
+  await agent.send("hi");
+  expect(agent.state().status).not.toBe("error");
+  await proposeNote(fake);
   expect(agent.pendingProposals()).toHaveLength(1);
   await agent.close();
+});
+
+test("a torn proposals.jsonl tail is skipped, and a proposal appended after it replays on restart", async () => {
+  await store.createBoard("main");
+  const path = join(store.dir, "proposals.jsonl");
+  await writeFile(path, `${logLine(proposal("p_1"))}{"event":"acc`);
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const fake = echoSdk();
+  const agent = await createAgent({
+    store,
+    hub: tabHub(),
+    cwd: root,
+    sdk: fake.sdk,
+  });
+
+  expect(warn).toHaveBeenCalledWith(
+    "proposals.jsonl: ignoring a torn last line",
+  );
+  expect(agent.state().status).toBe("idle");
+  expect(agent.pendingProposals().map((p) => p.id)).toEqual(["p_1"]);
+  await agent.send("hi");
+  await proposeNote(fake);
+  const added = agent.pendingProposals()[1].id;
+  await agent.close();
+
+  const restarted = await createAgent({
+    store,
+    hub: new WsHub(),
+    cwd: root,
+    sdk: echoSdk().sdk,
+  });
+  expect(restarted.pendingProposals().map((p) => p.id)).toEqual(["p_1", added]);
+  const lines = (await readFile(path, "utf8")).trimEnd().split("\n");
+  expect(lines).toHaveLength(2);
+  for (const line of lines) expect(() => JSON.parse(line)).not.toThrow();
+  await restarted.close();
+  warn.mockRestore();
 });

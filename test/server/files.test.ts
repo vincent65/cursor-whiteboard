@@ -328,3 +328,56 @@ test("a corrupt proposal log line is reported with its line number", async () =>
   );
   await expect(store.readProposals()).rejects.toThrow("proposals.jsonl line 2");
 });
+
+test("a torn last line is skipped with a warning, and the next append cuts it off", async () => {
+  await store.init();
+  const path = join(store.dir, "proposals.jsonl");
+  const one = '{"event":"accepted","at":"x","id":"p_1"}';
+  const two = '{"event":"rejected","at":"x","id":"p_2"}';
+  await writeFile(path, `${one}\n{"event":"acc`);
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  expect(await store.readProposals()).toEqual([JSON.parse(one)]);
+  expect(warn).toHaveBeenCalledWith(
+    "proposals.jsonl: ignoring a torn last line",
+  );
+
+  await store.appendProposal(JSON.parse(two));
+  expect(await readFile(path, "utf8")).toBe(`${one}\n${two}\n`);
+  warn.mockClear();
+  expect(await store.readProposals()).toEqual([
+    JSON.parse(one),
+    JSON.parse(two),
+  ]);
+  expect(warn).not.toHaveBeenCalled();
+  warn.mockRestore();
+});
+
+test("a whole last line missing only its newline is kept, and the next append starts a new line", async () => {
+  await store.init();
+  const path = join(store.dir, "proposals.jsonl");
+  const one = '{"event":"accepted","at":"x","id":"p_1"}';
+  const two = '{"event":"rejected","at":"x","id":"p_2"}';
+  await writeFile(path, one);
+  expect(await store.readProposals()).toEqual([JSON.parse(one)]);
+  await store.appendProposal(JSON.parse(two));
+  expect(await readFile(path, "utf8")).toBe(`${one}\n${two}\n`);
+});
+
+test("a bad line that is not a torn tail still fails the read", async () => {
+  await store.init();
+  const path = join(store.dir, "proposals.jsonl");
+  await writeFile(
+    path,
+    '{"event":"acc\n{"event":"accepted","at":"x","id":"p_1"}',
+  );
+  await expect(store.readProposals()).rejects.toThrow("proposals.jsonl line 1");
+  // Ends with a newline, so it is not torn.
+  await writeFile(
+    path,
+    '{"event":"accepted","at":"x","id":"p_1"}\n{"event":"acc\n',
+  );
+  await expect(store.readProposals()).rejects.toThrow("proposals.jsonl line 2");
+  // Whole JSON that fails the schema is corrupt, not torn.
+  await writeFile(path, '{"event":"maybe"}');
+  await expect(store.readProposals()).rejects.toThrow("proposals.jsonl line 1");
+});

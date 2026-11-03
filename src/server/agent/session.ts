@@ -242,6 +242,9 @@ export class PlanSession {
     return dropped;
   }
 
+  // Assumes the CLI answers every handed message with exactly one result. If it ever
+  // batched two messages into one turn, or dropped a result, busy would never clear and
+  // every held send would wait forever (until a Stop or the run ends).
   #hand(run: Run, text: string): void {
     run.busy = true;
     run.input.push({

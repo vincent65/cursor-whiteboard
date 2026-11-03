@@ -59,10 +59,14 @@ export class ProposalStore {
     });
   }
 
-  // Brackets a revise's browser round trip; the caller must endRevise, also on failure.
-  beginRevise(id: string): void {
-    this.throwIfRevising(id);
-    this.revising.add(id);
+  // Brackets a revise from its id checks to its log line; the caller must endRevise, also
+  // on failure. Queued like the writes, so a decision already in flight settles first.
+  beginRevise(id: string): Promise<void> {
+    return this.serial(async () => {
+      this.pendingOrThrow(id);
+      this.throwIfRevising(id);
+      this.revising.add(id);
+    });
   }
 
   endRevise(id: string): void {

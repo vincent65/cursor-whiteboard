@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { Agent } from "./agent/index.js";
-import { ProposalBusyError } from "./agent/proposals.js";
 
 const SendBody = z.object({
   text: z.string().refine((t) => t.trim() !== "", "text must not be empty"),
@@ -51,13 +50,8 @@ export function agentRoutes(agent: Agent): Hono {
       const body = await parse(DecisionBody, c.req.raw);
       if (!body.success)
         return c.json({ error: z.prettifyError(body.error) }, 400);
-      try {
-        await agent.decideProposal(c.req.param("id"), body.data.decision);
-      } catch (err) {
-        if (err instanceof ProposalBusyError)
-          return c.json({ error: err.message }, 409);
-        throw err;
-      }
+      // Not pending (404) and being revised (409) map in the app's error handler.
+      await agent.decideProposal(c.req.param("id"), body.data.decision);
       return c.body(null, 204);
     });
 }

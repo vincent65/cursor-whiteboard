@@ -144,11 +144,11 @@ test("a proposal cannot be decided or revised again while a revise is in flight"
   const store = new ProposalStore(files);
   await store.proposed(proposal("p_1"));
 
-  store.beginRevise("p_1");
+  await store.beginRevise("p_1");
   await expect(store.decided("p_1", "accepted")).rejects.toThrow(
     new ProposalBusyError("proposal p_1 is being revised"),
   );
-  expect(() => store.beginRevise("p_1")).toThrow(
+  await expect(store.beginRevise("p_1")).rejects.toThrow(
     new ProposalBusyError("proposal p_1 is being revised"),
   );
   expect(files.log.map((e) => e.event)).toEqual(["proposed"]);
@@ -156,4 +156,24 @@ test("a proposal cannot be decided or revised again while a revise is in flight"
   store.endRevise("p_1");
   await store.decided("p_1", "accepted");
   expect(files.log.map((e) => e.event)).toEqual(["proposed", "accepted"]);
+});
+
+test("beginRevise requires a pending proposal and queues behind a decision in flight", async () => {
+  const files = fakeFiles();
+  const store = new ProposalStore(files);
+  await expect(store.beginRevise("p_9")).rejects.toThrow(
+    new NotFoundError("proposal p_9 is not pending"),
+  );
+
+  await store.proposed(proposal("p_1"));
+  // Started together, the decision runs first and the revise finds nothing pending.
+  const [decided, begun] = await Promise.allSettled([
+    store.decided("p_1", "accepted"),
+    store.beginRevise("p_1"),
+  ]);
+  expect(decided.status).toBe("fulfilled");
+  expect(begun).toMatchObject({
+    status: "rejected",
+    reason: new NotFoundError("proposal p_1 is not pending"),
+  });
 });

@@ -1,6 +1,7 @@
 import { Hono, type MiddlewareHandler } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import type { Agent } from "./agent/index.js";
+import { ProposalBusyError } from "./agent/proposals.js";
 import { agentRoutes } from "./agentRoutes.js";
 import {
   ExistsError,
@@ -15,7 +16,8 @@ function statusFor(err: Error): ContentfulStatusCode {
   if (err instanceof InvalidNameError || err instanceof InvalidSceneError)
     return 400;
   if (err instanceof NotFoundError) return 404;
-  if (err instanceof ExistsError) return 409;
+  if (err instanceof ExistsError || err instanceof ProposalBusyError)
+    return 409;
   return 500;
 }
 

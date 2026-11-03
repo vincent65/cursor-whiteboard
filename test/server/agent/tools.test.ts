@@ -318,6 +318,34 @@ test("a revise in flight holds off decisions on its proposal, and releases them 
   });
 });
 
+test("revise holds off decisions from before it reads the board for id checks", async () => {
+  const { hub, call, proposals } = setup();
+  await proposals.proposed(pending("p_1"));
+  let read: () => void = () => {};
+  vi.mocked(store.readBoard).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        read = () => resolve(flow);
+      }),
+  );
+  hub.request.mockResolvedValueOnce({ elementIds: [] });
+  const revising = call("revise", { proposalId: "p_1", ops });
+  await vi.waitFor(() => expect(store.readBoard).toHaveBeenCalled());
+  await expect(proposals.decided("p_1", "accepted")).rejects.toThrow(
+    "proposal p_1 is being revised",
+  );
+  read();
+  await revising;
+
+  // A failed id check releases the proposal too.
+  await expect(
+    call("revise", { proposalId: "p_1", ops: [{ op: "delete", id: "zzz" }] }),
+  ).rejects.toThrow("unknown element id zzz");
+  await expect(proposals.decided("p_1", "rejected")).resolves.toMatchObject({
+    id: "p_1",
+  });
+});
+
 test("propose rejects ids of deleted elements", async () => {
   boards.gone = { ...flow, elements: [el({ id: "a", isDeleted: true })] };
   const { hub, call } = setup("gone");
