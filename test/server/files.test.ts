@@ -296,3 +296,35 @@ test("a corrupt sessions file is reported, not silently replaced", async () => {
   await writeFile(join(store.dir, "sessions.json"), "{not json");
   await expect(store.readSessions()).rejects.toThrow();
 });
+
+test("proposal log appends lines and reads them back; a missing file is empty", async () => {
+  await store.init();
+  expect(await store.readProposals()).toEqual([]);
+  const proposal = {
+    id: "p_1",
+    board: "main",
+    title: null,
+    ops: [{ op: "delete" as const, id: "a" }],
+    at: "2026-11-02T00:00:00.000Z",
+  };
+  await store.appendProposal({ event: "proposed", at: proposal.at, proposal });
+  await store.appendProposal({ event: "accepted", at: proposal.at, id: "p_1" });
+  expect(await store.readProposals()).toEqual([
+    { event: "proposed", at: proposal.at, proposal },
+    { event: "accepted", at: proposal.at, id: "p_1" },
+  ]);
+  expect(
+    (await readFile(join(store.dir, "proposals.jsonl"), "utf8"))
+      .trim()
+      .split("\n"),
+  ).toHaveLength(2);
+});
+
+test("a corrupt proposal log line is reported with its line number", async () => {
+  await store.init();
+  await writeFile(
+    join(store.dir, "proposals.jsonl"),
+    '{"event":"accepted","at":"x","id":"p_1"}\n{nope\n',
+  );
+  await expect(store.readProposals()).rejects.toThrow("proposals.jsonl line 2");
+});

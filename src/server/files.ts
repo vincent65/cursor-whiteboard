@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
   access,
+  appendFile,
   mkdir,
   readdir,
   readFile,
@@ -12,6 +13,7 @@ import {
 import { dirname, join, resolve, sep } from "node:path";
 import { z } from "zod";
 import { BoardFile, type BoardFileAsset } from "../export/index.js";
+import { ProposalLogEntry } from "../shared/proposals.js";
 import { SLUG_RE } from "../shared/slug.js";
 import type { IncomingScene, SessionsFile } from "../shared/types.js";
 
@@ -254,12 +256,49 @@ export class FileStore {
     await this.write(this.sessionsPath(), `${JSON.stringify(s, null, 2)}\n`);
   }
 
+  // One JSON line per append; a single small append needs no temp-file rename.
+  async appendProposal(entry: ProposalLogEntry): Promise<void> {
+    await appendFile(this.proposalsPath(), `${JSON.stringify(entry)}\n`);
+  }
+
+  async readProposals(): Promise<ProposalLogEntry[]> {
+    const text = await readFile(this.proposalsPath(), "utf8").catch(
+      (err: NodeJS.ErrnoException) => {
+        if (err.code === "ENOENT") return "";
+        throw err;
+      },
+    );
+    const entries: ProposalLogEntry[] = [];
+    for (const [i, line] of text.split("\n").entries()) {
+      if (line.trim() === "") continue;
+      let json: unknown;
+      try {
+        json = JSON.parse(line);
+      } catch (err) {
+        throw new Error(
+          `proposals.jsonl line ${i + 1}: ${(err as Error).message}`,
+        );
+      }
+      const parsed = ProposalLogEntry.safeParse(json);
+      if (!parsed.success)
+        throw new Error(
+          `proposals.jsonl line ${i + 1}: ${parsed.error.message}`,
+        );
+      entries.push(parsed.data);
+    }
+    return entries;
+  }
+
   // True when the file on disk still holds the store's own last write: an echo, not an edit.
   async isOwnWrite(absPath: string): Promise<boolean> {
     const hash = this.ownWrites.get(absPath);
     if (hash === undefined) return false;
     const data = await readFile(absPath).catch(() => null);
     return data !== null && sha256(data) === hash;
+  }
+
+  private proposalsPath(): string {
+    return join(this.dir, "proposals.jsonl");
   }
 
   private sessionsPath(): string {
