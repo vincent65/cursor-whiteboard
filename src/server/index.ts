@@ -48,10 +48,23 @@ export async function startServer(opts: {
     sdk: claudeSdk,
   });
   await manager.start();
-  const app = createApp(store, agent, {
-    manager,
-    isAncestor: (branch) => isAncestor(opts.root, branch),
-  });
+  const app = createApp(
+    store,
+    agent,
+    { manager, isAncestor: (branch) => isAncestor(opts.root, branch) },
+    {
+      listSessions: claudeSdk.listSessions,
+      getSessionMessages: claudeSdk.getSessionMessages,
+      root: opts.root,
+      exclude: () => {
+        const plan = agent.state().sessionId;
+        return new Set([
+          ...(plan ? [plan] : []),
+          ...manager.list().map((r) => r.sessionId),
+        ]);
+      },
+    },
+  );
   const { injectWebSocket, upgradeWebSocket, wss } = createNodeWebSocket({
     app,
   });

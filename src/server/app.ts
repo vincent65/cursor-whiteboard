@@ -11,7 +11,12 @@ import {
   NotFoundError,
 } from "./files.js";
 import { routes } from "./routes.js";
-import { type RunRouteDeps, runRoutes } from "./runRoutes.js";
+import {
+  type RunRouteDeps,
+  runRoutes,
+  type SessionRouteDeps,
+  sessionRoutes,
+} from "./runRoutes.js";
 import { GateError } from "./runs/gate.js";
 
 function statusFor(err: Error): ContentfulStatusCode {
@@ -57,12 +62,14 @@ export function createApp(
   store: FileStore,
   agent?: Agent,
   runs?: RunRouteDeps,
+  sessions?: SessionRouteDeps,
 ): Hono {
   const app = new Hono();
   // Also guards the WebSocket upgrade, which @hono/node-ws routes through app.
   app.use(sameOrigin);
   if (agent) app.route("/api/agent", agentRoutes(agent));
   if (runs) app.route("/api/runs", runRoutes(store, runs));
+  if (sessions) app.route("/api/sessions", sessionRoutes(sessions));
   app.route("/api", routes(store, agent?.proposals));
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
   app.onError((err, c) => {

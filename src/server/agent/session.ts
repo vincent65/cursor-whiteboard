@@ -108,6 +108,33 @@ const COMPILE_LINE = COMPILE_INSTRUCTION.split("\n")[0];
 const shownPrompt = (prompt: string) =>
   prompt.split("\n").includes(COMPILE_LINE) ? COMPILE_LABEL : prompt;
 
+// A saved session's transcript, as the panel showed it live. Keyed by event id, so a text
+// block split across transcript lines keeps one entry.
+export function transcriptFrom(messages: SessionMessage[]): PanelEvent[] {
+  const events = new Map<string, PanelEvent>();
+  const add = (e: PanelEvent) => events.set(e.id, e);
+  const mapper = new SdkEventMapper();
+  for (const msg of messages) {
+    const prompt = savedPrompt(msg);
+    if (prompt?.startsWith(INTERRUPT_MARKER)) {
+      add({
+        kind: "result",
+        id: msg.uuid,
+        subtype: "interrupted",
+        costUsd: null,
+        durationMs: 0,
+        at: now(),
+      });
+    } else if (prompt !== undefined) {
+      add({ kind: "user", id: msg.uuid, text: shownPrompt(prompt), at: now() });
+    } else {
+      for (const e of mapper.map(msg as unknown as SDKMessage, msg.uuid))
+        add(e);
+    }
+  }
+  return [...events.values()];
+}
+
 export class PlanSession {
   #deps: SessionDeps;
   #sessionId: string | undefined;
@@ -142,30 +169,7 @@ export class PlanSession {
           dir: this.#deps.cwd,
         });
         if (saved.length === 0) throw new Error(`session ${id} is empty`);
-        const mapper = new SdkEventMapper();
-        for (const msg of saved) {
-          const prompt = savedPrompt(msg);
-          if (prompt?.startsWith(INTERRUPT_MARKER)) {
-            this.#remember({
-              kind: "result",
-              id: msg.uuid,
-              subtype: "interrupted",
-              costUsd: null,
-              durationMs: 0,
-              at: now(),
-            });
-          } else if (prompt !== undefined) {
-            this.#remember({
-              kind: "user",
-              id: msg.uuid,
-              text: shownPrompt(prompt),
-              at: now(),
-            });
-          } else {
-            for (const e of mapper.map(msg as unknown as SDKMessage, msg.uuid))
-              this.#remember(e);
-          }
-        }
+        for (const e of transcriptFrom(saved)) this.#remember(e);
       } catch {
         this.#sessionId = undefined;
         this.#emit({

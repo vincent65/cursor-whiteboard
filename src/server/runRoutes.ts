@@ -1,14 +1,28 @@
+import type {
+  getSessionMessages,
+  listSessions,
+} from "@anthropic-ai/claude-agent-sdk";
 import { Hono } from "hono";
 import { z } from "zod";
+import { transcriptFrom } from "./agent/session.js";
 import { type FileStore, NotFoundError } from "./files.js";
 import { PermissionBody, parse } from "./http.js";
 import { checkGate, GateError } from "./runs/gate.js";
 import type { RunManager } from "./runs/manager.js";
+import { listOtherSessions } from "./sessions.js";
 
 export type RunRouteDeps = {
   manager: RunManager;
   // Whether a branch is merged into the repository's HEAD.
   isAncestor: (branch: string) => Promise<boolean>;
+};
+
+export type SessionRouteDeps = {
+  listSessions: typeof listSessions;
+  getSessionMessages: typeof getSessionMessages;
+  root: string;
+  // Blueprint's own session ids (the plan session's and every run's), read per request.
+  exclude: () => Set<string>;
 };
 
 const LaunchBody = z.object({
@@ -72,4 +86,20 @@ export function runRoutes(store: FileStore, deps: RunRouteDeps): Hono {
     .get("/:id/transcript", (c) =>
       c.json(manager.transcript(c.req.param("id"))),
     );
+}
+
+// The repository's other sessions, read-only. Any id with no saved messages, including
+// one that is not a session id at all, is unknown (404).
+export function sessionRoutes(deps: SessionRouteDeps): Hono {
+  return new Hono()
+    .get("/", async (c) =>
+      c.json(await listOtherSessions({ ...deps, exclude: deps.exclude() })),
+    )
+    .get("/:id/transcript", async (c) => {
+      const id = c.req.param("id");
+      const saved = await deps.getSessionMessages(id, { dir: deps.root });
+      if (saved.length === 0)
+        throw new NotFoundError(`session ${id} not found`);
+      return c.json(transcriptFrom(saved));
+    });
 }
