@@ -90,6 +90,8 @@ export function LaunchDialog({
           className="run-input"
           value={mode}
           onChange={(e) => setMode(e.target.value as RunPermissionMode)}
+          // Escape here closes the select's list of options, not the dialog.
+          onKeyDown={(e) => e.key === "Escape" && e.stopPropagation()}
         >
           {MODES.map(([value, label]) => (
             <option key={value} value={value}>

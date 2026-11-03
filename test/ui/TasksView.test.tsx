@@ -237,4 +237,38 @@ test("a failed gate check shows as an error and opens no dialog", async () => {
   );
   expect(await screen.findByRole("alert")).toHaveTextContent("unknown task");
   expect(screen.queryByRole("dialog")).toBeNull();
+
+  // The next check that opens the dialog clears the old failure.
+  vi.mocked(api.gate).mockResolvedValue({ ok: true, missing: [] });
+  await user.click(
+    (await card("01-db.md")).getByRole("button", { name: "Launch" }),
+  );
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+test("closing the launch dialog returns focus to the card's Launch button", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.listTasks).mockResolvedValue(files);
+  vi.mocked(api.gate).mockResolvedValue({ ok: true, missing: [] });
+  render(<TasksView cost={null} />);
+  const db = await card("01-db.md");
+
+  await user.click(db.getByRole("button", { name: "Launch" }));
+  await user.click(
+    within(await screen.findByRole("dialog")).getByRole("button", {
+      name: "Cancel",
+    }),
+  );
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(db.getByRole("button", { name: "Launch" })).toHaveFocus();
+
+  // Escape from the dialog's buttons does the same.
+  await user.click(db.getByRole("button", { name: "Launch" }));
+  within(await screen.findByRole("dialog"))
+    .getByRole("button", { name: "Cancel" })
+    .focus();
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(db.getByRole("button", { name: "Launch" })).toHaveFocus();
 });

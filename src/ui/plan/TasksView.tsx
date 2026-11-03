@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { parseCitations } from "../../export/citations";
 import type { GateResult } from "../../shared/runs";
 import type { TaskFile } from "../../shared/tasks";
@@ -40,8 +40,12 @@ export function TasksView({ cost }: { cost: number | null }) {
     slug: string;
     gate: GateResult;
   } | null>(null);
-  // A failed load, gate check, or split, shown until the next split starts.
+  // A failed load or split, shown until the next split starts.
   const [error, setError] = useState<string | null>(null);
+  // A failed gate check, shown until a check next opens the dialog.
+  const [gateError, setGateError] = useState<string | null>(null);
+  // The task whose Launch button takes focus back once its dialog closes.
+  const refocus = useRef<string | null>(null);
 
   const load = useCallback(
     () => api.listTasks().then(setTasks, (err: Error) => setError(err.message)),
@@ -62,9 +66,17 @@ export function TasksView({ cost }: { cost: number | null }) {
 
   const openLaunch = (slug: string) =>
     api.gate(slug).then(
-      (gate) => setLaunching({ slug, gate }),
-      (err: Error) => setError(err.message),
+      (gate) => {
+        setLaunching({ slug, gate });
+        setGateError(null);
+      },
+      (err: Error) => setGateError(err.message),
     );
+
+  const closeLaunch = (slug: string) => {
+    refocus.current = slug;
+    setLaunching(null);
+  };
 
   const launch = async (
     taskSlug: string,
@@ -90,6 +102,11 @@ export function TasksView({ cost }: { cost: number | null }) {
       {error && (
         <p role="alert" className="plan-error">
           {error}
+        </p>
+      )}
+      {gateError && (
+        <p role="alert" className="plan-error">
+          {gateError}
         </p>
       )}
       {tasks?.length === 0 && (
@@ -128,12 +145,18 @@ export function TasksView({ cost }: { cost: number | null }) {
               title={task.title}
               gate={launching.gate}
               onLaunch={(mode, override) => launch(task.slug, mode, override)}
-              onClose={() => setLaunching(null)}
+              onClose={() => closeLaunch(task.slug)}
             />
           ) : (
             <button
               type="button"
               className="button task-action"
+              ref={(el) => {
+                if (el && refocus.current === task.slug) {
+                  refocus.current = null;
+                  el.focus();
+                }
+              }}
               onClick={() => openLaunch(task.slug)}
             >
               Launch

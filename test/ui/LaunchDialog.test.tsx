@@ -74,7 +74,7 @@ test("LaunchDialog launches a ready task without the override and shows a failed
   expect(screen.getByRole("button", { name: "Launch" })).toBeEnabled();
 });
 
-test("LaunchDialog closes on Cancel and on Escape", async () => {
+test("LaunchDialog closes on Cancel and on Escape, but not on Escape in the select", async () => {
   const user = userEvent.setup();
   const onClose = vi.fn();
   render(
@@ -89,6 +89,10 @@ test("LaunchDialog closes on Cancel and on Escape", async () => {
 
   await user.click(screen.getByRole("button", { name: "Cancel" }));
   expect(onClose).toHaveBeenCalledTimes(1);
+  await user.keyboard("{Escape}");
+  expect(onClose).toHaveBeenCalledTimes(2);
+  // Escape in the select closes its list of options, not the dialog.
+  await user.click(screen.getByRole("combobox", { name: "Permission mode" }));
   await user.keyboard("{Escape}");
   expect(onClose).toHaveBeenCalledTimes(2);
 });
