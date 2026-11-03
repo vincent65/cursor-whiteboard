@@ -96,12 +96,8 @@ export class RunManager {
   }
 
   async launch(opts: LaunchOptions): Promise<RunRecord> {
-    const { store, runs, hub, root } = this.#deps;
-    const found = (await store.listTasks()).find(
-      (t) => t.task.slug === opts.taskSlug,
-    );
-    if (!found) throw new NotFoundError(`task ${opts.taskSlug} not found`);
-    const spec = (await store.readSpec()) ?? "";
+    const { runs, hub, root } = this.#deps;
+    const input = await this.#promptInput(opts.taskSlug);
     const { worktree, branch } = await this.#git.createWorktree(
       root,
       opts.taskSlug,
@@ -121,14 +117,7 @@ export class RunManager {
     };
     await runs.upsertRun(record);
     hub.broadcast({ type: "runs.changed" });
-    this.#open(record).session.send(
-      runPrompt({
-        task: found.task,
-        taskFile: `.blueprint/tasks/${found.file}`,
-        spec,
-        branch,
-      }),
-    );
+    this.#open(record).session.send(runPrompt({ ...input, branch }));
     return { ...record };
   }
 
@@ -145,13 +134,20 @@ export class RunManager {
     await live.session.interrupt();
   }
 
+  // With no session to resume (none was saved, or it could not be loaded), the run starts
+  // over from its full prompt so it still knows its task.
   async resume(runId: string): Promise<void> {
-    const record = this.#record(runId);
-    if (record.status !== "interrupted")
-      throw new ExistsError(
-        `run ${runId} is ${record.status}, not interrupted`,
-      );
-    this.#liveFor(record).session.send(CONTINUE);
+    const record = this.#interrupted(runId);
+    const live = this.#liveFor(record);
+    const text = live.session.sessionId
+      ? CONTINUE
+      : runPrompt({
+          ...(await this.#promptInput(record.taskSlug)),
+          branch: record.branch,
+        });
+    // Checked again: another resume may have started the run during the await.
+    this.#interrupted(runId);
+    live.session.send(text);
   }
 
   answerPermission(runId: string, id: string, d: PermissionDecision): boolean {
@@ -183,6 +179,29 @@ export class RunManager {
         return live.session.close();
       }),
     );
+  }
+
+  #interrupted(runId: string): RunRecord {
+    const record = this.#record(runId);
+    if (record.status !== "interrupted")
+      throw new ExistsError(
+        `run ${runId} is ${record.status}, not interrupted`,
+      );
+    return record;
+  }
+
+  // What a run prompt is built from, besides the branch; NotFoundError for an unknown task.
+  async #promptInput(taskSlug: string) {
+    const { store } = this.#deps;
+    const found = (await store.listTasks()).find(
+      (t) => t.task.slug === taskSlug,
+    );
+    if (!found) throw new NotFoundError(`task ${taskSlug} not found`);
+    return {
+      task: found.task,
+      taskFile: `.blueprint/tasks/${found.file}`,
+      spec: (await store.readSpec()) ?? "",
+    };
   }
 
   #record(runId: string): RunRecord {

@@ -581,3 +581,56 @@ test("a run launched with default resumes with default after a restart", async (
   );
   await second.manager.close();
 });
+
+test("resume with no usable session id sends the full run prompt instead", async () => {
+  const record = (id: string, sessionId: string): RunRecord => ({
+    id,
+    taskSlug: "beta",
+    sessionId,
+    worktree: `/w/${id}`,
+    branch: "blueprint/beta",
+    status: "interrupted",
+    permissionMode: "acceptEdits",
+    prUrl: null,
+    costUsd: 0,
+    startedAt: "2026-11-02T00:00:00.000Z",
+    endedAt: null,
+  });
+  await store.writeSessions({
+    plan: null,
+    // Crashed before the CLI reported an id; and one whose saved session is empty.
+    runs: [record("run_aaaaaa", ""), record("run_bbbbbb", "sess-lost")],
+  });
+  await runs.load();
+  const { manager, queries, getSessionMessages } = setup(() =>
+    turnsOf(init("sess-new"), ...textTurn("m", "starting over", "r")),
+  );
+  await manager.start();
+  expect(getSessionMessages).toHaveBeenCalledWith("sess-lost", {
+    dir: "/w/run_bbbbbb",
+  });
+
+  const prompt = runPrompt({
+    task: task("beta"),
+    taskFile: ".blueprint/tasks/02-beta.md",
+    spec: "# Spec\n\nThe spec.\n",
+    branch: "blueprint/beta",
+  });
+  // Two resumes at once: the one that loses the race to read the task file is refused.
+  const both = await Promise.allSettled([
+    manager.resume("run_aaaaaa"),
+    manager.resume("run_aaaaaa"),
+  ]);
+  expect(both.map((r) => r.status)).toEqual(["fulfilled", "rejected"]);
+  expect((both[1] as PromiseRejectedResult).reason).toBeInstanceOf(ExistsError);
+  await manager.resume("run_bbbbbb");
+  expect(queries).toHaveLength(2);
+  for (const q of queries) {
+    expect(q.options?.resume).toBeUndefined();
+    await vi.waitFor(() => expect(q.read).toEqual([prompt]));
+  }
+  await vi.waitFor(() =>
+    expect(runs.run("run_bbbbbb")?.sessionId).toBe("sess-new"),
+  );
+  await manager.close();
+});
