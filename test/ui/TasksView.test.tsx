@@ -1,12 +1,19 @@
 // @vitest-environment jsdom
 import { act, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import type { ServerMessage } from "../../src/shared/messages";
+import type { RunView } from "../../src/shared/runs";
 import type { TaskFile } from "../../src/shared/tasks";
 import * as api from "../../src/ui/api";
 import { TasksView, useSplitCost } from "../../src/ui/plan/TasksView";
 
-vi.mock("../../src/ui/api", () => ({ listTasks: vi.fn() }));
+vi.mock("../../src/ui/api", () => ({
+  listTasks: vi.fn(),
+  listRuns: vi.fn(),
+  gate: vi.fn(),
+  launchRun: vi.fn(),
+}));
 
 const handlers = new Set<(m: ServerMessage) => void>();
 vi.mock("../../src/ui/server-events", () => ({
@@ -53,9 +60,35 @@ function Shell({ open }: { open: boolean }) {
   return open ? <TasksView cost={cost} /> : null;
 }
 
+const run = (taskSlug: string): RunView => ({
+  id: `r-${taskSlug}`,
+  taskSlug,
+  title: `Build ${taskSlug}`,
+  sessionId: "s1",
+  worktree: `/repo/.blueprint/worktrees/${taskSlug}`,
+  branch: `blueprint/${taskSlug}`,
+  status: "done",
+  permissionMode: "acceptEdits",
+  prUrl: null,
+  failure: null,
+  costUsd: 0,
+  startedAt: "2026-11-02T00:00:00.000Z",
+  endedAt: null,
+  pending: [],
+  lastText: null,
+});
+
+const card = async (file: string) => {
+  const article = (await screen.findByText(file)).closest("article");
+  if (!article) throw new Error("no card");
+  return within(article);
+};
+
 beforeEach(() => {
   vi.resetAllMocks();
   handlers.clear();
+  vi.mocked(api.listRuns).mockResolvedValue([]);
+  location.hash = "#/tasks";
 });
 
 test("TasksView renders cards with dependencies and source links, and the empty state", async () => {
@@ -138,4 +171,70 @@ test("a repeated acceptance line or source renders each time without a key warni
   ).toHaveLength(2);
   expect(error).not.toHaveBeenCalled();
   error.mockRestore();
+});
+
+test("TasksView opens the dialog and launches with the chosen mode", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.listTasks).mockResolvedValue(files);
+  vi.mocked(api.gate).mockResolvedValue({
+    ok: false,
+    missing: [{ slug: "db", reason: "no run" }],
+  });
+  vi.mocked(api.launchRun).mockResolvedValue(run("auth"));
+  render(<TasksView cost={null} />);
+
+  await user.click(
+    (await card("02-auth.md")).getByRole("button", { name: "Launch" }),
+  );
+  expect(api.gate).toHaveBeenCalledWith("auth");
+  const dialog = await screen.findByRole("dialog", {
+    name: "Launch Build auth",
+  });
+  const d = within(dialog);
+  expect(d.getByText("db: no run")).toBeInTheDocument();
+
+  await user.selectOptions(d.getByRole("combobox"), "bypassPermissions");
+  await user.click(d.getByRole("checkbox", { name: "Launch anyway" }));
+  await user.click(d.getByRole("button", { name: "Launch" }));
+  expect(api.launchRun).toHaveBeenCalledWith({
+    taskSlug: "auth",
+    permissionMode: "bypassPermissions",
+    override: true,
+  });
+  expect(location.hash).toBe("#/sessions");
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("a task that already has a run links to the sessions view instead of launching", async () => {
+  vi.mocked(api.listTasks).mockResolvedValue(files);
+  vi.mocked(api.listRuns).mockResolvedValueOnce([run("db")]);
+  render(<TasksView cost={null} />);
+
+  const db = await card("01-db.md");
+  expect(await db.findByRole("link", { name: "View run" })).toHaveAttribute(
+    "href",
+    "#/sessions",
+  );
+  expect(db.queryByRole("button", { name: "Launch" })).toBeNull();
+  const auth = await card("02-auth.md");
+  expect(auth.getByRole("button", { name: "Launch" })).toBeInTheDocument();
+
+  vi.mocked(api.listRuns).mockResolvedValueOnce([run("db"), run("auth")]);
+  await emit({ type: "runs.changed" });
+  expect(
+    await auth.findByRole("link", { name: "View run" }),
+  ).toBeInTheDocument();
+});
+
+test("a failed gate check shows as an error and opens no dialog", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.listTasks).mockResolvedValue(files);
+  vi.mocked(api.gate).mockRejectedValue(new Error("unknown task"));
+  render(<TasksView cost={null} />);
+
+  await user.click(
+    (await card("01-db.md")).getByRole("button", { name: "Launch" }),
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent("unknown task");
+  expect(screen.queryByRole("dialog")).toBeNull();
 });
