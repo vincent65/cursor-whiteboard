@@ -1044,3 +1044,99 @@ test("a message during a launch's first turn, before the CLI reports an id, is j
   expect(queries[0].read[1]).toBe("hurry");
   await manager.close();
 });
+
+test("a failed run's endedAt stays put when only its failure message changes", async () => {
+  vi.useFakeTimers({
+    now: new Date("2026-11-02T00:01:00.000Z"),
+    toFake: ["Date"],
+  });
+  const { gate, release } = gated();
+  const { manager } = setup(() =>
+    (async function* () {
+      yield init("sess-f");
+      yield sdk({
+        type: "result",
+        subtype: "error_during_execution",
+        session_id: "sess-f",
+        uuid: "r-err",
+        is_error: true,
+        num_turns: 1,
+        duration_ms: 5,
+        total_cost_usd: 0.01,
+        errors: ["the tool crashed"],
+      } satisfies ErrorFixture);
+      await gate;
+      // The CLI then exits, which fails the run again with a new reason.
+      throw new Error("the CLI exited");
+    })(),
+  );
+  try {
+    const run = await manager.launch({
+      taskSlug: "alpha",
+      permissionMode: "acceptEdits",
+    });
+    await vi.waitFor(async () =>
+      expect(await saved(manager, run.id)).toMatchObject({
+        failure: "the tool crashed",
+      }),
+    );
+    const { endedAt } = await saved(manager, run.id);
+    expect(endedAt).toMatch(/^2026-11-02T00:01/);
+    vi.setSystemTime(new Date("2026-11-02T00:05:00.000Z"));
+    release();
+    await vi.waitFor(async () =>
+      expect(await saved(manager, run.id)).toMatchObject({
+        status: "failed",
+        failure: "the CLI exited",
+        endedAt,
+      }),
+    );
+    await manager.close();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("a restored failed run keeps its reason and end until it runs again", async () => {
+  const failed: RunRecord = {
+    id: "run_aaaaaa",
+    taskSlug: "alpha",
+    sessionId: "sess-a",
+    worktree: "/w/run_aaaaaa",
+    branch: "blueprint/alpha",
+    status: "failed",
+    permissionMode: "acceptEdits",
+    prUrl: null,
+    markedDone: false,
+    failure: "the tool crashed",
+    costUsd: 0.02,
+    startedAt: "2026-11-02T00:00:00.000Z",
+    endedAt: "2026-11-02T00:01:00.000Z",
+  };
+  await store.writeSessions({ plan: null, runs: [failed] });
+  await runs.load();
+  const { manager } = setup(() =>
+    turnsOf(...textTurn("m", "picked it back up", "r")),
+  );
+
+  await manager.start();
+  // A Stop on a run with no process derives nothing, so the reason stays.
+  await manager.stop(failed.id);
+  expect(statusesOf(failed.id)).toEqual([]);
+  expect(await view(manager, failed.id)).toMatchObject({
+    status: "failed",
+    failure: "the tool crashed",
+    endedAt: "2026-11-02T00:01:00.000Z",
+  });
+
+  await manager.message(failed.id, "try again");
+  await vi.waitFor(() =>
+    expect(statusesOf(failed.id)).toEqual(["working", "idle"]),
+  );
+  expect(await saved(manager, failed.id)).toMatchObject({
+    status: "idle",
+    failure: null,
+    endedAt: null,
+  });
+  await manager.close();
+});

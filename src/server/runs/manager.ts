@@ -376,10 +376,12 @@ export class RunManager {
     if (next.status === live.record.status && failure === live.record.failure)
       return;
     const ended = next.status === "done" || next.status === "failed";
+    // A new reason for a run already failed is not a new end.
+    const same = next.status === live.record.status;
     this.#patch(live, {
       status: next.status,
       failure,
-      endedAt: ended ? now() : null,
+      endedAt: ended ? (same && live.record.endedAt) || now() : null,
       ...(next.prUrl ? { prUrl: next.prUrl } : {}),
     });
     this.#deps.hub.broadcast({
