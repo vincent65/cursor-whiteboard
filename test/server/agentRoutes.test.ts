@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -500,6 +501,12 @@ function echoSdk() {
 const logLine = (p: Proposal) =>
   `${JSON.stringify({ event: "proposed", at: p.at, proposal: p })}\n`;
 
+// The session id is saved in the background; waits so it lands before the directory is removed.
+const sessionSaved = () =>
+  vi.waitFor(async () =>
+    expect((await store.readSessions()).plan?.sessionId).toBe("s1"),
+  );
+
 test("createAgent prefixes decision notes and refine requests to the next message", async () => {
   await writeFile(
     join(store.dir, "proposals.jsonl"),
@@ -687,7 +694,49 @@ test("compile sends the instruction once while one is pending", async () => {
   await vi.waitFor(() => expect(fake.received).toHaveLength(2));
   expect(fake.received[1]).toBe(COMPILE_INSTRUCTION);
   expect(users()).toHaveLength(2);
+  await sessionSaved();
   await agent.close();
+});
+
+test("compile writes every board's export before the send and skips a board that fails to parse", async () => {
+  await store.createBoard("main");
+  await store.writeBoard("main", {
+    elements: [
+      { id: "r1", type: "rectangle", x: 0, y: 0, width: 100, height: 50 },
+    ],
+    appState: {},
+    files: {},
+  });
+  await writeFile(join(store.dir, "boards", "broken.excalidraw.json"), "{");
+  const exportPath = join(store.dir, "export", "boards", "main.md");
+  await expect(readFile(exportPath, "utf8")).rejects.toThrow(/ENOENT/);
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const fake = echoSdk();
+  const inner = echoSdk();
+  let exported: string | undefined;
+  fake.query.mockImplementationOnce((params) => {
+    exported = readFileSync(exportPath, "utf8");
+    return inner.query(params);
+  });
+  const agent = await createAgent({
+    store,
+    hub: new WsHub(),
+    cwd: root,
+    sdk: fake.sdk,
+  });
+
+  await agent.compile();
+  expect(exported).toContain("r1");
+  await vi.waitFor(() => expect(inner.received).toHaveLength(1));
+  await sessionSaved();
+  expect(warn).toHaveBeenCalledWith(
+    expect.stringMatching(/^skipping board broken in the compile: /),
+  );
+  await expect(
+    readFile(join(store.dir, "export", "boards", "broken.md"), "utf8"),
+  ).rejects.toThrow(/ENOENT/);
+  await agent.close();
+  warn.mockRestore();
 });
 
 test("a compile whose send throws or whose run ends without a result can be sent again", async () => {
@@ -722,6 +771,7 @@ test("a compile whose send throws or whose run ends without a result can be sent
   await vi.waitFor(() => expect(agent.state().status).toBe("error"));
   expect(await agent.compile()).not.toBe(id);
   expect(query).toHaveBeenCalledTimes(3);
+  await sessionSaved();
   await agent.close();
 });
 

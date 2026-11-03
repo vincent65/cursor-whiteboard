@@ -1,5 +1,8 @@
 import * as claudeSdk from "@anthropic-ai/claude-agent-sdk";
-import { excalidrawToBoardGraph } from "../../export/index.js";
+import {
+  boardGraphToMarkdown,
+  excalidrawToBoardGraph,
+} from "../../export/index.js";
 import type { AgentStatus } from "../../shared/messages.js";
 import type {
   PanelEvent,
@@ -241,16 +244,37 @@ export async function createAgent(deps: {
     return id;
   }
 
+  // The exports are gitignored and only a board save writes them, so a fresh clone or an
+  // outside edit leaves them missing or stale; the compile reads them, so refresh them all.
+  async function writeBoardExports() {
+    for (const { name } of await store.listBoards()) {
+      try {
+        const graph = excalidrawToBoardGraph(await store.readBoard(name), name);
+        await store.writeExport(
+          `boards/${name}.md`,
+          boardGraphToMarkdown(graph),
+        );
+      } catch (err) {
+        console.warn(
+          `skipping board ${name} in the compile: ${(err as Error).message}`,
+        );
+      }
+    }
+  }
+
   return {
     send: (text, selection, proposalId) => send(text, selection, proposalId),
     compile() {
       // Kept as a promise so a compile racing this one's send gets the same id.
-      compiling ??= send(
-        COMPILE_INSTRUCTION,
-        undefined,
-        undefined,
-        "Compile the plan into spec.md",
-      ).catch((err) => {
+      compiling ??= (async () => {
+        await writeBoardExports();
+        return send(
+          COMPILE_INSTRUCTION,
+          undefined,
+          undefined,
+          "Compile the plan into spec.md",
+        );
+      })().catch((err) => {
         compiling = undefined;
         throw err;
       });
