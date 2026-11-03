@@ -1,5 +1,7 @@
 import { markdown } from "@codemirror/lang-markdown";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { Transaction } from "@codemirror/state";
+import { tags } from "@lezer/highlight";
 import { basicSetup, EditorView } from "codemirror";
 import { useEffect, useRef, useState } from "react";
 import { headingSlugs } from "../../export/citations";
@@ -8,7 +10,7 @@ import { useDebounced } from "../hooks/useDebounced";
 import { useServerEvent } from "../server-events";
 import { reconcileExternalChange } from "./reconcile";
 
-export const theme = EditorView.theme({
+const theme = EditorView.theme({
   "&": { height: "100%" },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": {
@@ -23,6 +25,25 @@ export const theme = EditorView.theme({
   },
   ".cm-line": { padding: "0 calc(var(--space) * 2)" },
 });
+
+// Markdown sized as DESIGN.md sets it, with no underline under headings. It
+// replaces basicSetup's default style, so it covers every tag a doc uses.
+const highlight = syntaxHighlighting(
+  HighlightStyle.define([
+    { tag: tags.heading1, fontSize: "var(--fs-xl)", fontWeight: "700" },
+    { tag: tags.heading2, fontSize: "var(--fs-lg)", fontWeight: "700" },
+    { tag: tags.heading, fontWeight: "700" },
+    { tag: tags.strong, fontWeight: "700" },
+    { tag: tags.emphasis, fontStyle: "italic" },
+    { tag: tags.strikethrough, textDecoration: "line-through" },
+    { tag: [tags.link, tags.url], color: "var(--accent)" },
+    { tag: tags.monospace, fontFamily: "var(--font-mono)", fontSize: "0.9em" },
+    {
+      tag: [tags.processingInstruction, tags.contentSeparator, tags.quote],
+      color: "var(--muted)",
+    },
+  ]),
+);
 
 // Swaps in text from disk. The remote annotation keeps it from counting as an
 // edit, and keeping it out of history stops undo from bringing back the text
@@ -91,6 +112,7 @@ export function DocView({
             markdown(),
             EditorView.lineWrapping,
             theme,
+            highlight,
             EditorView.updateListener.of((u) => {
               const remote = u.transactions.some((t) =>
                 t.annotation(Transaction.remote),

@@ -12,15 +12,16 @@ Every color, font size, radius, and shadow in that file comes from one of them.
 ## Type
 
 The interface is set in Assistant, the face Excalidraw uses for its own toolbar, so the panel and the canvas chrome read as one piece.
-Code, branch names, task file names, and citation tags are set in Cascadia Code.
+Code, branch names, task file names, and citation chips are set in Cascadia Code.
 Both faces are served from `/fonts`, copied in from Excalidraw's package at build time, so nothing loads from the network.
 
-| Token     | Size | Use                                                               |
-| --------- | ---- | ----------------------------------------------------------------- |
-| `--fs-xs` | 12px | Meta lines, branch tags, status pills, code blocks                |
-| `--fs-sm` | 13px | Tool rows, chips, the status strip, sidebar section names         |
-| `--fs-md` | 15px | Body text, buttons, inputs, Claude's headings below the top level |
-| `--fs-lg` | 17px | Card titles and Claude's top-level heading                        |
+| Token     | Size | Use                                                                                  |
+| --------- | ---- | ------------------------------------------------------------------------------------ |
+| `--fs-xs` | 12px | Meta lines, branch tags, status pills, code blocks                                   |
+| `--fs-sm` | 13px | Tool rows, chips, the status strip, sidebar section names                            |
+| `--fs-md` | 15px | Body text, buttons, inputs, Claude's headings below the top level                    |
+| `--fs-lg` | 17px | Card titles, Claude's top-level heading, a second-level heading in the spec and docs |
+| `--fs-xl` | 22px | The top-level heading in the spec and docs                                           |
 
 Body text uses a line height of 1.5.
 Weights are 400 for text, 600 for buttons and labels, and 700 for titles.
@@ -39,7 +40,7 @@ Section names in the sidebar are sentence case, not tracked capitals.
 | `--on-accent`     | `#ffffff` | Text on an accent fill                                                                                   |
 | `--accent`        | `#1d4f8c` | Prussian blue: your actions, links, focus rings, your messages, the open page                            |
 | `--accent-hover`  | `#163f71` | A primary button under the pointer                                                                       |
-| `--accent-tint`   | `#e7eef7` | The open page in the sidebar, the citation tag                                                           |
+| `--accent-tint`   | `#e7eef7` | The open page in the sidebar, the citation chip                                                          |
 | `--ghost`         | `#5aaed8` | Non-photo blue line: the dashed edge of anything Claude proposed and you have not accepted               |
 | `--ghost-tint`    | `#edf6fb` | The fill behind a ghost line                                                                             |
 | `--ai`            | `#136f96` | AI-made: the solid ink of Claude's own words and state, such as the proposal summary and the Working dot |
@@ -60,7 +61,7 @@ Rows inside a region are 8px apart, regions are padded 16px, and full pages are 
 
 | Token           | Value | Use                                                                         |
 | --------------- | ----- | --------------------------------------------------------------------------- |
-| `--radius-sm`   | 4px   | Inline code, branch tags, citation tags                                     |
+| `--radius-sm`   | 4px   | Inline code, branch tags, citation chips                                    |
 | `--radius`      | 6px   | Buttons, inputs, sidebar links, dialogs inside a card, the transcript inset |
 | `--radius-lg`   | 10px  | Cards and the floating proposals bar                                        |
 | `--radius-pill` | 999px | Chips, status pills, status dots                                            |
@@ -105,17 +106,26 @@ The meta line holds the slug, the branch as a code tag, the running cost, and th
 The sessions page is one column up to 1120px wide; cards fill it in a grid with a 400px minimum, so a lone card takes the whole width and two sit side by side.
 The rate-limit note and the other sessions list share the grid's edges.
 
-### Spec view citations
+### Spec view and its citations
 
-A citation is a link set as a tag: `--accent` text on `--accent-tint` with a `--radius-sm` corner.
-Its underline is the `--ghost` line, which turns solid on hover.
+The spec is read-only, so it reads as a document, not an editor: the same Markdown renderer as the panel, on paper, at a 72-character measure with a line height of 1.6.
+Its top-level heading is `--fs-xl`, a second-level heading is `--fs-lg`, and blocks are 12px apart with 24px above each heading.
+A citation such as `[[board:main#login]]` is a small link chip labelled `main#login`: Cascadia Code at `--fs-xs`, `--accent` on `--accent-tint`, a `--radius-sm` corner, and the raw citation as its tooltip.
+A chip gains an `--accent` border on hover and opens the board element or doc heading it names.
 A citation that no longer resolves is listed in the header in `--warn`.
-CodeMirror's own Markdown highlighting, such as underlined headings, is unchanged.
+Split into tasks is the one primary button, in the same header.
+
+### Doc editor
+
+Docs stay editable in CodeMirror, with a highlight style of its own in place of CodeMirror's default.
+Headings are bold and not underlined; the top level is `--fs-xl` and the second level is `--fs-lg`.
+Markdown marks such as `#` and `**` are `--muted`, links are `--accent`, and code is Cascadia Code.
+The gutter sits on `--surface` behind a `--border` rule.
 
 ### Tasks view cards
 
 A task card has the same paper, border, and corner as a run card.
-The file name sits on top in Cascadia Code at `--fs-xs`, then the title in `--fs-lg`, the dependencies, the acceptance list, and the sources as citation tags.
+The file name sits on top in Cascadia Code at `--fs-xs`, then the title in `--fs-lg`, the dependencies, the acceptance list, and the sources as the same citation chips as the spec.
 Launch opens its dialog inline in the card on a `--surface` inset, and the dialog's Launch is the primary button.
 
 ### Claude's Markdown
@@ -126,6 +136,7 @@ A single newline is a line break, because Claude often writes a sentence per lin
 Headings start at `h3` below the panel's own `h2`, and a top-level heading is `--fs-lg`.
 Code blocks scroll sideways rather than wrap.
 Links open in a new tab with `rel="noreferrer"`, and only `http`, `https`, and `mailto` links become links.
+A citation stays text unless the caller passes `renderCitation`, which the spec view uses for its chips.
 
 ## Before and after
 
@@ -138,5 +149,6 @@ Each pair was taken at 1280 by 800 with the built app on the fake SDK.
 | The spec view                      | [before](docs/design/before-spec.png)           | [after](docs/design/after-spec.png)           |
 | The tasks view                     | [before](docs/design/before-tasks.png)          | [after](docs/design/after-tasks.png)          |
 | The sessions view                  | [before](docs/design/before-sessions.png)       | [after](docs/design/after-sessions.png)       |
+| A doc in the editor                | (none taken)                                    | [after](docs/design/after-doc.png)            |
 
 ![The board with a pending proposal, after](docs/design/after-board-proposal.png)
