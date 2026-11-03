@@ -26,6 +26,9 @@ importers:
       '@excalidraw/excalidraw':
         specifier: ^0.18.1
         version: 0.18.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@excalidraw/mermaid-to-excalidraw':
+        specifier: ^3.2.0
+        version: 3.2.0
       '@hono/node-server':
         specifier: ^2.1.5
         version: 2.1.5(hono@4.13.16)
@@ -525,6 +528,9 @@ packages:
 
   '@excalidraw/mermaid-to-excalidraw@2.2.2':
     resolution: {integrity: sha512-5VKQq5CdRocC82vOIUpQ5ufJOVV9FpBTdHGA+ULqazeIVV+cr299877omQCibsdS3Bpitz2fsnTwnIXEmLVDSg==}
+
+  '@excalidraw/mermaid-to-excalidraw@3.2.0':
+    resolution: {integrity: sha512-nZ9Fd7YqJy1UuSFRq6miEvOsm8bpEqvTumByKjZCeLT8CNBc3k7hVnY/UNH0XoBPTL68pUgpP1aP7gmq7hEv9A==}
 
   '@excalidraw/random-username@1.1.0':
     resolution: {integrity: sha512-nULYsQxkWHnbmHvcs+efMkJ4/9TtvNyFeLyHdeGxW0zHs6P+jYVqcRff9A6Vq9w9JXeDRnRh2VKvTtS19GW2qA==}
@@ -2231,6 +2237,10 @@ packages:
   path-to-regexp@8.4.2:
     resolution: {integrity: sha512-qRcuIdP69NPm4qbACK+aDogI5CBDMi1jKe0ry5rSQJz8JVLsC7jV8XpiJjGRLLol3N+R5ihGYcrPLTno6pAdBA==}
 
+  pele@1.8.0:
+    resolution: {integrity: sha512-AYmHttE70cwNJVXdfPMCANGivFlmc3bGGpMG0GqH5S5vE3RgtEuLlkqbhRfe94Csv/ZEd1TUbv2dMUHpw4p1Bg==}
+    engines: {node: '>=20'}
+
   perfect-freehand@1.2.0:
     resolution: {integrity: sha512-h/0ikF1M3phW7CwpZ5MMvKnfpHficWoOEyr//KVNTxV4F6deRK1eYMtHyBKEAKFK0aXIEUK9oBvlF6PNXMDsAw==}
 
@@ -3179,6 +3189,12 @@ snapshots:
       '@mermaid-js/parser': 0.6.3
       mermaid: 11.17.2
       nanoid: 4.0.2
+
+  '@excalidraw/mermaid-to-excalidraw@3.2.0':
+    dependencies:
+      '@excalidraw/markdown-to-text': 0.1.2
+      nanoid: 4.0.2
+      pele: 1.8.0
 
   '@excalidraw/random-username@1.1.0': {}
 
@@ -4787,6 +4803,8 @@ snapshots:
   path-key@3.1.1: {}
 
   path-to-regexp@8.4.2: {}
+
+  pele@1.8.0: {}
 
   perfect-freehand@1.2.0: {}
 
