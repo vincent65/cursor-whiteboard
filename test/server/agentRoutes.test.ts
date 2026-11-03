@@ -374,7 +374,7 @@ test("createAgent: interrupt cancels pending permission asks before interrupting
   expect(agent.state()).toMatchObject({
     status: "needs_you",
     sessionId: "s1",
-    pending: [{ id: "tu1", tool: "Bash", summary: "running `ls`" }],
+    pending: [{ id: "tu1", tool: "Bash", summary: "running ls" }],
   });
   expect(sent).toContainEqual({
     type: "agent.event",

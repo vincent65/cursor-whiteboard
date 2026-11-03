@@ -3,6 +3,19 @@ import { Markdown } from "../markdown";
 import { CitationLink } from "../plan/citations";
 import type { TranscriptItem } from "./transcript";
 
+const RUNNING = "running ";
+
+// A tool's summary; a command row shows its command as code.
+export function ToolSummary({ summary }: { summary: string }) {
+  if (!summary.startsWith(RUNNING)) return summary;
+  return (
+    <>
+      {RUNNING}
+      <code>{summary.slice(RUNNING.length)}</code>
+    </>
+  );
+}
+
 // Claude's citations link to the board or doc, as in the spec.
 const chip = (c: Citation) => <CitationLink citation={c} />;
 
@@ -17,7 +30,11 @@ function Item({ item }: { item: TranscriptItem }) {
         </div>
       );
     case "tool_use":
-      return <div className="msg-tool">{item.summary}</div>;
+      return (
+        <div className="msg-tool">
+          <ToolSummary summary={item.summary} />
+        </div>
+      );
     case "tool_result":
       return (
         <div className="msg-tool">

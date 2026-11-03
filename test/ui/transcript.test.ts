@@ -30,12 +30,12 @@ test("reduceTranscript appends events and replaces a partial text by id, final t
 
 test("a permission ask stays out of the transcript and keeps its tool row", () => {
   const events: PanelEvent[] = [
-    { kind: "tool_use", id: "t1", tool: "Bash", summary: "running `ls`", at },
+    { kind: "tool_use", id: "t1", tool: "Bash", summary: "running ls", at },
     {
       kind: "permission",
       id: "t1",
       tool: "Bash",
-      summary: "running `ls`",
+      summary: "running ls",
       canAlways: true,
       at,
     },

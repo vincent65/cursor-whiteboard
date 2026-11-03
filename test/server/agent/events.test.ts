@@ -46,7 +46,7 @@ test("summarizeTool follows the table", () => {
     "editing c.ts",
   );
   expect(summarizeTool("Bash", { command: "x".repeat(80) })).toBe(
-    `running \`${"x".repeat(60)}\``,
+    `running ${"x".repeat(60)}`,
   );
   expect(summarizeTool("Grep", { pattern: "TODO" })).toBe("searching TODO");
   expect(summarizeTool("Glob", { pattern: "**/*.ts" })).toBe(

@@ -1,4 +1,5 @@
 import type { PendingPermission, PermissionDecision } from "../../shared/panel";
+import { ToolSummary } from "./TranscriptList";
 
 export function PermissionDialog({
   ask,
@@ -10,7 +11,7 @@ export function PermissionDialog({
   return (
     <div role="alertdialog" aria-labelledby={ask.id} className="ask">
       <span id={ask.id} className="ask-text">
-        Allow <strong>{ask.tool}</strong>: {ask.summary}
+        Allow <strong>{ask.tool}</strong>: <ToolSummary summary={ask.summary} />
       </span>
       {(
         [

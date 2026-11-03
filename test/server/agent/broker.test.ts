@@ -66,7 +66,7 @@ test("pending lists open asks, answer with an unknown id is false, cancelAll den
     {
       id: "t1",
       tool: "Bash",
-      summary: "running `ls`",
+      summary: "running ls",
       canAlways: true,
       at: "2026-11-02T10:00:00.000Z",
     },

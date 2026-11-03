@@ -85,6 +85,13 @@ test("panel renders restored transcript, sends on Enter with the current selecti
       at,
     },
     {
+      kind: "tool_use",
+      id: "t2",
+      tool: "Bash",
+      summary: "running npm test",
+      at,
+    },
+    {
       kind: "tool_result",
       id: "t1:result",
       toolUseId: "t1",
@@ -121,6 +128,10 @@ test("panel renders restored transcript, sends on Enter with the current selecti
 
   expect(await screen.findByText("What is here?")).toHaveClass("msg-user");
   expect(screen.getByText("reading the board")).toHaveClass("msg-tool");
+  // A command row shows its command as code.
+  const command = screen.getByText("npm test");
+  expect(command.tagName).toBe("CODE");
+  expect(command.parentElement).toHaveTextContent(/^running npm test$/);
   expect(
     screen.getByText("no such board").closest(".msg-tool"),
   ).toHaveTextContent("✗");
@@ -188,7 +199,7 @@ test("a pending permission renders the dialog and Allow always calls agentPermis
         {
           id: "p1",
           tool: "Bash",
-          summary: "running `ls`",
+          summary: "running ls",
           canAlways: true,
           at,
         },
@@ -196,7 +207,10 @@ test("a pending permission renders the dialog and Allow always calls agentPermis
     }),
   );
   renderPanel();
-  expect(await screen.findByText(/running `ls`/)).toBeVisible();
+  const dialog = await screen.findByRole("alertdialog");
+  expect(dialog).toHaveTextContent("Allow Bash: running ls");
+  // The command reads as code, without Markdown backticks.
+  expect(dialog.querySelector("code")).toHaveTextContent(/^ls$/);
   expect(screen.getByRole("status")).toHaveTextContent("Needs you");
   // A second ask waits behind the first.
   emit({

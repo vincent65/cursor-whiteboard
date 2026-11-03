@@ -42,7 +42,7 @@ function summarize(name: string, input: Record<string, unknown>): string {
     case "MultiEdit":
       return `editing ${input.file_path}`;
     case "Bash":
-      return `running \`${String(input.command).slice(0, 60)}\``;
+      return `running ${String(input.command).slice(0, 60)}`;
     case "Grep":
     case "Glob":
       return `searching ${input.pattern}`;
