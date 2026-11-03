@@ -424,7 +424,7 @@ export function labelOf(elements: readonly El[], id: string): El | undefined;   
 ```ts
 test("add ops land beside the anchor with the ghost style, group, and tag", () => {
   // anchor element a at (0,0,100,50); rendered diagram at (10,10) with two shapes; after apply: min x === 180, min y === 0,
-  // every added element has opacity 40, strokeStyle "dashed", groupIds[0] === "p_1", customData.ghost === "add"; ids lists them
+  // every added element has opacity 40, strokeStyle "dashed", groupIds.at(-1) === "p_1", customData.ghost === "add"; ids lists them
 });
 test("two additions stack downward with a 40px gap, and an empty board centers in the viewport", ...);
 test("update snapshots before values, dashes the stroke, and rewrites the bound label", () => {
