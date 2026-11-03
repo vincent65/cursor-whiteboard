@@ -468,14 +468,16 @@ export class FileStore {
       await mkdir(join(this.dir, d), { recursive: true });
   }
 
-  // .blueprint/ deleted while the server runs comes back whole on the next write.
-  private async restoreDirs(): Promise<void> {
+  // .blueprint/ deleted while the server runs comes back whole on the next write, and
+  // any directory a write needs comes back with it.
+  private async restoreDirs(dir = this.dir): Promise<void> {
     if (!(await exists(this.dir))) await this.makeDirs();
+    await mkdir(dir, { recursive: true });
   }
 
   // Atomic: write a sibling temp file, then rename it over the target.
   private async write(path: string, data: Buffer | string): Promise<void> {
-    await this.restoreDirs();
+    await this.restoreDirs(dirname(path));
     const tmp = `${path}.tmp-${randomBytes(6).toString("hex")}`;
     try {
       await writeFile(tmp, data);

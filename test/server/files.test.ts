@@ -488,3 +488,18 @@ test("a .blueprint/ deleted while the server runs lists as empty, reads as not f
   for (const d of ["boards", "docs", "assets", "tasks", "export", "worktrees"])
     expect(existsSync(join(store.dir, d))).toBe(true);
 });
+
+test("a deleted .blueprint/ subdirectory comes back when a write needs it", async () => {
+  await store.init();
+  await rm(join(store.dir, "boards"), { recursive: true, force: true });
+  await rm(join(store.dir, "tasks"), { recursive: true, force: true });
+
+  expect(await store.listBoards()).toEqual([]);
+  await store.createBoard("main");
+  await store.writeBoard("main", scene({ elements: [rect("e1")] }));
+  expect((await store.readBoard("main")).elements.map((e) => e.id)).toEqual([
+    "e1",
+  ]);
+  await store.replaceTasks([t("a")]);
+  expect((await store.listTasks()).map((f) => f.file)).toEqual(["01-a.md"]);
+});
