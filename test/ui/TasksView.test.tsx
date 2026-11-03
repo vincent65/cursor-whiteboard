@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import type { ServerMessage } from "../../src/shared/messages";
@@ -178,6 +178,7 @@ test("TasksView opens the dialog and launches with the chosen mode", async () =>
   vi.mocked(api.listTasks).mockResolvedValue(files);
   vi.mocked(api.gate).mockResolvedValue({
     ok: false,
+    branch: "blueprint/auth",
     missing: [{ slug: "db", reason: "no run" }],
   });
   vi.mocked(api.launchRun).mockResolvedValue(run("auth"));
@@ -239,7 +240,11 @@ test("a failed gate check shows as an error and opens no dialog", async () => {
   expect(screen.queryByRole("dialog")).toBeNull();
 
   // The next check that opens the dialog clears the old failure.
-  vi.mocked(api.gate).mockResolvedValue({ ok: true, missing: [] });
+  vi.mocked(api.gate).mockResolvedValue({
+    ok: true,
+    branch: "blueprint/db",
+    missing: [],
+  });
   await user.click(
     (await card("01-db.md")).getByRole("button", { name: "Launch" }),
   );
@@ -250,7 +255,11 @@ test("a failed gate check shows as an error and opens no dialog", async () => {
 test("closing the launch dialog returns focus to the card's Launch button", async () => {
   const user = userEvent.setup();
   vi.mocked(api.listTasks).mockResolvedValue(files);
-  vi.mocked(api.gate).mockResolvedValue({ ok: true, missing: [] });
+  vi.mocked(api.gate).mockResolvedValue({
+    ok: true,
+    branch: "blueprint/db",
+    missing: [],
+  });
   render(<TasksView cost={null} />);
   const db = await card("01-db.md");
 
@@ -271,4 +280,32 @@ test("closing the launch dialog returns focus to the card's Launch button", asyn
   await user.keyboard("{Escape}");
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(db.getByRole("button", { name: "Launch" })).toHaveFocus();
+});
+
+test("an open launch dialog checks its gate again on runs.changed", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.listTasks).mockResolvedValue(files);
+  vi.mocked(api.gate).mockResolvedValueOnce({
+    ok: false,
+    branch: "blueprint/auth",
+    missing: [{ slug: "db", reason: "not done" }],
+  });
+  render(<TasksView cost={null} />);
+  await user.click(
+    (await card("02-auth.md")).getByRole("button", { name: "Launch" }),
+  );
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByText("db: run not done")).toBeInTheDocument();
+
+  vi.mocked(api.gate).mockResolvedValueOnce({
+    ok: true,
+    branch: "blueprint/auth",
+    missing: [],
+  });
+  await emit({ type: "runs.changed" });
+  await waitFor(() =>
+    expect(within(dialog).queryByText("db: run not done")).toBeNull(),
+  );
+  expect(api.gate).toHaveBeenCalledTimes(2);
+  expect(within(dialog).getByRole("button", { name: "Launch" })).toBeEnabled();
 });

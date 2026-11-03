@@ -116,6 +116,7 @@ test("POST /api/runs refuses a gated task without override and launches with it"
   expect(gate.status).toBe(200);
   expect(await gate.json()).toEqual({
     ok: false,
+    branch: "blueprint/top",
     missing: [{ slug: "base", reason: "no run" }],
   });
   expect((await app.request("/api/runs/gate/ghost")).status).toBe(404);
@@ -201,7 +202,11 @@ test("the gate passes a dependency whose newest run is done and merged", async (
   ]);
 
   const gate = await app.request("/api/runs/gate/top");
-  expect(await gate.json()).toEqual({ ok: true, missing: [] });
+  expect(await gate.json()).toEqual({
+    ok: true,
+    branch: "blueprint/top",
+    missing: [],
+  });
   expect(isAncestor).toHaveBeenCalledWith("blueprint/base");
 
   const launched = await app.request(

@@ -59,6 +59,7 @@ test("checkGate reports each missing dependency with its reason", async () => {
   });
   expect(gated).toEqual({
     ok: false,
+    branch: "blueprint/t",
     missing: [
       { slug: "no-run-dep", reason: "no run" },
       { slug: "failed-dep", reason: "not done" },
@@ -76,9 +77,10 @@ test("checkGate reports each missing dependency with its reason", async () => {
 
   expect(
     await checkGate({ task: task("t", ["merged-dep"]), runs, isAncestor }),
-  ).toEqual({ ok: true, missing: [] });
+  ).toEqual({ ok: true, branch: "blueprint/t", missing: [] });
   expect(await checkGate({ task: task("t"), runs: [], isAncestor })).toEqual({
     ok: true,
+    branch: "blueprint/t",
     missing: [],
   });
 });

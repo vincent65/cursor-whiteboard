@@ -18,7 +18,12 @@ export type MissingDependency = {
   slug: string;
   reason: "no run" | "not done" | "not merged";
 };
-export type GateResult = { ok: boolean; missing: MissingDependency[] };
+// branch: what a launch will name the run's branch.
+export type GateResult = {
+  ok: boolean;
+  branch: string;
+  missing: MissingDependency[];
+};
 
 // One of the repository's Claude sessions that Blueprint did not start.
 export type OtherSession = {

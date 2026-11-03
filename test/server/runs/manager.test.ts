@@ -355,7 +355,7 @@ test("a turn ending with a PR URL makes the run done with prUrl and cost; withou
       runs: manager.records(),
       isAncestor: async () => true,
     }),
-  ).toEqual({ ok: true, missing: [] });
+  ).toMatchObject({ ok: true, missing: [] });
   expect(queries).toHaveLength(2);
   await expect(manager.message("run_000000", "hi")).rejects.toThrow(
     NotFoundError,
@@ -404,7 +404,7 @@ test("markDone makes an idle run done, and it stays done through later turns, a 
       runs: manager.records(),
       isAncestor: merged,
     }),
-  ).toEqual({ ok: true, missing: [] });
+  ).toMatchObject({ ok: true, missing: [] });
 
   // A later turn with no PR URL leaves it done.
   await manager.message(run.id, "wait");

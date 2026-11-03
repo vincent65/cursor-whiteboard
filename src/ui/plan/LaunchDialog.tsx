@@ -25,13 +25,11 @@ const MODES: [RunPermissionMode, string, string][] = [
 // Launching a task: what its gate is missing, the run's permission mode, and
 // an override for a failed gate. A failed launch stays open with its reason.
 export function LaunchDialog({
-  slug,
   title,
   gate,
   onLaunch,
   onClose,
 }: {
-  slug: string;
   title: string;
   gate: GateResult;
   onLaunch(mode: RunPermissionMode, override: boolean): Promise<void>;
@@ -68,7 +66,7 @@ export function LaunchDialog({
         Launch {title}
       </h3>
       <p className="muted">
-        Starts a session on branch <code>blueprint/{slug}</code> in its own
+        Starts a session on branch <code>{gate.branch}</code> in its own
         worktree.
       </p>
       {!gate.ok && (

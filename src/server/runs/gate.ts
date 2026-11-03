@@ -1,6 +1,7 @@
 import type { GateResult, MissingDependency } from "../../shared/runs.js";
 import type { Task } from "../../shared/tasks.js";
 import type { RunRecord } from "../../shared/types.js";
+import { branchFor } from "./git.js";
 
 export class GateError extends Error {
   constructor(readonly missing: MissingDependency[]) {
@@ -36,5 +37,9 @@ export async function checkGate(input: {
       ),
     )
   ).filter((m) => m !== null);
-  return { ok: missing.length === 0, missing };
+  return {
+    ok: missing.length === 0,
+    branch: branchFor(input.task.slug),
+    missing,
+  };
 }

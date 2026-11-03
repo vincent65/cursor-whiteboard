@@ -14,6 +14,9 @@ const branchExists = (root: string, branch: string) =>
     () => false,
   );
 
+// The branch a task's run works on.
+export const branchFor = (slug: string) => `blueprint/${slug}`;
+
 // A new worktree on a new branch, both from HEAD; refuses either one already there
 // (ExistsError).
 export async function createWorktree(
@@ -22,7 +25,7 @@ export async function createWorktree(
 ): Promise<{ worktree: string; branch: string }> {
   assertSlug(slug);
   const worktree = join(root, ".blueprint", "worktrees", slug);
-  const branch = `blueprint/${slug}`;
+  const branch = branchFor(slug);
   const there = await access(worktree).then(
     () => true,
     () => false,

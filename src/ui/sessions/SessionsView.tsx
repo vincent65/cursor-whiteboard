@@ -31,17 +31,31 @@ function OtherSessionRow({ session }: { session: OtherSession }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<PanelEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Only the newest transcript request may land.
+  const latest = useRef(0);
+
+  const load = () => {
+    const n = ++latest.current;
+    setError(null);
+    api.sessionTranscript(session.sessionId).then(
+      (list) => n === latest.current && setItems(list),
+      (err) => n === latest.current && setError(errorText(err)),
+    );
+  };
 
   // Opening again after a failure retries, without the old failure meanwhile.
   const toggle = () => {
-    if (!open && items === null) {
-      setError(null);
-      api
-        .sessionTranscript(session.sessionId)
-        .then(setItems, (err) => setError(errorText(err)));
-    }
+    if (!open && items === null) load();
     setOpen(!open);
   };
+
+  // A run starting or ending may have touched this session: an open transcript
+  // reloads now, a closed one on its next open.
+  useServerEvent((m) => {
+    if (m.type !== "runs.changed") return;
+    if (open) load();
+    else setItems(null);
+  });
 
   return (
     <li className="other-session">

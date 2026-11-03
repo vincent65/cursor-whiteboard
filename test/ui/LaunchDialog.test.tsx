@@ -5,6 +5,8 @@ import { LaunchDialog } from "../../src/ui/plan/LaunchDialog";
 
 const blocked = {
   ok: false,
+  // The server names the branch; the dialog shows it as given.
+  branch: "blueprint/auth-from-server",
   missing: [
     { slug: "db", reason: "no run" as const },
     { slug: "config", reason: "not done" as const },
@@ -18,7 +20,6 @@ test("LaunchDialog explains missing dependencies and needs the override to launc
   const onClose = vi.fn();
   render(
     <LaunchDialog
-      slug="auth"
       title="Build auth"
       gate={blocked}
       onLaunch={onLaunch}
@@ -27,7 +28,9 @@ test("LaunchDialog explains missing dependencies and needs the override to launc
   );
 
   const dialog = screen.getByRole("dialog", { name: "Launch Build auth" });
-  expect(dialog).toHaveTextContent("blueprint/auth");
+  expect(dialog).toHaveTextContent(
+    "Starts a session on branch blueprint/auth-from-server in its own worktree.",
+  );
   expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual([
     "db: no run",
     "config: run not done",
@@ -56,9 +59,8 @@ test("LaunchDialog launches a ready task without the override and shows a failed
   });
   render(
     <LaunchDialog
-      slug="db"
       title="Build db"
-      gate={{ ok: true, missing: [] }}
+      gate={{ ok: true, branch: "blueprint/db", missing: [] }}
       onLaunch={onLaunch}
       onClose={() => {}}
     />,
@@ -79,9 +81,8 @@ test("LaunchDialog closes on Cancel and on Escape, including from the select", a
   const onClose = vi.fn();
   render(
     <LaunchDialog
-      slug="db"
       title="Build db"
-      gate={{ ok: true, missing: [] }}
+      gate={{ ok: true, branch: "blueprint/db", missing: [] }}
       onLaunch={async () => {}}
       onClose={onClose}
     />,

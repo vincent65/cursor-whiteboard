@@ -90,7 +90,21 @@ export function TasksView({ cost }: { cost: number | null }) {
 
   useServerEvent((m) => {
     if (m.type === "file-changed" && m.kind === "task") void load();
-    if (m.type === "runs.changed") void loadRuns();
+    if (m.type === "runs.changed") {
+      void loadRuns();
+      // A run starting or ending can change what an open dialog's gate says.
+      const slug = launching?.slug;
+      if (slug)
+        api
+          .gate(slug)
+          .then(
+            (gate) =>
+              setLaunching((cur) =>
+                cur?.slug === slug ? { slug, gate } : cur,
+              ),
+            console.error,
+          );
+    }
     if (m.type !== "split.status") return;
     setError(m.state === "error" ? (m.message ?? "The split failed.") : null);
     if (m.state === "done") void load();
@@ -141,7 +155,6 @@ export function TasksView({ cost }: { cost: number | null }) {
             </a>
           ) : launching?.slug === task.slug ? (
             <LaunchDialog
-              slug={task.slug}
               title={task.title}
               gate={launching.gate}
               onLaunch={(mode, override) => launch(task.slug, mode, override)}

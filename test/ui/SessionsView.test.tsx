@@ -332,3 +332,42 @@ test("a good runs load keeps the other sessions' failure, and an outdated runs f
   expect(screen.queryByText("stale failure")).toBeNull();
   expect(screen.getAllByRole("alert")).toHaveLength(1);
 });
+
+test("an other session's transcript reloads on runs.changed: at once when open, on next open when closed", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.listRuns).mockResolvedValue([]);
+  vi.mocked(api.listSessions).mockResolvedValue([
+    {
+      sessionId: "o1",
+      summary: "Fix the login bug",
+      lastModified: Date.now(),
+      cwd: "/repo",
+      gitBranch: null,
+    },
+  ]);
+  vi.mocked(api.sessionTranscript).mockResolvedValueOnce([
+    { kind: "user", id: "u1", text: "Why does login fail?", at },
+  ]);
+  render(<SessionsView />);
+  const row = await screen.findByRole("button", { name: /Fix the login bug/ });
+  await user.click(row);
+  expect(await screen.findByText("Why does login fail?")).toBeVisible();
+
+  vi.mocked(api.sessionTranscript).mockResolvedValueOnce([
+    { kind: "user", id: "u1", text: "Why does login fail?", at },
+    { kind: "user", id: "u2", text: "And the logout?", at },
+  ]);
+  emit({ type: "runs.changed" });
+  expect(await screen.findByText("And the logout?")).toBeVisible();
+  expect(api.sessionTranscript).toHaveBeenCalledTimes(2);
+
+  await user.click(row);
+  emit({ type: "runs.changed" });
+  expect(api.sessionTranscript).toHaveBeenCalledTimes(2);
+  vi.mocked(api.sessionTranscript).mockResolvedValueOnce([
+    { kind: "user", id: "u3", text: "Fixed?", at },
+  ]);
+  await user.click(row);
+  expect(await screen.findByText("Fixed?")).toBeVisible();
+  expect(api.sessionTranscript).toHaveBeenCalledTimes(3);
+});
