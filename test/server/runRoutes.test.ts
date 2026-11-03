@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "../../src/server/app.js";
@@ -7,6 +7,7 @@ import {
   FileStore,
   NotFoundError,
 } from "../../src/server/files.js";
+import { createWorktree } from "../../src/server/runs/git.js";
 import type { RunManager } from "../../src/server/runs/manager.js";
 import type { PanelEvent } from "../../src/shared/panel.js";
 import type { RunView } from "../../src/shared/runs.js";
@@ -72,6 +73,8 @@ function fakeRuns(views: RunView[] = []) {
     launch: vi.fn(async ({ taskSlug, permissionMode }) => {
       if (taskSlug === "ghost")
         throw new NotFoundError(`task ${taskSlug} not found`);
+      // The real refusal of a worktree that is already there.
+      if (taskSlug === "taken") await createWorktree(root, taskSlug);
       return { ...record("run_2", taskSlug), permissionMode };
     }),
     message: vi.fn(async (id: string) => {
@@ -164,6 +167,24 @@ test("POST /api/runs refuses a gated task without override and launches with it"
     expect(await res.json()).toHaveProperty("error");
   }
   expect(manager.launch).toHaveBeenCalledTimes(3);
+});
+
+test("a launch whose worktree is already there is a conflict (409), not a server bug", async () => {
+  await store.replaceTasks([task("taken")]);
+  await mkdir(join(root, ".blueprint", "worktrees", "taken"));
+  const { app } = fakeRuns();
+  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+  const res = await app.request(
+    "/api/runs",
+    post({ taskSlug: "taken", permissionMode: "acceptEdits" }),
+  );
+  expect(res.status).toBe(409);
+  expect(await res.json()).toEqual({
+    error: `worktree ${join(root, ".blueprint", "worktrees", "taken")} already exists`,
+  });
+  expect(logged).not.toHaveBeenCalled();
+  logged.mockRestore();
 });
 
 test("the gate passes a dependency whose newest run is done and merged", async () => {

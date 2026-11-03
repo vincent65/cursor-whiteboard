@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { assertSlug } from "../files.js";
+import { assertSlug, ExistsError } from "../files.js";
 
 const run = promisify(execFile);
 // No shell: arguments reach git as they are.
@@ -14,7 +14,8 @@ const branchExists = (root: string, branch: string) =>
     () => false,
   );
 
-// A new worktree on a new branch, both from HEAD; refuses either one already there.
+// A new worktree on a new branch, both from HEAD; refuses either one already there
+// (ExistsError).
 export async function createWorktree(
   root: string,
   slug: string,
@@ -26,9 +27,9 @@ export async function createWorktree(
     () => true,
     () => false,
   );
-  if (there) throw new Error(`worktree ${worktree} already exists`);
+  if (there) throw new ExistsError(`worktree ${worktree} already exists`);
   if (await branchExists(root, branch))
-    throw new Error(`branch ${branch} already exists`);
+    throw new ExistsError(`branch ${branch} already exists`);
   await git(root, ["worktree", "add", worktree, "-b", branch, "HEAD"]);
   return { worktree, branch };
 }

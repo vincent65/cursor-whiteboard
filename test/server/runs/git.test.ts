@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { ExistsError } from "../../../src/server/files.js";
 import {
   createWorktree,
   head,
@@ -39,15 +40,18 @@ test("createWorktree makes the branch and directory from HEAD and refuses a seco
   expect(existsSync(join(worktree, ".git"))).toBe(true);
   expect(await head(worktree)).toBe(start);
 
-  await expect(createWorktree(repo, "auth")).rejects.toThrow(
-    `worktree ${worktree} already exists`,
-  );
+  // Both refusals are conflicts (409), not server bugs.
+  const again = createWorktree(repo, "auth");
+  await expect(again).rejects.toThrow(`worktree ${worktree} already exists`);
+  await expect(again).rejects.toBeInstanceOf(ExistsError);
   // The branch alone is enough to refuse.
   await rm(worktree, { recursive: true, force: true });
   await git(repo, "worktree", "prune");
-  await expect(createWorktree(repo, "auth")).rejects.toThrow(
+  const branchTaken = createWorktree(repo, "auth");
+  await expect(branchTaken).rejects.toThrow(
     "branch blueprint/auth already exists",
   );
+  await expect(branchTaken).rejects.toBeInstanceOf(ExistsError);
   await expect(createWorktree(repo, "../escape")).rejects.toThrow(
     "invalid name",
   );
