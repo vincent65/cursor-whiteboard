@@ -1,10 +1,21 @@
 // @vitest-environment jsdom
+import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
 import {
   renderMermaid,
   renderNode,
   renderNote,
   SUPPORTED,
 } from "../../src/ui/board/mermaid";
+
+// The real importer, wrapped so one test can reshape its answer.
+vi.mock("@excalidraw/mermaid-to-excalidraw", async (importOriginal) => {
+  const real =
+    await importOriginal<typeof import("@excalidraw/mermaid-to-excalidraw")>();
+  return {
+    ...real,
+    parseMermaidToExcalidraw: vi.fn(real.parseMermaidToExcalidraw),
+  };
+});
 
 // The importer measures labels on a canvas; jsdom has none, so stub measureText by character count.
 // Excalidraw's font registry also constructs a FontFace per font, which jsdom lacks.
@@ -45,6 +56,17 @@ test("a diagram the importer draws as an image is rejected", async () => {
   await expect(renderMermaid('pie\n  "a": 1\n  "b": 2')).rejects.toThrow(
     SUPPORTED,
   );
+});
+
+test("an empty files object is not an image diagram", async () => {
+  const parse = vi.mocked(parseMermaidToExcalidraw);
+  const real = parse.getMockImplementation() as typeof parseMermaidToExcalidraw;
+  parse.mockImplementationOnce(async (definition, config) => ({
+    ...(await real(definition, config)),
+    files: {},
+  }));
+  const els = await renderMermaid("flowchart LR\n  A --> B");
+  expect(els.some((e) => e.type === "arrow")).toBe(true);
 });
 
 test("a note is one measured text element", () => {

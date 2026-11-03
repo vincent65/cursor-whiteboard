@@ -13,7 +13,10 @@ export async function renderMermaid(
     themeVariables: { fontSize: "16px" },
   });
   // Diagram kinds the importer cannot lay out come back as one picture, which is not editable.
-  if (files || elements.some((e) => e.type === "image")) {
+  if (
+    Object.keys(files ?? {}).length > 0 ||
+    elements.some((e) => e.type === "image")
+  ) {
     throw new Error(SUPPORTED);
   }
   return convertToExcalidrawElements(elements, { regenerateIds: true });
