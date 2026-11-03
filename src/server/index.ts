@@ -132,6 +132,9 @@ export async function startServer(opts: {
       // A hung or failing session must not keep the clients or the port.
       try {
         await Promise.all([agent.close(), manager.close()]);
+        // What the sessions left queued, such as a run's last status, lands before close
+        // resolves, so nothing writes into .blueprint/ after it.
+        await runs.settled();
       } finally {
         for (const client of wss.clients) client.terminate();
         await new Promise<void>((resolve, reject) =>

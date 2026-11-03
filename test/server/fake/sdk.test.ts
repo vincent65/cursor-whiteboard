@@ -16,6 +16,7 @@ import { SdkEventMapper } from "../../../src/server/agent/events.js";
 import { transcriptFrom } from "../../../src/server/agent/session.js";
 import { splitSpec } from "../../../src/server/agent/split.js";
 import { createFakeSdk } from "../../../src/server/fake/sdk.js";
+import { FileStore } from "../../../src/server/files.js";
 import { startServer } from "../../../src/server/index.js";
 
 let dir: string;
@@ -501,6 +502,14 @@ describe("startServer with BLUEPRINT_FAKE_SDK", () => {
         ).toEqual(["only"]);
       });
 
+      // Slow sessions.json writes: the run's last status is still landing when it reads done.
+      const writeSessions = FileStore.prototype.writeSessions;
+      vi.spyOn(FileStore.prototype, "writeSessions").mockImplementation(
+        async function (this: FileStore, s) {
+          await new Promise((r) => setTimeout(r, 50));
+          return writeSessions.call(this, s);
+        },
+      );
       const launched = await post("/runs", {
         taskSlug: "only",
         permissionMode: "acceptEdits",
@@ -518,5 +527,13 @@ describe("startServer with BLUEPRINT_FAKE_SDK", () => {
     } finally {
       await server.close();
     }
+    // close() resolves once the queued sessions.json writes have landed.
+    const saved = JSON.parse(
+      await readFile(join(root, ".blueprint", "sessions.json"), "utf8"),
+    );
+    expect(saved.runs[0]).toMatchObject({
+      status: "done",
+      prUrl: "https://github.com/o/r/pull/7",
+    });
   });
 });
