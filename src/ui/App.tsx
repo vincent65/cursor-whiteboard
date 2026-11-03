@@ -10,6 +10,7 @@ import { SpecView } from "./plan/SpecView";
 import { TasksView, useSplitCost } from "./plan/TasksView";
 import { SelectionProvider } from "./selection";
 import { ServerEventsProvider, useServerEvent } from "./server-events";
+import { SessionsView } from "./sessions/SessionsView";
 
 export function App() {
   return (
@@ -70,8 +71,12 @@ function Shell() {
     }
   };
 
+  // The sessions view takes the panel's room too; the panel stays mounted, so
+  // a half-typed message survives the visit.
+  const wide = route?.kind === "sessions";
+
   return (
-    <div className="shell">
+    <div className={wide ? "shell shell-wide" : "shell"}>
       <Sidebar
         boards={boards ?? []}
         docs={docs}
@@ -98,11 +103,12 @@ function Shell() {
         )}
         {route?.kind === "spec" && <SpecView />}
         {route?.kind === "tasks" && <TasksView cost={splitCost} />}
+        {route?.kind === "sessions" && <SessionsView />}
         {!route && boards?.length === 0 && (
           <p className="empty">No boards yet. Create one from the sidebar.</p>
         )}
       </main>
-      <aside className="right-pane">
+      <aside className="right-pane" hidden={wide}>
         <ClaudePanel onBoard={route?.kind === "board"} />
       </aside>
     </div>

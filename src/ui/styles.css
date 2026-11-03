@@ -248,7 +248,7 @@ body {
   background: #dc2626;
 }
 
-.panel-header .button:disabled {
+.button:disabled {
   opacity: 0.5;
   cursor: default;
   border-color: var(--border);
@@ -519,4 +519,229 @@ body {
 .task-sources a {
   color: var(--accent);
   overflow-wrap: anywhere;
+}
+
+/* The sessions view takes the Claude panel's column too. */
+.shell-wide {
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
+}
+
+.sessions-page {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) * 2);
+  padding: calc(var(--space) * 2);
+}
+
+.run-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+  align-items: start;
+  gap: calc(var(--space) * 2);
+}
+
+.run-grid:empty {
+  display: none;
+}
+
+.run-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  min-width: 0;
+  padding: calc(var(--space) * 1.5) calc(var(--space) * 2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.run-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  min-width: 0;
+}
+
+.run-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-status {
+  flex: none;
+  max-width: 50%;
+  padding: 2px var(--space);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.run-status[data-status="done"]::before {
+  background: #16a34a;
+}
+
+.run-status[data-status="failed"]::before {
+  background: #dc2626;
+}
+
+/* A run's idle turn waits on you without being finished, so it is not Done's green. */
+.run-status[data-status="idle"]::before {
+  background: var(--muted);
+}
+
+.run-status[data-status="interrupted"]::before {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--muted);
+}
+
+.run-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--space) / 2) calc(var(--space) * 1.5);
+  min-width: 0;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.run-meta a {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.run-branch {
+  max-width: 100%;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-last {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space);
+}
+
+.run-copy {
+  margin-left: auto;
+}
+
+.run-transcript {
+  flex: none;
+  max-height: 360px;
+  padding: var(--space);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.run-card .notice {
+  flex-wrap: wrap;
+  border: 1px solid #d97706;
+  border-radius: 6px;
+}
+
+.run-card .notice-text {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+
+.run-card .panel-failure {
+  padding: 0;
+}
+
+.run-input {
+  width: 100%;
+  padding: var(--space);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  resize: none;
+}
+
+.run-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.other-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.other-session {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  min-width: 0;
+}
+
+.other-head {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space) * 1.5);
+  min-width: 0;
+  padding: var(--space) calc(var(--space) * 1.5);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.other-head:hover {
+  border-color: var(--accent);
+}
+
+.other-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.other-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.other-meta {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.other-meta.run-branch {
+  flex: 0 1 auto;
+  max-width: 30%;
 }

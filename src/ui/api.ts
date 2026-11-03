@@ -1,5 +1,8 @@
 import type { Citation } from "../export/citations";
 import type { BoardFile } from "../export/schema";
+import type { GateResult } from "../server/runs/gate";
+import type { RunView } from "../server/runs/manager";
+import type { OtherSession } from "../server/sessions";
 import type {
   AgentStatus,
   ClientMessage,
@@ -9,7 +12,13 @@ import type {
 import type { PendingPermission, PermissionDecision } from "../shared/panel";
 import type { Decision, Proposal } from "../shared/proposals";
 import type { TaskFile } from "../shared/tasks";
-import type { IncomingScene } from "../shared/types";
+import type {
+  IncomingScene,
+  RunPermissionMode,
+  RunRecord,
+} from "../shared/types";
+
+export type { GateResult, OtherSession, RunView };
 
 export type Entry = { name: string; updatedAt: string };
 
@@ -162,6 +171,60 @@ export async function decideProposal(
 
 export const agentState = async (): Promise<AgentState> =>
   (await request("/agent/state")).json();
+
+export const listRuns = async (): Promise<RunView[]> =>
+  (await request("/runs")).json();
+
+// A failed gate without override throws the server's 409 message.
+export const launchRun = async (body: {
+  taskSlug: string;
+  permissionMode: RunPermissionMode;
+  override?: boolean;
+}): Promise<RunRecord> =>
+  (await request("/runs", { method: "POST", ...json(body) })).json();
+
+const runPath = (id: string) => `/runs/${encodeURIComponent(id)}`;
+
+// Returns the user event id.
+export const runMessage = async (id: string, text: string): Promise<string> => {
+  const res = await request(`${runPath(id)}/message`, {
+    method: "POST",
+    ...json({ text }),
+  });
+  return ((await res.json()) as { id: string }).id;
+};
+
+export async function runStop(id: string): Promise<void> {
+  await request(`${runPath(id)}/stop`, { method: "POST" });
+}
+
+export async function runResume(id: string): Promise<void> {
+  await request(`${runPath(id)}/resume`, { method: "POST" });
+}
+
+export async function runPermission(
+  id: string,
+  permissionId: string,
+  decision: PermissionDecision,
+): Promise<void> {
+  await request(`${runPath(id)}/permission`, {
+    method: "POST",
+    ...json({ id: permissionId, ...decision }),
+  });
+}
+
+export const runTranscript = async (id: string): Promise<PanelEvent[]> =>
+  (await request(`${runPath(id)}/transcript`)).json();
+
+export const gate = async (slug: string): Promise<GateResult> =>
+  (await request(`/runs/gate/${encodeURIComponent(slug)}`)).json();
+
+// The repository's sessions that Blueprint did not start, newest first.
+export const listSessions = async (): Promise<OtherSession[]> =>
+  (await request("/sessions")).json();
+
+export const sessionTranscript = async (id: string): Promise<PanelEvent[]> =>
+  (await request(`/sessions/${encodeURIComponent(id)}/transcript`)).json();
 
 // Frames sent while the socket is not open wait for the next one to open.
 // By then the server that asked for queued responses is gone. The newest

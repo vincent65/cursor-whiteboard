@@ -1,0 +1,176 @@
+// @vitest-environment jsdom
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { RunView } from "../../src/server/runs/manager";
+import type { PanelEvent } from "../../src/shared/panel";
+import { RunCard } from "../../src/ui/sessions/RunCard";
+
+const at = "2026-11-02T00:00:00.000Z";
+
+const run = (over: Partial<RunView> = {}): RunView => ({
+  id: "r1",
+  taskSlug: "auth-api",
+  sessionId: "s1",
+  worktree: "/repo/.blueprint/worktrees/auth-api",
+  branch: "blueprint/auth-api",
+  status: "working",
+  permissionMode: "acceptEdits",
+  prUrl: null,
+  costUsd: 0.5,
+  startedAt: at,
+  endedAt: null,
+  pending: [],
+  lastText: "Wrote the login handler.",
+  ...over,
+});
+
+const handlers = () => ({
+  onMessage: vi.fn(async () => {}),
+  onStop: vi.fn(async () => {}),
+  onResume: vi.fn(async () => {}),
+  onPermission: vi.fn(async () => {}),
+  onExpand: vi.fn(),
+});
+
+const transcript: PanelEvent[] = [
+  { kind: "user", id: "u1", text: "Build the auth API", at },
+  {
+    kind: "assistant_text",
+    id: "a1",
+    text: "Starting on the routes.",
+    partial: false,
+    at,
+  },
+];
+
+test("RunCard shows status, cost, PR link, and the right buttons per status", async () => {
+  const user = userEvent.setup();
+  const h = handlers();
+  const { rerender } = render(
+    <RunCard run={run()} title="Auth API" transcript={transcript} {...h} />,
+  );
+  expect(screen.getByRole("heading", { name: "Auth API" })).toBeInTheDocument();
+  expect(screen.getByText("auth-api")).toBeInTheDocument();
+  expect(screen.getByText("blueprint/auth-api")).toBeInTheDocument();
+  expect(screen.getByText("$0.5000 total")).toBeInTheDocument();
+  expect(screen.getByText("Wrote the login handler.")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "PR" })).toBeNull();
+
+  const status = () => screen.getByRole("status").textContent;
+  const button = (name: string) => screen.queryByRole("button", { name });
+  const cases: [Partial<RunView>, string, boolean, boolean][] = [
+    [{ status: "working" }, "Working", true, false],
+    [{ status: "needs_you" }, "Needs you", true, false],
+    [{ status: "idle" }, "Idle", false, false],
+    [{ status: "done" }, "Done", false, false],
+    [{ status: "failed" }, "Failed", false, false],
+    [{ status: "interrupted" }, "Interrupted", false, true],
+  ];
+  for (const [over, label, stop, resume] of cases) {
+    rerender(<RunCard run={run(over)} transcript={transcript} {...h} />);
+    expect(status()).toBe(label);
+    expect(button("Stop") !== null).toBe(stop);
+    expect(button("Resume") !== null).toBe(resume);
+  }
+  rerender(
+    <RunCard
+      run={run({ status: "failed" })}
+      message="rate limited"
+      transcript={transcript}
+      {...h}
+    />,
+  );
+  expect(status()).toBe("Failed: rate limited");
+
+  rerender(
+    <RunCard
+      run={run({ status: "done", prUrl: "https://github.com/o/r/pull/7" })}
+      transcript={transcript}
+      {...h}
+    />,
+  );
+  expect(screen.getByRole("link", { name: "PR" })).toHaveAttribute(
+    "href",
+    "https://github.com/o/r/pull/7",
+  );
+
+  rerender(
+    <RunCard
+      run={run({ status: "interrupted" })}
+      transcript={transcript}
+      {...h}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "Resume" }));
+  expect(h.onResume).toHaveBeenCalledOnce();
+  rerender(<RunCard run={run()} transcript={transcript} {...h} />);
+  await user.click(screen.getByRole("button", { name: "Stop" }));
+  expect(h.onStop).toHaveBeenCalledOnce();
+
+  await user.click(screen.getByRole("button", { name: "Copy resume command" }));
+  expect(await navigator.clipboard.readText()).toBe(
+    "cd /repo/.blueprint/worktrees/auth-api && claude --resume s1",
+  );
+  expect(screen.getByRole("button", { name: "Copied" })).toBeInTheDocument();
+
+  // A worktree path with a space is quoted so the command still runs.
+  rerender(
+    <RunCard
+      run={run({ worktree: "/My Repo/.blueprint/worktrees/auth-api" })}
+      transcript={transcript}
+      {...h}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "Copied" }));
+  expect(await navigator.clipboard.readText()).toBe(
+    "cd '/My Repo/.blueprint/worktrees/auth-api' && claude --resume s1",
+  );
+
+  // The transcript is collapsed until asked for.
+  expect(screen.queryByText("Build the auth API")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Show transcript" }));
+  expect(h.onExpand).toHaveBeenCalledOnce();
+  expect(screen.getByText("Build the auth API")).toBeInTheDocument();
+  expect(screen.getByText("Starting on the routes.")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Hide transcript" }));
+  expect(screen.queryByText("Build the auth API")).toBeNull();
+});
+
+test("RunCard's message box sends and the permission dialog answers with the run id", async () => {
+  const user = userEvent.setup();
+  const h = handlers();
+  render(
+    <RunCard
+      run={run({
+        status: "needs_you",
+        pending: [
+          { id: "p1", tool: "Bash", summary: "npm test", at },
+          { id: "p2", tool: "Write", summary: "src/a.ts", at },
+        ],
+      })}
+      transcript={[]}
+      {...h}
+    />,
+  );
+  // Only the oldest ask is shown.
+  const dialog = screen.getByRole("alertdialog");
+  expect(dialog).toHaveTextContent("Allow Bash: npm test");
+  expect(screen.queryByText("src/a.ts")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Allow once" }));
+  expect(h.onPermission).toHaveBeenCalledWith("p1", { behavior: "allow" });
+
+  const box = screen.getByRole("textbox", { name: "Message auth-api" });
+  await user.type(box, "Also add tests{Shift>}{Enter}{/Shift}please");
+  expect(h.onMessage).not.toHaveBeenCalled();
+  await user.type(box, "{Enter}");
+  expect(h.onMessage).toHaveBeenCalledWith("Also add tests\nplease");
+  expect(box).toHaveValue("");
+
+  // A failed send puts the words back and says why.
+  h.onMessage.mockRejectedValueOnce(new Error("run r1 not found"));
+  await user.type(box, "again{Enter}");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "run r1 not found",
+  );
+  expect(box).toHaveValue("again");
+});

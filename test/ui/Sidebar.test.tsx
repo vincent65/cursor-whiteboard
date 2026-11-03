@@ -58,7 +58,7 @@ test("turns a typed name into a slug and alerts only when none remains", async (
   expect(alert).toHaveBeenCalledOnce();
 });
 
-test("the sidebar shows Spec and Tasks links", () => {
+test("the sidebar shows Spec, Tasks, and Sessions links", () => {
   render(
     <Sidebar
       boards={["main"]}
@@ -74,6 +74,9 @@ test("the sidebar shows Spec and Tasks links", () => {
   expect(spec).not.toHaveAttribute("aria-current");
   expect(tasks).toHaveAttribute("href", "#/tasks");
   expect(tasks).toHaveAttribute("aria-current", "page");
+  const sessions = screen.getByRole("link", { name: "Sessions" });
+  expect(sessions).toHaveAttribute("href", "#/sessions");
+  expect(sessions).not.toHaveAttribute("aria-current");
   expect(screen.getByRole("link", { name: "main" })).not.toHaveAttribute(
     "aria-current",
   );

@@ -66,14 +66,20 @@ export function Sidebar({
       <section className="nav-section">
         <h2 className="nav-title">Plan</h2>
         <ul className="nav-list">
-          {(["spec", "tasks"] as const).map((kind) => (
+          {(
+            [
+              ["spec", "Spec"],
+              ["tasks", "Tasks"],
+              ["sessions", "Sessions"],
+            ] as const
+          ).map(([kind, label]) => (
             <li key={kind}>
               <a
                 className="nav-link"
                 href={`#/${kind}`}
                 aria-current={active?.kind === kind ? "page" : undefined}
               >
-                {kind === "spec" ? "Spec" : "Tasks"}
+                {label}
               </a>
             </li>
           ))}

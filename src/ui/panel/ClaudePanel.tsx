@@ -12,6 +12,7 @@ import { useSelection } from "../selection";
 import { useServerEvent } from "../server-events";
 import { PermissionDialog } from "./PermissionDialog";
 import { useRefine } from "./refine";
+import { TranscriptList } from "./TranscriptList";
 import { reduceTranscript, type TranscriptItem } from "./transcript";
 
 type Status = { status: AgentStatus; message?: string };
@@ -27,44 +28,6 @@ const LABELS: Record<AgentStatus, string> = {
 
 const statusText = ({ status, message }: Status): string =>
   status === "error" && message ? `Error: ${message}` : LABELS[status];
-
-function Item({ item }: { item: TranscriptItem }) {
-  switch (item.kind) {
-    case "user":
-      return <div className="msg-user">{item.text}</div>;
-    case "assistant_text":
-      return <p className="msg-assistant">{item.text}</p>;
-    case "tool_use":
-      return <div className="msg-tool">{item.summary}</div>;
-    case "tool_result":
-      return (
-        <div className="msg-tool">
-          {!item.ok && (
-            <span role="img" aria-label="failed">
-              ✗{" "}
-            </span>
-          )}
-          {item.summary}
-        </div>
-      );
-    case "result": {
-      // The SDK's cost is the session's running total, not this turn's.
-      const cost =
-        item.costUsd === null ? "" : ` · $${item.costUsd.toFixed(4)} total`;
-      return (
-        <div className="msg-result">
-          {item.subtype === "interrupted" ? "Stopped" : "Done"}
-          {cost}
-        </div>
-      );
-    }
-    case "error":
-      return <div className="msg-result">✗ {item.message}</div>;
-    case "permission":
-      // reduceTranscript keeps asks out; they wait in the dialog.
-      return null;
-  }
-}
 
 // onBoard: a board is the open route, so "this board" means something.
 export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
@@ -216,9 +179,7 @@ export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
         </button>
       </header>
       <div className="transcript" ref={transcript} onScroll={onScroll}>
-        {items.map((item) => (
-          <Item key={item.id} item={item} />
-        ))}
+        <TranscriptList items={items} />
       </div>
       {ask && (
         <PermissionDialog key={ask.id} ask={ask} onDecide={decide(ask.id)} />

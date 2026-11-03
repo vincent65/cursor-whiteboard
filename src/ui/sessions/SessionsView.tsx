@@ -1,0 +1,229 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { PanelEvent } from "../../shared/panel";
+import type { OtherSession, RunView } from "../api";
+import * as api from "../api";
+import { TranscriptList } from "../panel/TranscriptList";
+import { reduceTranscript } from "../panel/transcript";
+import { useServerEvent } from "../server-events";
+import { RunCard } from "./RunCard";
+
+const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ["year", 365 * 86_400_000],
+  ["month", 30 * 86_400_000],
+  ["day", 86_400_000],
+  ["hour", 3_600_000],
+  ["minute", 60_000],
+];
+
+function ago(ms: number): string {
+  const diff = ms - Date.now();
+  for (const [unit, size] of UNITS)
+    if (Math.abs(diff) >= size)
+      return relative.format(Math.round(diff / size), unit);
+  return "just now";
+}
+
+const errorText = (err: unknown) => (err as Error).message;
+
+// One of the repository's other sessions: read-only, its transcript loaded on first open.
+function OtherSessionRow({ session }: { session: OtherSession }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<PanelEvent[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggle = () => {
+    if (!open && items === null)
+      api
+        .sessionTranscript(session.sessionId)
+        .then(setItems, (err) => setError(errorText(err)));
+    setOpen(!open);
+  };
+
+  return (
+    <li className="other-session">
+      <button
+        type="button"
+        className="other-head"
+        aria-expanded={open}
+        onClick={toggle}
+      >
+        <span className="other-summary">{session.summary}</span>
+        <span
+          className="other-meta"
+          title={new Date(session.lastModified).toLocaleString()}
+        >
+          {ago(session.lastModified)}
+        </span>
+        {session.gitBranch && (
+          <code className="other-meta run-branch">{session.gitBranch}</code>
+        )}
+      </button>
+      {open && (
+        <div className="transcript run-transcript">
+          {error ? (
+            <p role="alert" className="panel-failure">
+              {error}
+            </p>
+          ) : items === null ? (
+            <p className="muted">Loading…</p>
+          ) : (
+            <TranscriptList items={items} />
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+// Every run as a card, newest first, then the repository's other sessions.
+export function SessionsView() {
+  const [runs, setRuns] = useState<RunView[] | null>(null);
+  const [titles, setTitles] = useState<Map<string, string>>(new Map());
+  // Why each failed run failed, as its last run.status said.
+  const [messages, setMessages] = useState<Map<string, string>>(new Map());
+  const [transcripts, setTranscripts] = useState<Map<string, PanelEvent[]>>(
+    new Map(),
+  );
+  const [others, setOthers] = useState<OtherSession[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const loaded = useRef(new Set<string>());
+  // Only the newest list request may land, so a slow older one cannot undo it.
+  const latest = useRef(0);
+
+  const load = useCallback(() => {
+    const n = ++latest.current;
+    api.listRuns().then(
+      (list) => n === latest.current && setRuns(list),
+      (err) => setError(errorText(err)),
+    );
+  }, []);
+
+  useEffect(() => {
+    load();
+    // Titles only decorate the cards; without them a card shows its slug.
+    api.listTasks().then(
+      (tasks) =>
+        setTitles(new Map(tasks.map((t) => [t.task.slug, t.task.title]))),
+      () => {},
+    );
+    api.listSessions().then(setOthers, (err) => setError(errorText(err)));
+  }, [load]);
+
+  const patchRun = (id: string, patch: (run: RunView) => RunView) =>
+    setRuns((list) => list?.map((r) => (r.id === id ? patch(r) : r)) ?? list);
+
+  useServerEvent((m) => {
+    if (m.type === "runs.changed") load();
+    else if (m.type === "run.status") {
+      setMessages((all) => {
+        const next = new Map(all);
+        if (m.message) next.set(m.runId, m.message);
+        else next.delete(m.runId);
+        return next;
+      });
+      // The server reports needs_you while any ask waits, so any other status
+      // means every ask was settled, here or in another tab.
+      patchRun(m.runId, (r) => ({
+        ...r,
+        status: m.status,
+        pending: m.status === "needs_you" ? r.pending : [],
+      }));
+    } else if (m.type === "run.event") {
+      const { runId, event } = m;
+      setTranscripts((all) =>
+        new Map(all).set(runId, reduceTranscript(all.get(runId) ?? [], event)),
+      );
+      if (event.kind === "permission")
+        patchRun(runId, (r) =>
+          r.pending.some((p) => p.id === event.id)
+            ? r
+            : { ...r, pending: [...r.pending, event] },
+        );
+      if (event.kind === "assistant_text" && !event.partial)
+        patchRun(runId, (r) => ({ ...r, lastText: event.text }));
+    }
+  });
+
+  // Live events heard before the saved transcript arrives land on top of it.
+  const expand = (id: string) => {
+    if (loaded.current.has(id)) return;
+    loaded.current.add(id);
+    api.runTranscript(id).then(
+      (saved) =>
+        setTranscripts((all) =>
+          new Map(all).set(
+            id,
+            (all.get(id) ?? []).reduce(reduceTranscript, saved),
+          ),
+        ),
+      (err) => {
+        loaded.current.delete(id);
+        setError(errorText(err));
+      },
+    );
+  };
+
+  const answer = async (
+    id: string,
+    permissionId: string,
+    decision: Parameters<typeof api.runPermission>[2],
+  ) => {
+    await api.runPermission(id, permissionId, decision);
+    patchRun(id, (r) => ({
+      ...r,
+      pending: r.pending.filter((p) => p.id !== permissionId),
+    }));
+  };
+
+  const newestFirst = runs
+    ? [...runs].sort((a, b) => b.startedAt.localeCompare(a.startedAt))
+    : [];
+
+  return (
+    <div className="sessions-page">
+      <p className="muted">
+        Runs share your Claude subscription's rate limits.
+      </p>
+      {error && (
+        <p role="alert" className="plan-error">
+          {error}
+        </p>
+      )}
+      {runs?.length === 0 && (
+        <p className="muted">No runs yet. Launch one from the tasks view.</p>
+      )}
+      <div className="run-grid">
+        {newestFirst.map((run) => (
+          <RunCard
+            key={run.id}
+            run={run}
+            title={titles.get(run.taskSlug)}
+            message={messages.get(run.id)}
+            transcript={transcripts.get(run.id) ?? []}
+            onMessage={(text) => api.runMessage(run.id, text)}
+            onStop={() => api.runStop(run.id)}
+            onResume={() => api.runResume(run.id)}
+            onPermission={(pid, decision) => answer(run.id, pid, decision)}
+            onExpand={() => expand(run.id)}
+          />
+        ))}
+      </div>
+      <section className="other-sessions" aria-labelledby="other-sessions">
+        <h2 id="other-sessions" className="nav-title">
+          Other sessions
+        </h2>
+        {others?.length === 0 && (
+          <p className="muted">No other Claude sessions in this repository.</p>
+        )}
+        {others && others.length > 0 && (
+          <ul className="other-list">
+            {others.map((s) => (
+              <OtherSessionRow key={s.sessionId} session={s} />
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}

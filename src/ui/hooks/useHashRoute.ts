@@ -4,6 +4,7 @@ export type Route =
   | { kind: "board" | "doc"; name: string; focus?: string[] }
   | { kind: "spec" }
   | { kind: "tasks" }
+  | { kind: "sessions" }
   | null;
 
 // A hand-typed malformed escape keeps its raw text rather than throwing.
@@ -18,6 +19,7 @@ const decode = (s: string) => {
 function parseRoute(hash: string): Route {
   if (hash === "#/spec") return { kind: "spec" };
   if (hash === "#/tasks") return { kind: "tasks" };
+  if (hash === "#/sessions") return { kind: "sessions" };
   const m = /^#\/(boards|docs)\/([^/?]+)(?:\?focus=([^&]*))?$/.exec(hash);
   if (!m) return null;
   const kind = m[1] === "boards" ? "board" : "doc";
@@ -27,7 +29,7 @@ function parseRoute(hash: string): Route {
 
 // The inverse of parseRoute: each focus id is encoded, so commas inside ids survive.
 export function routeHash(route: Exclude<Route, null>): string {
-  if (route.kind === "spec" || route.kind === "tasks") return `#/${route.kind}`;
+  if (!("name" in route)) return `#/${route.kind}`;
   const focus = route.focus?.length
     ? `?focus=${route.focus.map(encodeURIComponent).join(",")}`
     : "";

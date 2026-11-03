@@ -51,6 +51,7 @@ test("parses focus and the plan routes, and routeHash inverts them", () => {
   const cases: [string, Exclude<Route, null>][] = [
     ["#/spec", { kind: "spec" }],
     ["#/tasks", { kind: "tasks" }],
+    ["#/sessions", { kind: "sessions" }],
     ["#/boards/main", { kind: "board", name: "main" }],
     [
       "#/boards/main?focus=a,b",
