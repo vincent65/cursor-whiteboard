@@ -45,13 +45,13 @@ function Shell() {
     refresh().catch((err: Error) => window.alert(err.message));
   }, [refresh]);
 
-  // A file made outside the app (by hand or by Claude) joins the sidebar;
-  // changes to listed files are the open view's to handle.
+  // A file made or deleted outside the app (by hand or by Claude) joins or
+  // leaves the sidebar; edits to listed files are the open view's to handle.
   useServerEvent((m) => {
     if (m.type !== "file-changed" || m.kind === "spec" || m.kind === "task")
       return;
     const known = m.kind === "board" ? boards : docs;
-    if (!known?.includes(m.name)) refresh().catch(console.error);
+    if (m.deleted || !known?.includes(m.name)) refresh().catch(console.error);
   });
 
   const splitCost = useSplitCost();

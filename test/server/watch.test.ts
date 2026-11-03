@@ -5,7 +5,11 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { FileStore } from "../../src/server/files.js";
 import { watchPlan } from "../../src/server/watch.js";
 
-type Ev = { kind: "board" | "doc" | "spec" | "task"; name: string };
+type Ev = {
+  kind: "board" | "doc" | "spec" | "task";
+  name: string;
+  deleted?: true;
+};
 
 let root: string;
 let store: FileStore;
@@ -108,6 +112,6 @@ test("watcher reports deleted boards, docs, the spec, and task files", async () 
     await added;
     const removed = eventFor(ev.name);
     await unlink(join(store.dir, file));
-    expect(await removed).toEqual(ev);
+    expect(await removed).toEqual({ ...ev, deleted: true });
   }
 });

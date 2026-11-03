@@ -230,3 +230,24 @@ test("a file-changed for an unknown doc refreshes the sidebar lists", async () =
   FakeSocket.last.receive({ type: "file-changed", kind: "doc", name: "fresh" });
   expect(listDocs).toHaveBeenCalledTimes(2);
 });
+
+test("a deleted board or doc drops out of the sidebar", async () => {
+  const listBoards = vi.mocked(api.listBoards);
+  const listDocs = vi.mocked(api.listDocs);
+  listBoards.mockResolvedValue([{ name: "main", updatedAt: "" }]);
+  listDocs.mockResolvedValueOnce([{ name: "gone", updatedAt: "" }]);
+  listDocs.mockResolvedValue([]);
+  render(<App />);
+  expect(await screen.findByRole("link", { name: "gone" })).toBeVisible();
+  FakeSocket.last.open();
+
+  FakeSocket.last.receive({
+    type: "file-changed",
+    kind: "doc",
+    name: "gone",
+    deleted: true,
+  });
+  await waitFor(() =>
+    expect(screen.queryByRole("link", { name: "gone" })).toBeNull(),
+  );
+});

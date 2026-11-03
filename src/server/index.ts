@@ -121,8 +121,8 @@ export async function startServer(opts: {
     s.once("error", reject);
   });
   injectWebSocket(server);
-  const stopWatching = watchPlan(store, ({ kind, name }) =>
-    hub.broadcast({ type: "file-changed", kind, name }),
+  const stopWatching = watchPlan(store, (change) =>
+    hub.broadcast({ type: "file-changed", ...change }),
   );
 
   return {

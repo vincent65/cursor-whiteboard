@@ -2,7 +2,11 @@ import { basename, dirname, join } from "node:path";
 import { watch } from "chokidar";
 import type { FileStore } from "./files.js";
 
-type Change = { kind: "board" | "doc" | "spec" | "task"; name: string };
+type Change = {
+  kind: "board" | "doc" | "spec" | "task";
+  name: string;
+  deleted?: true;
+};
 
 // Watched directory, the kind its files report, and the suffix they carry.
 const DIRS = [
@@ -11,7 +15,7 @@ const DIRS = [
   ["tasks", "task", ".md"],
 ] as const;
 
-function classify(path: string): Change | undefined {
+function classify(path: string): Omit<Change, "deleted"> | undefined {
   const file = basename(path);
   const dir = basename(dirname(path));
   if (file === "spec.md" && dir === ".blueprint")
@@ -43,14 +47,19 @@ export function watchPlan(
     // Skips the store's temp files, which vanish mid-write.
     ignored: (path, stats) => !!stats?.isFile() && !classify(path),
   });
-  const report = async (path: string) => {
+  const report = async (path: string, deleted: boolean) => {
     const change = classify(path);
     if (!change || (await store.isOwnWrite(path))) return;
-    onChange(change);
+    onChange(deleted ? { ...change, deleted } : change);
   };
-  const onEvent = (path: string) => {
-    report(path).catch((err) => console.error("watch report failed", err));
+  const onEvent = (deleted: boolean) => (path: string) => {
+    report(path, deleted).catch((err) =>
+      console.error("watch report failed", err),
+    );
   };
-  watcher.on("add", onEvent).on("change", onEvent).on("unlink", onEvent);
+  watcher
+    .on("add", onEvent(false))
+    .on("change", onEvent(false))
+    .on("unlink", onEvent(true));
   return () => watcher.close();
 }
