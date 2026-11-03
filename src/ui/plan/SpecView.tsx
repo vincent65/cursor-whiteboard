@@ -55,6 +55,17 @@ export function SpecView() {
   useEffect(() => {
     void load();
   }, [load]);
+  // A split started before this view mounted is known only to the server. A
+  // split.status heard meanwhile is newer than the state, so it wins.
+  const heardSplit = useRef(false);
+  useEffect(() => {
+    api.agentState().then(
+      (s) => {
+        if (!heardSplit.current) setSplitting(s.splitting);
+      },
+      (err: Error) => setError(err.message),
+    );
+  }, []);
 
   const text = spec?.text ?? null;
   const hasText = text !== null;
@@ -89,6 +100,7 @@ export function SpecView() {
   useServerEvent((m) => {
     if (m.type === "file-changed" && m.kind === "spec") void load();
     if (m.type !== "split.status") return;
+    heardSplit.current = true;
     setSplitting(m.state === "running");
     if (m.state === "error") setError(m.message ?? "The split failed.");
   });

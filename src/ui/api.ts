@@ -101,6 +101,7 @@ export type AgentState = {
   sessionId?: string;
   transcript: PanelEvent[];
   pending: PendingPermission[];
+  splitting: boolean;
 };
 
 // The server composes the selection header from the stored board, so only

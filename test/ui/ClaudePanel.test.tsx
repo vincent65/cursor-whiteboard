@@ -60,6 +60,7 @@ const state = (
   status: "idle",
   transcript: [],
   pending: [],
+  splitting: false,
   ...over,
 });
 

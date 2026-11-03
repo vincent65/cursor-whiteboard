@@ -10,6 +10,7 @@ vi.mock("../../src/ui/api", async (orig) => ({
   ApiError: (await orig<typeof import("../../src/ui/api")>()).ApiError,
   getSpec: vi.fn(),
   agentSplit: vi.fn(),
+  agentState: vi.fn(),
 }));
 
 const handlers = new Set<(m: ServerMessage) => void>();
@@ -30,9 +31,17 @@ const emit = (m: ServerMessage) =>
 
 const spec = "## Goals\n\nLogin [[board:main#a1]] fast.\n";
 
+const agentState = (splitting: boolean) => ({
+  status: "idle" as const,
+  transcript: [],
+  pending: [],
+  splitting,
+});
+
 beforeEach(() => {
   vi.resetAllMocks();
   handlers.clear();
+  vi.mocked(api.agentState).mockResolvedValue(agentState(false));
 });
 
 test("SpecView shows the empty state, then the spec with marked citations on file-changed", async () => {
@@ -98,6 +107,38 @@ test("a rejected split shows the server's message", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "a split is already running",
   );
+  expect(
+    screen.getByRole("button", { name: "Split into tasks" }),
+  ).toBeEnabled();
+});
+
+test("a view that mounts during a split shows it running until it ends", async () => {
+  vi.mocked(api.getSpec).mockResolvedValue({ text: spec, dropped: [] });
+  vi.mocked(api.agentState).mockResolvedValue(agentState(true));
+  render(<SpecView />);
+  expect(
+    await screen.findByRole("button", { name: "Splitting…" }),
+  ).toBeDisabled();
+
+  await emit({ type: "split.status", state: "done" });
+  expect(
+    screen.getByRole("button", { name: "Split into tasks" }),
+  ).toBeEnabled();
+});
+
+test("a split status heard before the state arrives wins over it", async () => {
+  vi.mocked(api.getSpec).mockResolvedValue({ text: spec, dropped: [] });
+  let answer: (s: ReturnType<typeof agentState>) => void = () => {};
+  vi.mocked(api.agentState).mockReturnValue(
+    new Promise((r) => {
+      answer = r;
+    }),
+  );
+  render(<SpecView />);
+  await screen.findByRole("button", { name: "Split into tasks" });
+
+  await emit({ type: "split.status", state: "done" });
+  await act(async () => answer(agentState(true)));
   expect(
     screen.getByRole("button", { name: "Split into tasks" }),
   ).toBeEnabled();

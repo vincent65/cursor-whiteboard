@@ -56,6 +56,8 @@ export type Agent = {
     sessionId?: string;
     transcript: PanelEvent[];
     pending: PendingPermission[];
+    // A split is running; its split.status broadcasts reach only views already open.
+    splitting: boolean;
   };
   close(): Promise<void>;
 };
@@ -338,6 +340,7 @@ export async function createAgent(deps: {
         ...(session.sessionId ? { sessionId: session.sessionId } : {}),
         transcript: session.transcript(),
         pending: broker.pending(),
+        splitting,
       };
     },
     async close() {

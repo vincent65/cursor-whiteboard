@@ -78,6 +78,7 @@ function fakeAgent() {
       sessionId: "s1",
       transcript: [],
       pending: [],
+      splitting: false,
     })),
     close: vi.fn(async () => undefined),
   } satisfies Agent;
@@ -206,6 +207,7 @@ test("state is returned as JSON and interrupt returns 204", async () => {
     sessionId: "s1",
     transcript: [],
     pending: [],
+    splitting: false,
   });
 
   const interrupt = await app.request("/api/agent/interrupt", post({}));
@@ -314,6 +316,7 @@ test("createAgent: interrupt cancels pending permission asks before interrupting
     status: "idle",
     transcript: [],
     pending: [],
+    splitting: false,
   });
 
   // A selection on a missing board is dropped with a warning; the text still goes.
@@ -1048,14 +1051,23 @@ test("POST /api/agent/split is 404 without a spec and 409 while running", async 
   const agent = await createAgent({ store, hub, cwd: root, sdk: fake.sdk });
   const app = createApp(store, agent);
   const split = () => app.request("/api/agent/split", post({}));
+  // A view that mounts mid-split learns of it from the state route.
+  const splitting = async () =>
+    (
+      (await (await app.request("/api/agent/state")).json()) as {
+        splitting: boolean;
+      }
+    ).splitting;
 
   const missing = await split();
   expect(missing.status).toBe(404);
   expect(await missing.json()).toEqual({ error: "compile the plan first" });
   expect(splits()).toEqual([]);
+  expect(await splitting()).toBe(false);
 
   await writeFile(join(store.dir, "spec.md"), "## Goals\n");
   expect((await split()).status).toBe(202);
+  expect(await splitting()).toBe(true);
   const busy = await split();
   expect(busy.status).toBe(409);
   expect(await busy.json()).toEqual({ error: "a split is already running" });
@@ -1065,5 +1077,6 @@ test("POST /api/agent/split is 404 without a spec and 409 while running", async 
   await vi.waitFor(() =>
     expect(splits().map((m) => m.state)).toEqual(["running", "done"]),
   );
+  expect(await splitting()).toBe(false);
   await agent.close();
 });
