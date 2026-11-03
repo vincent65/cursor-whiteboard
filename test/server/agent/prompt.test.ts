@@ -105,4 +105,7 @@ test("the prompt names add_node, add_arrow, and the $ reference", () => {
   expect(SYSTEM_PROMPT_APPEND).toContain(
     "To put a new node between two existing ones, delete their arrow, add_node the new one, and add_arrow from each side using $<index> to name the new node.",
   );
+  expect(SYSTEM_PROMPT_APPEND).toContain(
+    "A node between two existing ones needs no near.",
+  );
 });

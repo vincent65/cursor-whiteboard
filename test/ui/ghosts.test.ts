@@ -1,6 +1,7 @@
 import type { Proposal } from "../../src/shared/proposals";
 import {
   applyProposal,
+  betweenTargets,
   bounds,
   decideProposal,
   type El,
@@ -466,20 +467,20 @@ test("a delete ghost fades its label too and counts the pair once", () => {
   expect(byId(accepted, "dt").isDeleted).toBe(true);
 });
 
-// Boxes a (0,0) and b (300,0), 100x50, joined by arrow ab.
+// Boxes a (0,0) and b (400,0), 100x50, joined by arrow ab.
 const connected = () => [
   el({ id: "a" }),
-  el({ id: "b", x: 300 }),
+  el({ id: "b", x: 400 }),
   el({
     id: "ab",
     type: "arrow",
     x: 100,
     y: 25,
-    width: 200,
+    width: 300,
     height: 0,
     points: [
       [0, 0],
-      [200, 0],
+      [300, 0],
     ],
     startBinding: { elementId: "a", focus: 0, gap: 1 },
     endBinding: { elementId: "b", focus: 0, gap: 1 },
@@ -507,20 +508,21 @@ const cacheNode = () =>
 const arrows = (els: readonly El[]) =>
   added(els).filter((e) => e.type === "arrow");
 
-test("add_node is placed beside the anchor and add_arrow binds both ends", () => {
+test("a node between two existing elements is centered between them and add_arrow binds both ends", () => {
   const els = connected();
   const { elements, ids } = applyProposal(els, between, cacheNode(), ctx);
-  expect(byId(elements, "n")).toMatchObject({ x: 180, y: 0 });
-  expect(byId(elements, "nt")).toMatchObject({ x: 205, y: 15 });
+  // Centers (50,25) and (450,25) meet at (250,25); near is ignored.
+  expect(byId(elements, "n")).toMatchObject({ x: 200, y: 0 });
+  expect(byId(elements, "nt")).toMatchObject({ x: 225, y: 15 });
   const [into, out] = arrows(elements);
   expect(into).toMatchObject({
     x: 100,
     y: 25,
-    width: 80,
+    width: 100,
     height: 0,
     points: [
       [0, 0],
-      [80, 0],
+      [100, 0],
     ],
     startBinding: { elementId: "a", focus: 0, gap: 1 },
     endBinding: { elementId: "n", focus: 0, gap: 1 },
@@ -528,11 +530,11 @@ test("add_node is placed beside the anchor and add_arrow binds both ends", () =>
     endArrowhead: "arrow",
   });
   expect(out).toMatchObject({
-    x: 280,
+    x: 300,
     y: 25,
     points: [
       [0, 0],
-      [20, 0],
+      [100, 0],
     ],
     startBinding: { elementId: "n" },
     endBinding: { elementId: "b" },
@@ -554,7 +556,7 @@ test("add_node is placed beside the anchor and add_arrow binds both ends", () =>
     text: "reads",
     originalText: "reads",
     // One 20px line tall, so restoring keeps it and centers it on the midpoint.
-    x: 290,
+    x: 350,
     y: 12.5,
     width: 0,
     height: 25,
@@ -629,4 +631,54 @@ test("a $ reference to a missing node throws before anything changes", () => {
     ]),
   ).toThrow("unknown element id gone");
   expect(els).toEqual(snapshot);
+});
+
+test("a node with one connecting arrow stays beside its anchor", () => {
+  const { elements } = applyProposal(
+    connected(),
+    {
+      ...p,
+      ops: [
+        { op: "add_arrow", from: "a", to: "b" },
+        { op: "add_node", label: "Cache", kind: "box", near: ["a"] },
+        { op: "add_arrow", from: "a", to: "$1" },
+      ],
+    },
+    cacheNode(),
+    ctx,
+  );
+  expect(byId(elements, "n")).toMatchObject({ x: 180, y: 0 });
+  expect(arrows(elements)[1].endBinding?.elementId).toBe("n");
+});
+
+test("betweenTargets wants one arrow in and one out, from two distinct existing elements", () => {
+  const node: Proposal["ops"][number] = {
+    op: "add_node",
+    label: "n",
+    kind: "box",
+  };
+  const arrow = (from: string, to: string) =>
+    ({ op: "add_arrow", from, to }) as const;
+  expect(betweenTargets(between.ops, 1)).toEqual(["a", "b"]);
+  // Either order in the list.
+  expect(betweenTargets([node, arrow("$0", "b"), arrow("a", "$0")], 0)).toEqual(
+    ["a", "b"],
+  );
+  expect(betweenTargets([node, arrow("a", "$0")], 0)).toBeNull();
+  expect(
+    betweenTargets([node, arrow("a", "$0"), arrow("b", "$0")], 0),
+  ).toBeNull();
+  expect(
+    betweenTargets([node, arrow("a", "$0"), arrow("$0", "a")], 0),
+  ).toBeNull();
+  expect(
+    betweenTargets([node, node, arrow("$1", "$0"), arrow("$0", "b")], 0),
+  ).toBeNull();
+  expect(
+    betweenTargets(
+      [node, arrow("a", "$0"), arrow("$0", "b"), arrow("$0", "c")],
+      0,
+    ),
+  ).toBeNull();
+  expect(betweenTargets([node, arrow("a", "b")], 0)).toBeNull();
 });

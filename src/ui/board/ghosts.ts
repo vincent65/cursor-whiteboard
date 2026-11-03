@@ -1,4 +1,4 @@
-import type { Decision, Proposal } from "../../shared/proposals";
+import type { Decision, Op, Proposal } from "../../shared/proposals";
 
 // Pure ghost logic: proposals land on the board as tagged, restyled elements
 // and only an accept makes them real. No Excalidraw import, so plain objects
@@ -120,6 +120,26 @@ function borderPoint(b: Bounds, to: { x: number; y: number }) {
   return { x: c.x + t * dx, y: c.y + t * dy };
 }
 
+// The two existing elements add_node op i sits between: exactly two add_arrow
+// ops touch it, one into it and one out of it, from two distinct existing ends.
+export function betweenTargets(
+  ops: readonly Op[],
+  i: number,
+): [string, string] | null {
+  const ref = `$${i}`;
+  const touching = ops.flatMap((op) =>
+    op.op === "add_arrow" && (op.from === ref || op.to === ref) ? [op] : [],
+  );
+  if (touching.length !== 2) return null;
+  const into = touching.find((op) => op.to === ref);
+  const out = touching.find((op) => op.from === ref);
+  if (!into || !out || into === out) return null;
+  const [from, to] = [into.from, out.to];
+  return from.startsWith("$") || to.startsWith("$") || from === to
+    ? null
+    : [from, to];
+}
+
 export function pendingProposals(
   elements: readonly El[],
 ): { id: string; counts: Counts }[] {
@@ -216,13 +236,30 @@ export function applyProposal(
     ) {
       const group = rendered.get(i) ?? [];
       const b = bounds(group) as Bounds;
-      const a = anchor(elements, op.near ?? [], ctx.selectedIds);
-      // With nothing to anchor on, later groups stack under the centered first one.
-      const to =
-        !a && stackTop
-          ? { x: stackTop.x, y: stackTop.y + offsetY }
-          : placeBeside(a, ctx.viewport, b, offsetY);
-      if (!a) stackTop ??= to;
+      const ends =
+        op.op === "add_node" ? betweenTargets(proposal.ops, i) : null;
+      let to: { x: number; y: number };
+      if (ends) {
+        // The shape (not its label) is centered on the midpoint of its two
+        // neighbours' centers, out of the stack.
+        const [p, q] = ends.map((id) =>
+          center(bounds([live(id) as El]) as Bounds),
+        );
+        const shape = bounds(group.filter((e) => !e.containerId)) as Bounds;
+        to = {
+          x: (p.x + q.x - shape.w) / 2 - (shape.x - b.x),
+          y: (p.y + q.y - shape.h) / 2 - (shape.y - b.y),
+        };
+      } else {
+        const a = anchor(elements, op.near ?? [], ctx.selectedIds);
+        // With nothing to anchor on, later groups stack under the centered first one.
+        to =
+          !a && stackTop
+            ? { x: stackTop.x, y: stackTop.y + offsetY }
+            : placeBeside(a, ctx.viewport, b, offsetY);
+        if (!a) stackTop ??= to;
+        offsetY += b.h + GAP_Y;
+      }
       for (const e of group) {
         const placed: El = {
           ...e,
@@ -238,7 +275,6 @@ export function applyProposal(
         ids.push(e.id);
         if (op.op === "add_node" && !e.containerId) nodes.set(i, placed);
       }
-      offsetY += b.h + GAP_Y;
       return;
     }
 
