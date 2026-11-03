@@ -6,8 +6,6 @@ import type {
 } from "../../shared/proposals.js";
 import { type FileStore, NotFoundError } from "../files.js";
 
-const now = () => new Date().toISOString();
-
 // A save that left the browser before a proposal's ghosts were drawn must not reject it.
 export const RECONCILE_GRACE_MS = 5_000;
 
@@ -30,6 +28,7 @@ export class ProposalStore {
 
   constructor(
     private readonly files: Pick<FileStore, "appendProposal" | "readProposals">,
+    private readonly clock: () => number = Date.now,
   ) {}
 
   async load(): Promise<void> {
@@ -52,16 +51,20 @@ export class ProposalStore {
     return id;
   }
 
+  // proposed and revised stamp the record with the time it is logged, after the browser drew
+  // its ghosts, overriding the at the caller minted; the reconcile grace period counts from it.
   proposed(p: Proposal): Promise<void> {
-    return this.serial(() =>
-      this.log({ event: "proposed", at: now(), proposal: p }),
-    );
+    return this.serial(() => {
+      const at = this.now();
+      return this.log({ event: "proposed", at, proposal: { ...p, at } });
+    });
   }
 
   revised(p: Proposal): Promise<void> {
     return this.serial(async () => {
       this.pendingOrThrow(p.id);
-      await this.log({ event: "revised", at: now(), proposal: p });
+      const at = this.now();
+      await this.log({ event: "revised", at, proposal: { ...p, at } });
     });
   }
 
@@ -92,9 +95,9 @@ export class ProposalStore {
       isDeleted?: boolean;
       customData?: Record<string, unknown>;
     }[],
-    nowMs = Date.now(),
   ): Promise<Proposal[]> {
     return this.serial(async () => {
+      const nowMs = this.clock();
       const ghosted = new Set(
         elements
           .filter((e) => !e.isDeleted && e.customData?.ghost !== undefined)
@@ -133,10 +136,14 @@ export class ProposalStore {
   private async decide(id: string, decision: Decision): Promise<Proposal> {
     const p = this.pendingOrThrow(id);
     this.throwIfRevising(id);
-    await this.log({ event: decision, at: now(), id });
+    await this.log({ event: decision, at: this.now(), id });
     const title = p.title === null ? "" : ` ${JSON.stringify(p.title)}`;
     this.notes.push(`[Proposal ${id}${title} was ${decision}.]`);
     return p;
+  }
+
+  private now(): string {
+    return new Date(this.clock()).toISOString();
   }
 
   private throwIfRevising(id: string): void {

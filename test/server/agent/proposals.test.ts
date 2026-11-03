@@ -30,6 +30,14 @@ const proposal = (id: string, title: string | null = null): Proposal => ({
   at,
 });
 
+// The store's clock; each test starts it at the time the fixtures were minted.
+let clock: number;
+beforeEach(() => {
+  clock = Date.parse(at);
+});
+const newStore = (files: ReturnType<typeof fakeFiles>) =>
+  new ProposalStore(files, () => clock);
+
 function fakeFiles(log: ProposalLogEntry[] = []) {
   return {
     log,
@@ -41,7 +49,7 @@ function fakeFiles(log: ProposalLogEntry[] = []) {
 }
 
 test("load replays the log into pending, oldest first, with revisions replacing ops", async () => {
-  const store = new ProposalStore(
+  const store = newStore(
     fakeFiles([
       { event: "proposed", at, proposal: proposal("p_1") },
       { event: "proposed", at, proposal: proposal("p_2") },
@@ -57,13 +65,20 @@ test("load replays the log into pending, oldest first, with revisions replacing 
 
 test("proposed, revised, and decided write log entries and maintain pending", async () => {
   const files = fakeFiles();
-  const store = new ProposalStore(files);
+  const store = newStore(files);
   await store.load();
-  const p = proposal("p_1", "Login flow");
+  const minted = proposal("p_1", "Login flow");
+  // Logged after the browser round trip: the record carries the logging time.
+  clock += 7_000;
+  const p = { ...minted, at: "2026-11-02T00:00:07.000Z" };
 
-  await store.proposed(p);
+  await store.proposed(minted);
   expect(store.pending()).toEqual([p]);
-  expect(files.log.at(-1)).toMatchObject({ event: "proposed", proposal: p });
+  expect(files.log.at(-1)).toEqual({
+    event: "proposed",
+    at: p.at,
+    proposal: p,
+  });
 
   await store.revised({ ...p, ops: newOps });
   expect(files.log.at(-1)).toMatchObject({ event: "revised" });
@@ -82,14 +97,14 @@ test("proposed, revised, and decided write log entries and maintain pending", as
 });
 
 test("decided notes omit a null title", async () => {
-  const store = new ProposalStore(fakeFiles());
+  const store = newStore(fakeFiles());
   await store.proposed(proposal("p_2"));
   await store.decided("p_2", "rejected");
   expect(store.takeNotes()).toEqual(["[Proposal p_2 was rejected.]"]);
 });
 
 test("requeued notes come back before newer ones, in the order they were requeued", async () => {
-  const store = new ProposalStore(fakeFiles());
+  const store = newStore(fakeFiles());
   for (const id of ["p_1", "p_2", "p_3"]) await store.proposed(proposal(id));
   await store.decided("p_1", "accepted");
   const first = store.takeNotes();
@@ -111,7 +126,7 @@ test("revised and decided reject ids that are not pending", async () => {
     { event: "proposed", at, proposal: proposal("p_1") },
     { event: "rejected", at, id: "p_1" },
   ]);
-  const store = new ProposalStore(files);
+  const store = newStore(files);
   await store.load();
   const p = proposal("p_9");
   await expect(store.revised(p)).rejects.toBeInstanceOf(NotFoundError);
@@ -126,7 +141,7 @@ test("revised and decided reject ids that are not pending", async () => {
 });
 
 test("newId never repeats an id seen in the log", async () => {
-  const store = new ProposalStore(
+  const store = newStore(
     fakeFiles([
       { event: "proposed", at, proposal: proposal("p_00000001") },
       { event: "accepted", at, id: "p_00000001" },
@@ -146,7 +161,7 @@ test("newId never repeats an id seen in the log", async () => {
 
 test("concurrent decisions on one proposal log it once", async () => {
   const files = fakeFiles();
-  const store = new ProposalStore(files);
+  const store = newStore(files);
   await store.proposed(proposal("p_1"));
   const results = await Promise.allSettled([
     store.decided("p_1", "accepted"),
@@ -159,7 +174,7 @@ test("concurrent decisions on one proposal log it once", async () => {
 
 test("a proposal cannot be decided or revised again while a revise is in flight", async () => {
   const files = fakeFiles();
-  const store = new ProposalStore(files);
+  const store = newStore(files);
   await store.proposed(proposal("p_1"));
 
   await store.beginRevise("p_1");
@@ -178,7 +193,7 @@ test("a proposal cannot be decided or revised again while a revise is in flight"
 
 test("beginRevise requires a pending proposal and queues behind a decision in flight", async () => {
   const files = fakeFiles();
-  const store = new ProposalStore(files);
+  const store = newStore(files);
   await expect(store.beginRevise("p_9")).rejects.toThrow(
     new NotFoundError("proposal p_9 is not pending"),
   );
@@ -198,7 +213,7 @@ test("beginRevise requires a pending proposal and queues behind a decision in fl
 
 test("revise can retitle", async () => {
   const files = fakeFiles();
-  const store = new ProposalStore(files);
+  const store = newStore(files);
   await store.proposed(proposal("p_1", "Cache"));
   await store.revised({ ...proposal("p_1", "Redis cache"), ops: newOps });
   expect(store.get("p_1")?.title).toBe("Redis cache");
@@ -206,18 +221,19 @@ test("revise can retitle", async () => {
     event: "revised",
     proposal: { title: "Redis cache" },
   });
-  const replayed = new ProposalStore(fakeFiles(files.log));
+  const replayed = newStore(fakeFiles(files.log));
   await replayed.load();
   expect(replayed.get("p_1")?.title).toBe("Redis cache");
 });
 
 test("reconcile rejects a pending proposal with no ghost left on the board and skips one being revised", async () => {
   const files = fakeFiles();
-  const store = new ProposalStore(files);
+  const store = newStore(files);
   const onMain = (id: string) => ({ ...proposal(id), board: "main" });
   for (const id of ["p_1", "p_2", "p_3"]) await store.proposed(onMain(id));
   await store.proposed(proposal("p_4"));
   await store.beginRevise("p_3");
+  clock += 10_000;
 
   const rejected = await store.reconcile("main", [
     // A deleted ghost and an accepted element (no ghost tag) do not keep p_1 alive.
@@ -234,15 +250,14 @@ test("reconcile rejects a pending proposal with no ghost left on the board and s
 });
 
 test("reconcile leaves a proposal younger than the grace period for the next save", async () => {
-  const store = new ProposalStore(fakeFiles());
+  const store = newStore(fakeFiles());
   await store.proposed(proposal("p_1"));
-  const logged = Date.parse(at);
 
-  expect(await store.reconcile("flow", [], logged + 1_000)).toEqual([]);
+  clock += 1_000;
+  expect(await store.reconcile("flow", [])).toEqual([]);
   expect(store.pending().map((p) => p.id)).toEqual(["p_1"]);
 
-  expect(await store.reconcile("flow", [], logged + 10_000)).toEqual([
-    proposal("p_1"),
-  ]);
+  clock += 9_000;
+  expect(await store.reconcile("flow", [])).toEqual([proposal("p_1")]);
   expect(store.pending()).toEqual([]);
 });
