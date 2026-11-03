@@ -1,5 +1,10 @@
+import type { Citation } from "../../export/citations";
 import { Markdown } from "../markdown";
+import { CitationLink } from "../plan/citations";
 import type { TranscriptItem } from "./transcript";
+
+// Claude's citations link to the board or doc, as in the spec.
+const chip = (c: Citation) => <CitationLink citation={c} />;
 
 function Item({ item }: { item: TranscriptItem }) {
   switch (item.kind) {
@@ -8,7 +13,7 @@ function Item({ item }: { item: TranscriptItem }) {
     case "assistant_text":
       return (
         <div className="msg-assistant">
-          <Markdown text={item.text} />
+          <Markdown text={item.text} renderCitation={chip} />
         </div>
       );
     case "tool_use":

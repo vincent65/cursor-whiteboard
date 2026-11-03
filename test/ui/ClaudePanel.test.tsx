@@ -420,3 +420,26 @@ test("Stop reads Stopping… from the click until a status other than working or
   expect(stop).toHaveTextContent("Stop");
   expect(stop).toBeEnabled();
 });
+
+test("citations in Claude's replies render as chips that link to the board or doc", async () => {
+  vi.mocked(api.agentState).mockResolvedValue(
+    state({
+      transcript: [
+        {
+          kind: "assistant_text",
+          id: "a1",
+          text: "The Login box [[board:main#login]] matches [[doc:notes.md#sign-in]].",
+          partial: false,
+          at,
+        },
+      ],
+    }),
+  );
+  renderPanel();
+  const board = await screen.findByRole("link", { name: "main#login" });
+  expect(board).toHaveAttribute("href", "#/boards/main?focus=login");
+  expect(board).toHaveAttribute("title", "[[board:main#login]]");
+  expect(
+    screen.getByRole("link", { name: "notes.md#sign-in" }),
+  ).toHaveAttribute("href", "#/docs/notes?focus=sign-in");
+});

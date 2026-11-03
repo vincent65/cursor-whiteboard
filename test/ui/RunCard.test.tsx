@@ -225,3 +225,27 @@ test("RunCard's Stop reads Stopping… until the run leaves working and needs_yo
   rerender(<RunCard run={run()} transcript={[]} {...h} />);
   expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
 });
+
+test("RunCard's transcript renders citations as chips", async () => {
+  const user = userEvent.setup();
+  render(
+    <RunCard
+      run={run()}
+      transcript={[
+        {
+          kind: "assistant_text",
+          id: "a1",
+          text: "Done, as [[board:main#login]] asks.",
+          partial: false,
+          at,
+        },
+      ]}
+      {...handlers()}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "Show transcript" }));
+  expect(screen.getByRole("link", { name: "main#login" })).toHaveAttribute(
+    "href",
+    "#/boards/main?focus=login",
+  );
+});

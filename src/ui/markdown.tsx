@@ -5,7 +5,7 @@ import { type Citation, parseCitations } from "../export/citations";
 // code, fenced code, lists, links, and block quotes. Anything else stays text,
 // and every string goes in as a text node, so HTML in the input is never markup.
 // A citation such as [[board:main#a1]] stays text unless renderCitation is
-// given, which the spec view uses for its links.
+// given, which the spec view and the transcripts use for their links.
 // ponytail: no tables or images; lists nest by indentation but a blank line
 // inside a nested list ends it.
 
