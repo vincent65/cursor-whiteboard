@@ -63,14 +63,15 @@ test("add ops land beside the anchor with the ghost style, group, and tag", () =
   for (const g of ghosts) {
     expect(g.opacity).toBe(40);
     expect(g.strokeStyle).toBe("dashed");
-    expect(g.groupIds[0]).toBe("p_1");
+    expect(g.groupIds.at(-1)).toBe("p_1");
     expect(g.customData).toEqual({
       origin: "ai",
       proposalId: "p_1",
       ghost: "add",
+      before: { strokeStyle: "solid" },
     });
   }
-  expect(byId(elements, "r2").groupIds).toEqual(["p_1", "g"]);
+  expect(byId(elements, "r2").groupIds).toEqual(["g", "p_1"]);
   expect(ids).toEqual(["r1", "r2"]);
   expect(elements[0]).toBe(a);
   expect(rendered.get(0)?.[0].x).toBe(10);
@@ -318,6 +319,20 @@ test("accept makes additions real, keeps updates, deletes deletions with their l
   expect(byId(out, "a")).toBe(els[0]);
   expect(pendingProposals(out)).toEqual([]);
   expect(byId(applied, "d").isDeleted).toBeFalsy();
+});
+
+test("accepting an addition keeps its rendered stroke style", () => {
+  const arrow = el({ id: "ar", type: "arrow", strokeStyle: "dotted" });
+  const { elements } = applyProposal(
+    [],
+    { ...p, ops: [{ op: "add_diagram", mermaid: "x" }] },
+    new Map([[0, [arrow]]]),
+    ctx,
+  );
+  expect(byId(elements, "ar").strokeStyle).toBe("dashed");
+  expect(byId(decideProposal(elements, "p_1", "accepted"), "ar")).toMatchObject(
+    { strokeStyle: "dotted", opacity: 100 },
+  );
 });
 
 test("reject removes additions and restores updates and deletions exactly", () => {

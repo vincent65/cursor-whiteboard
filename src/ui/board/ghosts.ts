@@ -177,8 +177,9 @@ export function applyProposal(
           y: e.y + to.y - b.y,
           opacity: GHOST_OPACITY,
           strokeStyle: "dashed",
-          groupIds: [proposal.id, ...e.groupIds],
-          customData: tag("add"),
+          // Excalidraw lists groups innermost first, so the proposal is outermost.
+          groupIds: [...e.groupIds, proposal.id],
+          customData: tag("add", { strokeStyle: e.strokeStyle }),
         });
         ids.push(e.id);
       }
@@ -256,7 +257,12 @@ export function decideProposal(
 
     if (decision === "accepted") {
       if (g.ghost === "add")
-        out[i] = { ...e, opacity: 100, strokeStyle: "solid", customData: real };
+        out[i] = {
+          ...e,
+          opacity: 100,
+          strokeStyle: g.before?.strokeStyle ?? "solid",
+          customData: real,
+        };
       else if (g.ghost === "update")
         out[i] = {
           ...e,
