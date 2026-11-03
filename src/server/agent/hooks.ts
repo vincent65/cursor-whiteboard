@@ -2,7 +2,7 @@ import { resolve, sep } from "node:path";
 import type { HookCallback } from "@anthropic-ai/claude-agent-sdk";
 
 const WRITE_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
-const REASON =
+const PLAN_REASON =
   "Blueprint board files are read-only here. Propose changes with the propose tool instead.";
 
 export function isProtectedPath(root: string, filePath: string): boolean {
@@ -12,11 +12,12 @@ export function isProtectedPath(root: string, filePath: string): boolean {
   );
 }
 
+// `reason` is what Claude reads on a denial; run sessions have no propose tool.
 // `root` is the repository root, fixed for the session. The hook's `cwd` is the
 // agent's current directory, which moves with `cd`, so it only resolves relative paths.
 // ponytail: guards the file tools only; a Bash command can still write there.
 export const denyBoardWrites =
-  (root: string): HookCallback =>
+  (root: string, reason = PLAN_REASON): HookCallback =>
   async (input) => {
     if (
       input.hook_event_name !== "PreToolUse" ||
@@ -37,7 +38,7 @@ export const denyBoardWrites =
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         permissionDecision: "deny",
-        permissionDecisionReason: REASON,
+        permissionDecisionReason: reason,
       },
     };
   };

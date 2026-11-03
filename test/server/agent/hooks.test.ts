@@ -87,3 +87,18 @@ test("denyBoardWrites anchors on the repository root, not the agent's current di
     ),
   ).toEqual({});
 });
+
+test("denyBoardWrites gives the reason it was built with", async () => {
+  expect(
+    await denyBoardWrites(cwd, "Leave the board alone.")(
+      pre("Write", { file_path: ".blueprint/boards/flow.excalidraw.json" }),
+      "u",
+      { signal: new AbortController().signal },
+    ),
+  ).toMatchObject({
+    hookSpecificOutput: {
+      permissionDecision: "deny",
+      permissionDecisionReason: "Leave the board alone.",
+    },
+  });
+});
