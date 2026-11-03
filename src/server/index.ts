@@ -60,7 +60,7 @@ export async function startServer(opts: {
         const plan = agent.state().sessionId;
         return new Set([
           ...(plan ? [plan] : []),
-          ...manager.list().map((r) => r.sessionId),
+          ...manager.records().map((r) => r.sessionId),
         ]);
       },
     },

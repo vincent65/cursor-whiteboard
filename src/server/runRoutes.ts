@@ -28,11 +28,11 @@ export function runRoutes(store: FileStore, deps: RunRouteDeps): Hono {
   const gate = async (slug: string) => {
     const found = (await store.listTasks()).find((t) => t.task.slug === slug);
     if (!found) throw new NotFoundError(`task ${slug} not found`);
-    return checkGate({ task: found.task, runs: manager.list(), isAncestor });
+    return checkGate({ task: found.task, runs: manager.records(), isAncestor });
   };
 
   return new Hono()
-    .get("/", (c) => c.json(manager.list()))
+    .get("/", async (c) => c.json(await manager.list()))
     .get("/gate/:slug", async (c) => c.json(await gate(c.req.param("slug"))))
     .post("/", async (c) => {
       const body = await parse(LaunchBody, c.req.raw);

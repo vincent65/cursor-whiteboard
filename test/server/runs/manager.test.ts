@@ -100,8 +100,8 @@ function setup(
   };
 }
 
-const view = (manager: RunManager, id: string) =>
-  manager.list().find((r) => r.id === id);
+const view = async (manager: RunManager, id: string) =>
+  (await manager.list()).find((r) => r.id === id);
 const statusesOf = (runId: string) =>
   sent.flatMap((m) =>
     m.type === "run.status" && m.runId === runId ? [m.status] : [],
@@ -109,10 +109,11 @@ const statusesOf = (runId: string) =>
 // The record on disk once every queued write has landed: what the manager holds now.
 async function saved(manager: RunManager, id: string): Promise<RunRecord> {
   const {
+    title: _title,
     pending: _pending,
     lastText: _lastText,
     ...record
-  } = view(manager, id) ?? {};
+  } = (await view(manager, id)) ?? {};
   await vi.waitFor(async () =>
     expect((await store.readSessions()).runs.find((r) => r.id === id)).toEqual(
       record,
@@ -157,6 +158,7 @@ test("launch creates a worktree, a working record, and sends the run prompt", as
     branch: "blueprint/alpha",
     status: "working",
     prUrl: null,
+    failure: null,
     costUsd: 0,
     endedAt: null,
   });
@@ -212,12 +214,18 @@ test("launch creates a worktree, a working record, and sends the run prompt", as
   );
   // The session id lands on the record once the CLI reports it.
   await vi.waitFor(() => expect(runs.run(record.id)?.sessionId).toBe("sess-a"));
-  expect(view(manager, record.id)).toMatchObject({
+  expect(await view(manager, record.id)).toMatchObject({
+    title: "Build alpha",
     status: "working",
     pending: [],
   });
   release();
-  await vi.waitFor(() => expect(view(manager, record.id)?.status).toBe("idle"));
+  await vi.waitFor(async () =>
+    expect((await view(manager, record.id))?.status).toBe("idle"),
+  );
+  // A run whose task file is gone shows its slug.
+  await store.replaceTasks([task("beta")]);
+  expect((await view(manager, record.id))?.title).toBe("alpha");
   await manager.close();
 });
 
@@ -239,14 +247,16 @@ test("a turn ending with a PR URL makes the run done with prUrl and cost; withou
     taskSlug: "alpha",
     permissionMode: "acceptEdits",
   });
-  await vi.waitFor(() => expect(view(manager, a.id)?.status).toBe("done"));
+  await vi.waitFor(async () =>
+    expect((await view(manager, a.id))?.status).toBe("done"),
+  );
   expect(await saved(manager, a.id)).toMatchObject({
     status: "done",
     prUrl: PR,
     costUsd: 0.01,
     endedAt: expect.any(String),
   });
-  expect(view(manager, a.id)?.lastText).toBe(
+  expect((await view(manager, a.id))?.lastText).toBe(
     `Opened the PR.\n${PR}\nAll done.`,
   );
   expect(statusesOf(a.id)).toEqual(["done"]);
@@ -255,7 +265,9 @@ test("a turn ending with a PR URL makes the run done with prUrl and cost; withou
     taskSlug: "beta",
     permissionMode: "acceptEdits",
   });
-  await vi.waitFor(() => expect(view(manager, b.id)?.status).toBe("idle"));
+  await vi.waitFor(async () =>
+    expect((await view(manager, b.id))?.status).toBe("idle"),
+  );
   expect(await saved(manager, b.id)).toMatchObject({
     status: "idle",
     prUrl: null,
@@ -307,16 +319,19 @@ test("an error result fails the run with the message", async () => {
     taskSlug: "alpha",
     permissionMode: "acceptEdits",
   });
-  await vi.waitFor(() => expect(view(manager, run.id)?.status).toBe("failed"));
+  await vi.waitFor(async () =>
+    expect((await view(manager, run.id))?.status).toBe("failed"),
+  );
   expect(sent).toContainEqual({
     type: "run.status",
     runId: run.id,
     status: "failed",
     message: "the tool crashed",
   });
-  // What the failed process spent counts.
+  // What the failed process spent counts, and the record keeps why it failed.
   expect(await saved(manager, run.id)).toMatchObject({
     status: "failed",
+    failure: "the tool crashed",
     costUsd: 0.02,
     endedAt: expect.any(String),
   });
@@ -327,8 +342,10 @@ test("an error result fails the run with the message", async () => {
     expect(statusesOf(run.id)).toEqual(["failed", "working", "idle"]),
   );
   expect(queries[1].options?.resume).toBe("sess-e");
+  // Working again clears the reason.
   expect(await saved(manager, run.id)).toMatchObject({
     status: "idle",
+    failure: null,
     prUrl: null,
     endedAt: null,
   });
@@ -363,10 +380,10 @@ test("permission asks mark the run needs_you and stop cancels them", async () =>
     },
   );
 
-  await vi.waitFor(() =>
-    expect(view(manager, run.id)?.status).toBe("needs_you"),
+  await vi.waitFor(async () =>
+    expect((await view(manager, run.id))?.status).toBe("needs_you"),
   );
-  expect(view(manager, run.id)?.pending).toMatchObject([
+  expect((await view(manager, run.id))?.pending).toMatchObject([
     { id: "tool-1", tool: "Bash" },
   ]);
   expect(sent).toContainEqual({
@@ -382,9 +399,11 @@ test("permission asks mark the run needs_you and stop cancels them", async () =>
   await manager.stop(run.id);
   expect(await answer).toEqual({ behavior: "deny", message: "interrupted" });
   expect(queries[0].interrupt).toHaveBeenCalled();
-  expect(view(manager, run.id)?.pending).toEqual([]);
+  expect((await view(manager, run.id))?.pending).toEqual([]);
   release();
-  await vi.waitFor(() => expect(view(manager, run.id)?.status).toBe("idle"));
+  await vi.waitFor(async () =>
+    expect((await view(manager, run.id))?.status).toBe("idle"),
+  );
   expect(statusesOf(run.id)).toEqual(["needs_you", "working", "idle"]);
   await manager.close();
 });
@@ -402,9 +421,9 @@ test("events and statuses carry the run id for two concurrent runs", async () =>
     manager.launch({ taskSlug: "alpha", permissionMode: "acceptEdits" }),
     manager.launch({ taskSlug: "beta", permissionMode: "acceptEdits" }),
   ]);
-  await vi.waitFor(() => {
-    expect(view(manager, a.id)?.status).toBe("idle");
-    expect(view(manager, b.id)?.status).toBe("idle");
+  await vi.waitFor(async () => {
+    expect((await view(manager, a.id))?.status).toBe("idle");
+    expect((await view(manager, b.id))?.status).toBe("idle");
   });
   expect(queries).toHaveLength(2);
 
@@ -436,11 +455,11 @@ test("events and statuses carry the run id for two concurrent runs", async () =>
 });
 
 test("start marks active records interrupted and resume continues the saved session id in the worktree", async () => {
-  // Saved before records had a permission mode: they read as acceptEdits.
+  // Saved before records had a permission mode or a failure: they read as acceptEdits and null.
   const record = (
     id: string,
     status: RunRecord["status"],
-  ): Omit<RunRecord, "permissionMode"> => ({
+  ): Omit<RunRecord, "permissionMode" | "failure"> => ({
     id,
     taskSlug: "alpha",
     sessionId: `sess-${id}`,
@@ -498,11 +517,17 @@ test("start marks active records interrupted and resume continues the saved sess
   ]);
   expect(statusesOf("run_aaaaaa")).toEqual([]);
   expect(
-    manager.list().map((r) => [r.id, r.status, r.endedAt, r.permissionMode]),
+    (await manager.list()).map((r) => [
+      r.id,
+      r.status,
+      r.endedAt,
+      r.permissionMode,
+      r.failure,
+    ]),
   ).toEqual([
-    ["run_aaaaaa", "interrupted", null, "acceptEdits"],
-    ["run_bbbbbb", "interrupted", null, "acceptEdits"],
-    ["run_cccccc", "done", "2026-11-02T01:00:00.000Z", "acceptEdits"],
+    ["run_aaaaaa", "interrupted", null, "acceptEdits", null],
+    ["run_bbbbbb", "interrupted", null, "acceptEdits", null],
+    ["run_cccccc", "done", "2026-11-02T01:00:00.000Z", "acceptEdits", null],
   ]);
   expect((await saved(manager, "run_aaaaaa"))?.status).toBe("interrupted");
   expect(sent).toContainEqual({ type: "runs.changed" });
@@ -520,8 +545,8 @@ test("start marks active records interrupted and resume continues the saved sess
   await vi.waitFor(() =>
     expect(queries[0].read).toEqual(["Continue the task where you left off."]),
   );
-  await vi.waitFor(() =>
-    expect(view(manager, "run_aaaaaa")?.status).toBe("idle"),
+  await vi.waitFor(async () =>
+    expect((await view(manager, "run_aaaaaa"))?.status).toBe("idle"),
   );
   expect(statusesOf("run_aaaaaa")).toEqual(["working", "idle"]);
   // The same session carried on: the saved turn, then the continue message and its reply.
@@ -587,8 +612,8 @@ test("a run launched with default resumes with default after a restart", async (
     resume: "sess-d",
     permissionMode: "default",
   });
-  await vi.waitFor(() =>
-    expect(view(second.manager, run.id)?.status).toBe("idle"),
+  await vi.waitFor(async () =>
+    expect((await view(second.manager, run.id))?.status).toBe("idle"),
   );
   await second.manager.close();
 });
@@ -603,6 +628,7 @@ test("resume with no usable session id sends the full run prompt instead", async
     status: "interrupted",
     permissionMode: "acceptEdits",
     prUrl: null,
+    failure: null,
     costUsd: 0,
     startedAt: "2026-11-02T00:00:00.000Z",
     endedAt: null,
@@ -664,7 +690,9 @@ test("a process's running total is the run's cost, not the sum of its results", 
     taskSlug: "alpha",
     permissionMode: "acceptEdits",
   });
-  await vi.waitFor(() => expect(view(manager, run.id)?.status).toBe("idle"));
+  await vi.waitFor(async () =>
+    expect((await view(manager, run.id))?.status).toBe("idle"),
+  );
   await manager.message(run.id, "one more thing");
   await vi.waitFor(() =>
     expect(statusesOf(run.id)).toEqual(["idle", "working", "idle"]),
@@ -684,6 +712,7 @@ test("message with no usable session id sends the run prompt, then the text", as
     status: "failed",
     permissionMode: "acceptEdits",
     prUrl: null,
+    failure: null,
     costUsd: 0,
     startedAt: "2026-11-02T00:00:00.000Z",
     endedAt: "2026-11-02T00:01:00.000Z",
@@ -730,8 +759,8 @@ test("message with no usable session id sends the run prompt, then the text", as
     text: "use the new API",
   });
   // Once the session has an id, a message is just the text.
-  await vi.waitFor(() =>
-    expect(view(manager, "run_aaaaaa")?.status).toBe("idle"),
+  await vi.waitFor(async () =>
+    expect((await view(manager, "run_aaaaaa"))?.status).toBe("idle"),
   );
   await manager.message("run_aaaaaa", "and the docs");
   await vi.waitFor(() => expect(queries[0].read.at(-1)).toBe("and the docs"));
@@ -751,6 +780,7 @@ test("events after close are not broadcast", async () => {
         status: "done",
         permissionMode: "acceptEdits",
         prUrl: PR,
+        failure: null,
         costUsd: 0,
         startedAt: "2026-11-02T00:00:00.000Z",
         endedAt: "2026-11-02T00:01:00.000Z",

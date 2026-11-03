@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PanelEvent } from "../../shared/panel";
-import type { OtherSession, RunView } from "../api";
+import type { OtherSession, RunView } from "../../shared/runs";
 import * as api from "../api";
 import { TranscriptList } from "../panel/TranscriptList";
 import { reduceTranscript } from "../panel/transcript";
@@ -79,9 +79,6 @@ function OtherSessionRow({ session }: { session: OtherSession }) {
 // Every run as a card, newest first, then the repository's other sessions.
 export function SessionsView() {
   const [runs, setRuns] = useState<RunView[] | null>(null);
-  const [titles, setTitles] = useState<Map<string, string>>(new Map());
-  // Why each failed run failed, as its last run.status said.
-  const [messages, setMessages] = useState<Map<string, string>>(new Map());
   const [transcripts, setTranscripts] = useState<Map<string, PanelEvent[]>>(
     new Map(),
   );
@@ -101,12 +98,6 @@ export function SessionsView() {
 
   useEffect(() => {
     load();
-    // Titles only decorate the cards; without them a card shows its slug.
-    api.listTasks().then(
-      (tasks) =>
-        setTitles(new Map(tasks.map((t) => [t.task.slug, t.task.title]))),
-      () => {},
-    );
     api.listSessions().then(setOthers, (err) => setError(errorText(err)));
   }, [load]);
 
@@ -116,17 +107,12 @@ export function SessionsView() {
   useServerEvent((m) => {
     if (m.type === "runs.changed") load();
     else if (m.type === "run.status") {
-      setMessages((all) => {
-        const next = new Map(all);
-        if (m.message) next.set(m.runId, m.message);
-        else next.delete(m.runId);
-        return next;
-      });
       // The server reports needs_you while any ask waits, so any other status
       // means every ask was settled, here or in another tab.
       patchRun(m.runId, (r) => ({
         ...r,
         status: m.status,
+        failure: m.status === "failed" ? (m.message ?? null) : null,
         pending: m.status === "needs_you" ? r.pending : [],
       }));
     } else if (m.type === "run.event") {
@@ -198,8 +184,6 @@ export function SessionsView() {
           <RunCard
             key={run.id}
             run={run}
-            title={titles.get(run.taskSlug)}
-            message={messages.get(run.id)}
             transcript={transcripts.get(run.id) ?? []}
             onMessage={(text) => api.runMessage(run.id, text)}
             onStop={() => api.runStop(run.id)}

@@ -31,6 +31,8 @@ export type RunRecord = {
   // Records saved before this field read as acceptEdits.
   permissionMode: RunPermissionMode;
   prUrl: string | null;
+  // Why the run failed, while its status is failed; records saved before this field read as null.
+  failure: string | null;
   costUsd: number;
   startedAt: string;
   endedAt: string | null;

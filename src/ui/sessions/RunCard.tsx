@@ -6,8 +6,8 @@ import {
   useState,
 } from "react";
 import type { PanelEvent, PermissionDecision } from "../../shared/panel";
+import type { RunView } from "../../shared/runs";
 import type { RunStatus } from "../../shared/types";
-import type { RunView } from "../api";
 import { PermissionDialog } from "../panel/PermissionDialog";
 import { TranscriptList } from "../panel/TranscriptList";
 
@@ -26,12 +26,9 @@ const shellPath = (p: string) =>
 
 type Handler<A extends unknown[] = []> = (...args: A) => unknown;
 
-// title: the task's title, when its file is known. message: why a failed run failed.
 // onExpand: the transcript was opened, so the caller can load it.
 export function RunCard({
   run,
-  title,
-  message,
   transcript,
   onMessage,
   onStop,
@@ -40,8 +37,6 @@ export function RunCard({
   onExpand,
 }: {
   run: RunView;
-  title?: string;
-  message?: string;
   transcript: PanelEvent[];
   onMessage: Handler<[text: string]>;
   onStop: Handler;
@@ -118,16 +113,16 @@ export function RunCard({
   };
 
   const status =
-    run.status === "failed" && message
-      ? `Failed: ${message}`
+    run.status === "failed" && run.failure
+      ? `Failed: ${run.failure}`
       : LABELS[run.status];
   const ask = run.pending[0];
 
   return (
     <article className="run-card" aria-label={run.taskSlug}>
       <header className="run-head">
-        <h2 className="run-title" title={title ?? run.taskSlug}>
-          {title ?? run.taskSlug}
+        <h2 className="run-title" title={run.title}>
+          {run.title}
         </h2>
         <span
           role="status"
@@ -139,7 +134,7 @@ export function RunCard({
         </span>
       </header>
       <p className="run-meta">
-        {title && <span>{run.taskSlug}</span>}
+        {run.title !== run.taskSlug && <span>{run.taskSlug}</span>}
         <code className="run-branch" title={run.branch}>
           {run.branch}
         </code>

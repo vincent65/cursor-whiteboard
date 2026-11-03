@@ -1,15 +1,8 @@
 import type * as claudeSdk from "@anthropic-ai/claude-agent-sdk";
 import type { AgentStatus } from "../../shared/messages.js";
-import type {
-  PanelEvent,
-  PendingPermission,
-  PermissionDecision,
-} from "../../shared/panel.js";
-import type {
-  RunPermissionMode,
-  RunRecord,
-  RunStatus,
-} from "../../shared/types.js";
+import type { PanelEvent, PermissionDecision } from "../../shared/panel.js";
+import type { LaunchOptions, RunView } from "../../shared/runs.js";
+import type { RunRecord, RunStatus } from "../../shared/types.js";
 import { PermissionBroker } from "../agent/broker.js";
 import { denyBoardWrites } from "../agent/hooks.js";
 import { PlanSession } from "../agent/session.js";
@@ -24,22 +17,12 @@ const INTERRUPTED_REASON = "interrupted";
 const BOARD_READ_ONLY =
   "Blueprint board files are read-only in a run. Leave the board to the user.";
 
-export type LaunchOptions = {
-  taskSlug: string;
-  permissionMode: RunPermissionMode;
-};
-export type RunView = RunRecord & {
-  pending: PendingPermission[];
-  lastText: string | null;
-};
-
 type Derived = { status: RunStatus; message?: string; prUrl?: string };
 
 // A run with a session in this process. `record` is ahead of the store, whose writes land
 // one at a time; `base` is what the session alone says, before a permission ask overrides it.
 type Live = {
   record: RunRecord;
-  message?: string;
   session: PlanSession;
   broker: PermissionBroker;
   base: Derived;
@@ -111,6 +94,7 @@ export class RunManager {
       status: "working",
       permissionMode: opts.permissionMode,
       prUrl: null,
+      failure: null,
       costUsd: 0,
       startedAt: now(),
       endedAt: null,
@@ -154,11 +138,21 @@ export class RunManager {
     return this.#live.get(runId)?.broker.answer(id, d) ?? false;
   }
 
-  list(): RunView[] {
-    return this.#deps.runs.runs().map((r) => {
+  // Each run's record as this process holds it, ahead of the store's writes.
+  records(): RunRecord[] {
+    return this.#deps.runs
+      .runs()
+      .map((r) => ({ ...(this.#live.get(r.id)?.record ?? r) }));
+  }
+
+  async list(): Promise<RunView[]> {
+    const tasks = await this.#deps.store.listTasks();
+    const titles = new Map(tasks.map(({ task }) => [task.slug, task.title]));
+    return this.records().map((r) => {
       const live = this.#live.get(r.id);
       return {
-        ...(live?.record ?? r),
+        ...r,
+        title: titles.get(r.taskSlug) ?? r.taskSlug,
         pending: live?.broker.pending() ?? [],
         lastText: live?.lastText ?? null,
       };
@@ -304,7 +298,8 @@ export class RunManager {
       record: { ...record },
       session,
       broker,
-      base: { status: record.status },
+      // A restored failed run keeps its reason until it runs again.
+      base: { status: record.status, message: record.failure ?? undefined },
       turnText: null,
       endedText: null,
       lastText: null,
@@ -333,12 +328,13 @@ export class RunManager {
   #derive(live: Live): void {
     const next: Derived =
       live.broker.pending().length > 0 ? { status: "needs_you" } : live.base;
-    if (next.status === live.record.status && next.message === live.message)
+    const failure = next.status === "failed" ? (next.message ?? null) : null;
+    if (next.status === live.record.status && failure === live.record.failure)
       return;
-    live.message = next.message;
     const ended = next.status === "done" || next.status === "failed";
     this.#patch(live, {
       status: next.status,
+      failure,
       endedAt: ended ? now() : null,
       ...(next.prUrl ? { prUrl: next.prUrl } : {}),
     });

@@ -2,14 +2,13 @@
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
-import type { RunView } from "../../src/server/runs/manager";
 import type { ServerMessage } from "../../src/shared/messages";
+import type { RunView } from "../../src/shared/runs";
 import * as api from "../../src/ui/api";
 import { SessionsView } from "../../src/ui/sessions/SessionsView";
 
 vi.mock("../../src/ui/api", () => ({
   listRuns: vi.fn(),
-  listTasks: vi.fn(async () => []),
   listSessions: vi.fn(async () => []),
   runTranscript: vi.fn(async () => []),
   sessionTranscript: vi.fn(async () => []),
@@ -37,15 +36,22 @@ const emit = (m: ServerMessage) =>
 
 const at = "2026-11-02T00:00:00.000Z";
 
-const run = (id: string, slug: string, startedAt: string): RunView => ({
+const run = (
+  id: string,
+  slug: string,
+  startedAt: string,
+  title = slug,
+): RunView => ({
   id,
   taskSlug: slug,
+  title,
   sessionId: `s-${id}`,
   worktree: `/repo/.blueprint/worktrees/${slug}`,
   branch: `blueprint/${slug}`,
   status: "working",
   permissionMode: "acceptEdits",
   prUrl: null,
+  failure: null,
   costUsd: 0,
   startedAt,
   endedAt: null,
@@ -61,22 +67,8 @@ beforeEach(() => {
 test("SessionsView routes run.event and run.status to the matching card only", async () => {
   const user = userEvent.setup();
   vi.mocked(api.listRuns).mockResolvedValue([
-    run("r1", "auth-api", "2026-11-02T01:00:00.000Z"),
+    run("r1", "auth-api", "2026-11-02T01:00:00.000Z", "Auth API"),
     run("r2", "db-schema", "2026-11-02T02:00:00.000Z"),
-  ]);
-  vi.mocked(api.listTasks).mockResolvedValue([
-    {
-      file: "01-auth-api.md",
-      task: {
-        slug: "auth-api",
-        title: "Auth API",
-        body: "",
-        dependsOn: [],
-        files: [],
-        acceptance: [],
-        sources: [],
-      },
-    },
   ]);
   vi.mocked(api.runTranscript).mockResolvedValue([
     { kind: "user", id: "u1", text: "Design the schema", at },
@@ -86,7 +78,7 @@ test("SessionsView routes run.event and run.status to the matching card only", a
   expect(
     screen.getByText("Runs share your Claude subscription's rate limits."),
   ).toBeInTheDocument();
-  // Newest first; the title comes from the task file when there is one.
+  // Newest first; a run whose task file is gone is titled by its slug.
   await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(2));
   const [second, first] = screen.getAllByRole("article");
   expect(second).toHaveAccessibleName("db-schema");
@@ -156,7 +148,7 @@ test("SessionsView routes run.event and run.status to the matching card only", a
   // runs.changed refetches the list.
   vi.mocked(api.listRuns).mockResolvedValue([
     {
-      ...run("r1", "auth-api", "2026-11-02T01:00:00.000Z"),
+      ...run("r1", "auth-api", "2026-11-02T01:00:00.000Z", "Auth API"),
       status: "done",
       prUrl: "https://github.com/o/r/pull/1",
     },

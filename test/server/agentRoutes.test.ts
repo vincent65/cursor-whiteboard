@@ -403,6 +403,7 @@ test("createAgent resumes the saved plan session and composes the selection head
     status: "done",
     permissionMode: "acceptEdits",
     prUrl: null,
+    failure: null,
     costUsd: 0.5,
     startedAt: "2026-11-01T00:00:00.000Z",
     endedAt: "2026-11-01T00:10:00.000Z",

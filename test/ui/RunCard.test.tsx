@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { RunView } from "../../src/server/runs/manager";
 import type { PanelEvent } from "../../src/shared/panel";
+import type { RunView } from "../../src/shared/runs";
 import { RunCard } from "../../src/ui/sessions/RunCard";
 
 const at = "2026-11-02T00:00:00.000Z";
@@ -10,12 +10,14 @@ const at = "2026-11-02T00:00:00.000Z";
 const run = (over: Partial<RunView> = {}): RunView => ({
   id: "r1",
   taskSlug: "auth-api",
+  title: "Auth API",
   sessionId: "s1",
   worktree: "/repo/.blueprint/worktrees/auth-api",
   branch: "blueprint/auth-api",
   status: "working",
   permissionMode: "acceptEdits",
   prUrl: null,
+  failure: null,
   costUsd: 0.5,
   startedAt: at,
   endedAt: null,
@@ -47,7 +49,7 @@ test("RunCard shows status, cost, PR link, and the right buttons per status", as
   const user = userEvent.setup();
   const h = handlers();
   const { rerender } = render(
-    <RunCard run={run()} title="Auth API" transcript={transcript} {...h} />,
+    <RunCard run={run()} transcript={transcript} {...h} />,
   );
   expect(screen.getByRole("heading", { name: "Auth API" })).toBeInTheDocument();
   expect(screen.getByText("auth-api")).toBeInTheDocument();
@@ -74,8 +76,7 @@ test("RunCard shows status, cost, PR link, and the right buttons per status", as
   }
   rerender(
     <RunCard
-      run={run({ status: "failed" })}
-      message="rate limited"
+      run={run({ status: "failed", failure: "rate limited" })}
       transcript={transcript}
       {...h}
     />,

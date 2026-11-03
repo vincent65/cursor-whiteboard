@@ -1,8 +1,5 @@
 import type { Citation } from "../export/citations";
 import type { BoardFile } from "../export/schema";
-import type { GateResult } from "../server/runs/gate";
-import type { RunView } from "../server/runs/manager";
-import type { OtherSession } from "../server/sessions";
 import type {
   AgentStatus,
   ClientMessage,
@@ -11,14 +8,14 @@ import type {
 } from "../shared/messages";
 import type { PendingPermission, PermissionDecision } from "../shared/panel";
 import type { Decision, Proposal } from "../shared/proposals";
-import type { TaskFile } from "../shared/tasks";
 import type {
-  IncomingScene,
-  RunPermissionMode,
-  RunRecord,
-} from "../shared/types";
-
-export type { GateResult, OtherSession, RunView };
+  GateResult,
+  LaunchOptions,
+  OtherSession,
+  RunView,
+} from "../shared/runs";
+import type { TaskFile } from "../shared/tasks";
+import type { IncomingScene, RunRecord } from "../shared/types";
 
 export type Entry = { name: string; updatedAt: string };
 
@@ -176,11 +173,9 @@ export const listRuns = async (): Promise<RunView[]> =>
   (await request("/runs")).json();
 
 // A failed gate without override throws the server's 409 message.
-export const launchRun = async (body: {
-  taskSlug: string;
-  permissionMode: RunPermissionMode;
-  override?: boolean;
-}): Promise<RunRecord> =>
+export const launchRun = async (
+  body: LaunchOptions & { override?: boolean },
+): Promise<RunRecord> =>
   (await request("/runs", { method: "POST", ...json(body) })).json();
 
 const runPath = (id: string) => `/runs/${encodeURIComponent(id)}`;

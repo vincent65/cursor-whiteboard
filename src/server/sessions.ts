@@ -3,16 +3,9 @@ import type {
   listSessions,
 } from "@anthropic-ai/claude-agent-sdk";
 import { Hono } from "hono";
+import type { OtherSession } from "../shared/runs.js";
 import { TRANSCRIPT_LIMIT, transcriptFrom } from "./agent/session.js";
 import { NotFoundError } from "./files.js";
-
-export type OtherSession = {
-  sessionId: string;
-  summary: string;
-  lastModified: number;
-  cwd: string | null;
-  gitBranch: string | null;
-};
 
 // The repository's sessions (its worktrees' too) that Blueprint did not start: `exclude`
 // holds the plan session's id and every run's. Headless SDK sessions are left out, as the

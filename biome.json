@@ -24,5 +24,27 @@
     "rules": {
       "preset": "recommended"
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["src/ui/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["**/server/**", "**/server"],
+                    "message": "The UI must not import server code; shared types live in src/shared."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

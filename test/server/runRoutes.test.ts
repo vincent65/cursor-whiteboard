@@ -7,8 +7,9 @@ import {
   FileStore,
   NotFoundError,
 } from "../../src/server/files.js";
-import type { RunManager, RunView } from "../../src/server/runs/manager.js";
+import type { RunManager } from "../../src/server/runs/manager.js";
 import type { PanelEvent } from "../../src/shared/panel.js";
+import type { RunView } from "../../src/shared/runs.js";
 import type { Task } from "../../src/shared/tasks.js";
 import type { RunRecord } from "../../src/shared/types.js";
 
@@ -51,6 +52,7 @@ const record = (id: string, taskSlug: string): RunRecord => ({
   status: "working",
   permissionMode: "acceptEdits",
   prUrl: null,
+  failure: null,
   costUsd: 0,
   startedAt: "2026-11-02T00:00:00.000Z",
   endedAt: null,
@@ -65,7 +67,8 @@ function fakeRuns(views: RunView[] = []) {
     if (id !== "run_1") throw new NotFoundError(`run ${id} not found`);
   };
   const manager = {
-    list: vi.fn(() => views),
+    list: vi.fn(async () => views),
+    records: vi.fn(() => views),
     launch: vi.fn(async ({ taskSlug, permissionMode }) => {
       if (taskSlug === "ghost")
         throw new NotFoundError(`task ${taskSlug} not found`);
@@ -166,7 +169,7 @@ test("POST /api/runs refuses a gated task without override and launches with it"
 test("the gate passes a dependency whose newest run is done and merged", async () => {
   const done = { ...record("run_1", "base"), status: "done" as const };
   const { app, isAncestor } = fakeRuns([
-    { ...done, pending: [], lastText: null },
+    { ...done, title: "Base", pending: [], lastText: null },
   ]);
 
   const gate = await app.request("/api/runs/gate/top");
@@ -183,6 +186,7 @@ test("the gate passes a dependency whose newest run is done and merged", async (
 test("run routes forward message, stop, resume, permission, and transcript with the right codes", async () => {
   const view: RunView = {
     ...record("run_1", "base"),
+    title: "Base",
     pending: [],
     lastText: "ok",
   };
