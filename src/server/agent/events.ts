@@ -143,9 +143,9 @@ function readableResult(
     case "mcp__blueprint__propose":
     case "mcp__blueprint__revise": {
       if (!/"proposalId":"[^"]+"/.test(text)) return undefined;
-      const drawn =
-        use.name === "mcp__blueprint__propose" ? "drawn" : "redrawn";
-      return `${proposalName(use.input)} is ${drawn} as ghosts for you to accept or reject`;
+      // Ghosts, not shapes: nothing is the user's until they accept it.
+      const drew = use.name === "mcp__blueprint__propose" ? "drew" : "redrew";
+      return `${drew} ${proposalName(use.input)} as ghosts`;
     }
   }
 }

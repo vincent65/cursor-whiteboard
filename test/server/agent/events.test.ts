@@ -471,28 +471,26 @@ function toolRows() {
   return { use, result, summary };
 }
 
-test("a proposal's result row names it by title and says it waits for the user, never its id", () => {
+test("a proposal's result row names it by title as ghosts, never by its id", () => {
   const { use, result, summary } = toolRows();
   const json = [{ type: "text", text: '{"proposalId":"p_3f004e69"}' }];
   use("t1", "mcp__blueprint__propose", { title: "Sign-in flow", ops: [] });
   expect(summary(result("t1", json))).toEqual([
-    '"Sign-in flow" is drawn as ghosts for you to accept or reject',
+    'drew "Sign-in flow" as ghosts',
   ]);
   use("t2", "mcp__blueprint__propose", { ops: [] });
-  expect(summary(result("t2", json))).toEqual([
-    "the proposal is drawn as ghosts for you to accept or reject",
-  ]);
+  expect(summary(result("t2", json))).toEqual(["drew the proposal as ghosts"]);
   use("t3", "mcp__blueprint__revise", {
     proposalId: "p_3f004e69",
     title: "Sign-in flow",
     ops: [],
   });
   expect(summary(result("t3", json))).toEqual([
-    '"Sign-in flow" is redrawn as ghosts for you to accept or reject',
+    'redrew "Sign-in flow" as ghosts',
   ]);
   use("t4", "mcp__blueprint__revise", { proposalId: "p_3f004e69", ops: [] });
   expect(summary(result("t4", json))).toEqual([
-    "the proposal is redrawn as ghosts for you to accept or reject",
+    "redrew the proposal as ghosts",
   ]);
 });
 
@@ -501,7 +499,7 @@ test("a proposal id past the row's length still marks the result as a proposal",
   use("t1", "mcp__blueprint__propose", { title: "Flow", ops: [] });
   const long = `${" ".repeat(200)}{"proposalId":"p_3f004e69"}`;
   expect(summary(result("t1", [{ type: "text", text: long }]))).toEqual([
-    '"Flow" is drawn as ghosts for you to accept or reject',
+    'drew "Flow" as ghosts',
   ]);
 });
 
@@ -509,9 +507,7 @@ test("the mapper forgets a tool once its result arrives", () => {
   const { use, result, summary } = toolRows();
   const json = [{ type: "text", text: '{"proposalId":"p_1"}' }];
   use("t1", "mcp__blueprint__propose", { title: "Flow", ops: [] });
-  expect(summary(result("t1", json))).toEqual([
-    '"Flow" is drawn as ghosts for you to accept or reject',
-  ]);
+  expect(summary(result("t1", json))).toEqual(['drew "Flow" as ghosts']);
   // A second result for the same id finds no tool, so it is shown as it came.
   expect(summary(result("t1", json))).toEqual(['{"proposalId":"p_1"}']);
 });
@@ -612,12 +608,10 @@ test("Blueprint's own tool results read as sentences, and their failures keep th
   const json = [{ type: "text", text: '{"proposalId":"p_3f004e69"}' }];
 
   use("t1", "mcp__blueprint__propose");
-  expect(summary(result("t1", json))).toEqual([
-    "the proposal is drawn as ghosts for you to accept or reject",
-  ]);
+  expect(summary(result("t1", json))).toEqual(["drew the proposal as ghosts"]);
   use("t2", "mcp__blueprint__revise");
   expect(summary(result("t2", json))).toEqual([
-    "the proposal is redrawn as ghosts for you to accept or reject",
+    "redrew the proposal as ghosts",
   ]);
   use("t3", "mcp__blueprint__get_board");
   expect(
