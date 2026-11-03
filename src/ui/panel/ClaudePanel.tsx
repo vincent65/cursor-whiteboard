@@ -183,7 +183,10 @@ export function ClaudePanel() {
       (err: Error) => setFailure(err.message),
     );
 
-  const busy = status.status === "working" || status.status === "needs_you";
+  const busy =
+    status.status === "starting" ||
+    status.status === "working" ||
+    status.status === "needs_you";
   const ask = pending[0];
 
   return (

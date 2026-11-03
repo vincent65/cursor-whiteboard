@@ -241,6 +241,11 @@ test("an error status shows the message", async () => {
   expect(
     screen.getByRole("textbox", { name: "Message Claude" }),
   ).toBeDisabled();
+  // A CLI that hangs at startup can still be stopped.
+  const stop = screen.getByRole("button", { name: "Stop" });
+  expect(stop).toBeEnabled();
+  await userEvent.click(stop);
+  expect(api.agentInterrupt).toHaveBeenCalledOnce();
   emit({ type: "agent.status", status: "error", message: "the CLI exited" });
   expect(screen.getByRole("status")).toHaveTextContent("Error: the CLI exited");
   expect(screen.getByRole("textbox", { name: "Message Claude" })).toBeEnabled();

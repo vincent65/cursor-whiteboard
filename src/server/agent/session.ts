@@ -15,6 +15,7 @@ import { resultError, SdkEventMapper } from "./events.js";
 const TRANSCRIPT_LIMIT = 500;
 const RESTORE_FAILED = "previous session could not be loaded; starting fresh";
 const NOT_SENT_ENDED = "Message not sent: Claude session ended before it ran";
+const NOT_SENT_STOPPED = "Message not sent: stopped";
 // The CLI saves a Stop as a user message with this text (or "... for tool use]").
 const INTERRUPT_MARKER = "[Request interrupted by user";
 
@@ -172,9 +173,17 @@ export class PlanSession {
     return id;
   }
 
+  // Stop also drops the messages queued behind the turn, so none runs after it.
   async interrupt(): Promise<void> {
     const run = this.#run;
     if (!run) return;
+    if (!run.initialized) {
+      // A CLI still starting cannot answer an interrupt, so end the run instead.
+      this.#notSent(this.#stopRun(), NOT_SENT_STOPPED);
+      this.#setStatus("stopped");
+      return;
+    }
+    this.#notSent(run.input.drain(), NOT_SENT_STOPPED);
     if (this.#status !== "idle") run.interrupted = true;
     await run.query.interrupt();
   }

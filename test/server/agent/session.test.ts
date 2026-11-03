@@ -75,7 +75,8 @@ type Script = (text: string, turn: number) => AsyncIterable<SDKMessage>;
 
 // A fake `query` that reads the prompt iterable in the background, like the SDK does, and
 // yields the scripted messages for each user message in order. With readLimit it stops
-// reading after that many, like a CLI that has not taken the rest, which stay queued.
+// reading after that many, like a CLI that has not taken the rest (the SDK writes nothing
+// before the CLI is initialized), which stay queued.
 function fakeQuery(script: Script, endAfter?: number, readLimit?: number) {
   const runs: {
     options: Options | undefined;
@@ -98,14 +99,19 @@ function fakeQuery(script: Script, endAfter?: number, readLimit?: number) {
       const received: string[] = [];
       let wake: (() => void) | undefined;
       void (async () => {
-        let taken = 0;
-        for await (const m of params.prompt as AsyncIterable<SDKUserMessage>) {
-          received.push(m.message.content as string);
+        const input = (params.prompt as AsyncIterable<SDKUserMessage>)[
+          Symbol.asyncIterator
+        ]();
+        for (let taken = 0; taken !== readLimit; taken++) {
+          const next = await input.next();
+          if (next.done) {
+            run.inputEnded = true;
+            wake?.();
+            return;
+          }
+          received.push(next.value.message.content as string);
           wake?.();
-          if (++taken === readLimit) return;
         }
-        run.inputEnded = true;
-        wake?.();
       })();
       async function* messages() {
         let turn = 0;
@@ -688,6 +694,72 @@ test("an error result after interrupt ends the turn as interrupted, not as an er
   await vi.waitFor(() => expect(session.status).toBe("error"));
   expect(query).toHaveBeenCalledTimes(1);
   expect(events.at(-1)).toMatchObject({ kind: "error", id: "r-err" });
+});
+
+test("interrupt drops the messages still queued and reports each as not sent", async () => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const { session, runs, events } = setup(
+    () =>
+      (async function* () {
+        yield init("sess-1");
+        yield textTurn("msg_long", "partial answer", "unused")[0];
+        await gate;
+        yield sdk({
+          type: "result",
+          subtype: "error_during_execution",
+          session_id: "sess-1",
+          uuid: "r-stop",
+          is_error: true,
+          num_turns: 1,
+          errors: ["[ede_diagnostic] interrupted"],
+          total_cost_usd: 0.02,
+          duration_ms: 7,
+        } satisfies ErrorFixture);
+      })(),
+    { readLimit: 1 },
+  );
+
+  session.send("long");
+  await vi.waitFor(() => expect(session.status).toBe("working"));
+  session.send("two");
+  session.send("three");
+  await session.interrupt();
+
+  expect(runs[0].interrupt).toHaveBeenCalledTimes(1);
+  expect(
+    events.flatMap((e) => (e.kind === "error" ? [e.message] : [])),
+  ).toEqual(["Message not sent: stopped", "Message not sent: stopped"]);
+  release();
+  await vi.waitFor(() => expect(session.status).toBe("idle"));
+  expect(events.at(-1)).toMatchObject({ kind: "result", id: "r-stop" });
+});
+
+test("interrupt while the CLI is still starting closes the run instead of interrupting it", async () => {
+  // The CLI never initializes, so it takes no input.
+  const { session, query, runs, events, statuses } = setup(() => turnsOf(), {
+    readLimit: 0,
+  });
+
+  session.send("one");
+  expect(session.status).toBe("starting");
+  await session.interrupt();
+
+  expect(runs[0].interrupt).not.toHaveBeenCalled();
+  expect(runs[0].close).toHaveBeenCalled();
+  expect(session.status).toBe("stopped");
+  expect(statuses.at(-1)).toEqual(["stopped", undefined]);
+  expect(events.at(-1)).toMatchObject({
+    kind: "error",
+    message: "Message not sent: stopped",
+  });
+
+  session.send("again");
+  expect(query).toHaveBeenCalledTimes(2);
+  expect(session.status).toBe("starting");
+  await session.close();
 });
 
 test("the transcript keeps the last 500 events", async () => {
