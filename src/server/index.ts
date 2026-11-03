@@ -7,6 +7,7 @@ import { createNodeWebSocket } from "@hono/node-ws";
 import { createAgent } from "./agent/index.js";
 import { createApp } from "./app.js";
 import { FileStore } from "./files.js";
+import { RunStore } from "./runs/store.js";
 import { watchPlan } from "./watch.js";
 import { WsHub } from "./ws.js";
 
@@ -32,7 +33,12 @@ export async function startServer(opts: {
   const store = new FileStore(opts.root);
   await store.init();
   const hub = new WsHub();
-  const agent = await createAgent({ store, hub, cwd: opts.root });
+  const agent = await createAgent({
+    store,
+    hub,
+    cwd: opts.root,
+    runs: new RunStore(store),
+  });
   const app = createApp(store, agent);
   const { injectWebSocket, upgradeWebSocket, wss } = createNodeWebSocket({
     app,

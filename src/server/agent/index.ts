@@ -13,6 +13,7 @@ import type {
 import type { Decision, Proposal } from "../../shared/proposals.js";
 import type { SessionsFile } from "../../shared/types.js";
 import { ExistsError, type FileStore, NotFoundError } from "../files.js";
+import type { RunStore } from "../runs/store.js";
 import type { WsHub } from "../ws.js";
 import { PermissionBroker } from "./broker.js";
 import { denyBoardWrites } from "./hooks.js";
@@ -68,16 +69,18 @@ export async function createAgent(deps: {
   store: FileStore;
   hub: WsHub;
   cwd: string;
+  // Loaded here; the plan session id is saved through it, in line with the run writes.
+  runs: RunStore;
   sdk?: Pick<typeof claudeSdk, "query" | "getSessionMessages">;
   // The proposal store's clock; tests inject one.
   clock?: () => number;
 }): Promise<Agent> {
-  const { store, hub, cwd } = deps;
+  const { store, hub, cwd, runs } = deps;
   const sdk = deps.sdk ?? claudeSdk;
   // A corrupt index or log must not take the server down: start fresh and say so until the
   // first send. Appends to a torn log still land; the next start reports it again.
   let loadErrors: string[] = [];
-  const saved = await store.readSessions().catch((err): SessionsFile => {
+  const saved = await runs.load().catch((err): SessionsFile => {
     loadErrors.push(
       `sessions.json could not be read: ${(err as Error).message}. Fix or delete .blueprint/sessions.json.`,
     );
@@ -180,18 +183,9 @@ export async function createAgent(deps: {
         broadcastStatus();
       },
       onSessionId: (sessionId) => {
-        // ponytail: unserialized read-modify-write, safe while the plan session is the only
-        // writer; serialize through a promise chain once run sessions write the file too.
-        void store
-          .readSessions()
-          // Unreadable (the corrupt file reported at startup): overwrite it from what loaded.
-          .catch(() => saved)
-          .then((s) =>
-            store.writeSessions({
-              ...s,
-              plan: { sessionId, updatedAt: new Date().toISOString() },
-            }),
-          )
+        // A corrupt file reported at startup is replaced by what loaded plus this id.
+        runs
+          .setPlanSession(sessionId)
           .catch((err) => console.error("could not save the session id", err));
       },
     },

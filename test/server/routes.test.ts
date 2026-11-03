@@ -7,6 +7,7 @@ import type { Hono } from "hono";
 import { createAgent } from "../../src/server/agent/index.js";
 import { createApp } from "../../src/server/app.js";
 import { FileStore } from "../../src/server/files.js";
+import { RunStore } from "../../src/server/runs/store.js";
 import { WsHub } from "../../src/server/ws.js";
 import { taskToMarkdown } from "../../src/shared/tasks.js";
 import type { IncomingScene } from "../../src/shared/types.js";
@@ -349,6 +350,7 @@ async function withProposals() {
     store,
     hub: new WsHub(),
     cwd: root,
+    runs: new RunStore(store),
     sdk,
     clock: () => clock.now,
   });

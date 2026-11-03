@@ -16,10 +16,12 @@ import {
 } from "../../src/server/agent/proposals.js";
 import { createApp } from "../../src/server/app.js";
 import { FileStore, NotFoundError } from "../../src/server/files.js";
+import { RunStore } from "../../src/server/runs/store.js";
 import { WsHub } from "../../src/server/ws.js";
 import type { ServerMessage } from "../../src/shared/messages.js";
 import type { Proposal } from "../../src/shared/proposals.js";
 import type { Task } from "../../src/shared/tasks.js";
+import type { RunRecord } from "../../src/shared/types.js";
 
 let root: string;
 let store: FileStore;
@@ -308,7 +310,13 @@ test("createAgent: interrupt cancels pending permission asks before interrupting
   hub.add({ send: (data) => sent.push(JSON.parse(data)) });
   const fake = fakeSdk();
   const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-  const agent = await createAgent({ store, hub, cwd: root, sdk: fake.sdk });
+  const agent = await createAgent({
+    store,
+    hub,
+    cwd: root,
+    runs: new RunStore(store),
+    sdk: fake.sdk,
+  });
 
   // Lazy: nothing runs before the first send.
   expect(fake.query).not.toHaveBeenCalled();
@@ -386,9 +394,21 @@ test("createAgent: interrupt cancels pending permission asks before interrupting
 });
 
 test("createAgent resumes the saved plan session and composes the selection header", async () => {
+  const run: RunRecord = {
+    id: "run_abc123",
+    taskSlug: "auth",
+    sessionId: "r1",
+    worktree: join(root, ".blueprint", "worktrees", "auth"),
+    branch: "blueprint/auth",
+    status: "done",
+    prUrl: null,
+    costUsd: 0.5,
+    startedAt: "2026-11-01T00:00:00.000Z",
+    endedAt: "2026-11-01T00:10:00.000Z",
+  };
   await store.writeSessions({
     plan: { sessionId: "old", updatedAt: "2026-11-01T00:00:00.000Z" },
-    runs: [],
+    runs: [run],
   });
   await store.createBoard("main");
   await store.writeBoard("main", {
@@ -407,10 +427,13 @@ test("createAgent resumes the saved plan session and composes the selection head
       message: { role: "user", content: "first question" },
     },
   ]);
+  const runs = new RunStore(store);
+  const setPlanSession = vi.spyOn(runs, "setPlanSession");
   const agent = await createAgent({
     store,
     hub: new WsHub(),
     cwd: root,
+    runs,
     sdk: fake.sdk,
   });
 
@@ -427,6 +450,15 @@ test("createAgent resumes the saved plan session and composes the selection head
     '[Selection on board "main": r1 box ""]\n\ndescribe this',
   );
   expect(fake.options()?.resume).toBe("old");
+  // The new plan session id is saved through the run store, keeping the runs.
+  await vi.waitFor(async () =>
+    expect(await store.readSessions()).toMatchObject({
+      plan: { sessionId: "s1" },
+      runs: [run],
+    }),
+  );
+  expect(setPlanSession).toHaveBeenCalledWith("s1");
+  expect(runs.run(run.id)).toEqual(run);
   await agent.close();
 });
 
@@ -437,6 +469,7 @@ test("createAgent survives a corrupt sessions.json and reports it until the firs
     store,
     hub: new WsHub(),
     cwd: root,
+    runs: new RunStore(store),
     sdk: fake.sdk,
   });
   const app = createApp(store, agent);
@@ -520,6 +553,7 @@ test("createAgent prefixes decision notes and refine requests to the next messag
     store,
     hub: new WsHub(),
     cwd: root,
+    runs: new RunStore(store),
     sdk: fake.sdk,
   });
   expect(agent.pendingProposals().map((p) => p.id)).toEqual(["p_1", "p_2"]);
@@ -623,6 +657,7 @@ test("decision notes on a send that Stop drops ride on the next send instead", a
     store,
     hub: new WsHub(),
     cwd: root,
+    runs: new RunStore(store),
     sdk: fake.sdk,
   });
 
@@ -654,6 +689,7 @@ test("decision notes on a send the session throws on ride on the next send", asy
     store,
     hub: new WsHub(),
     cwd: root,
+    runs: new RunStore(store),
     sdk: fake.sdk,
   });
 
@@ -678,6 +714,7 @@ test("compile sends the instruction once while one is pending", async () => {
     store,
     hub: new WsHub(),
     cwd: root,
+    runs: new RunStore(store),
     sdk: fake.sdk,
   });
   await agent.decideProposal("p_1", "accepted");
@@ -731,6 +768,7 @@ test("compile writes every board's export before the send and skips a board that
     store,
     hub: new WsHub(),
     cwd: root,
+    runs: new RunStore(store),
     sdk: fake.sdk,
   });
 
@@ -754,6 +792,7 @@ test("a failed compile does not clear a newer one", async () => {
     store,
     hub: new WsHub(),
     cwd: root,
+    runs: new RunStore(store),
     sdk: fake.sdk,
   });
   let release = () => {};
@@ -803,6 +842,7 @@ test("a compile whose send throws or whose run ends without a result can be sent
     store,
     hub: new WsHub(),
     cwd: root,
+    runs: new RunStore(store),
     sdk: {
       query,
       getSessionMessages: vi.fn(async () => []),
@@ -874,6 +914,7 @@ test("createAgent survives a corrupt proposals.jsonl: reports it, starts with no
     store,
     hub: tabHub(),
     cwd: root,
+    runs: new RunStore(store),
     sdk: fake.sdk,
   });
 
@@ -900,6 +941,7 @@ test("a torn proposals.jsonl tail is skipped, and a proposal appended after it r
     store,
     hub: tabHub(),
     cwd: root,
+    runs: new RunStore(store),
     sdk: fake.sdk,
   });
 
@@ -917,6 +959,7 @@ test("a torn proposals.jsonl tail is skipped, and a proposal appended after it r
     store,
     hub: new WsHub(),
     cwd: root,
+    runs: new RunStore(store),
     sdk: echoSdk().sdk,
   });
   expect(restarted.pendingProposals().map((p) => p.id)).toEqual(["p_1", added]);
@@ -986,7 +1029,13 @@ test("split broadcasts running then done and writes task files; a cycle leaves o
     [task("a", ["b"]), task("b", ["a"])],
   );
   const { hub, splits } = statusHub();
-  const agent = await createAgent({ store, hub, cwd: root, sdk: fake.sdk });
+  const agent = await createAgent({
+    store,
+    hub,
+    cwd: root,
+    runs: new RunStore(store),
+    sdk: fake.sdk,
+  });
   const tasksDir = join(store.dir, "tasks");
 
   await agent.split();
@@ -1034,7 +1083,13 @@ test("split is fed the spec without citations that no longer resolve", async () 
   );
   const fake = splitSdk([task("schema")]);
   const { hub, splits } = statusHub();
-  const agent = await createAgent({ store, hub, cwd: root, sdk: fake.sdk });
+  const agent = await createAgent({
+    store,
+    hub,
+    cwd: root,
+    runs: new RunStore(store),
+    sdk: fake.sdk,
+  });
 
   await agent.split();
   expect(fake.prompts[0]).toContain(
@@ -1048,7 +1103,13 @@ test("split is fed the spec without citations that no longer resolve", async () 
 test("POST /api/agent/split is 404 without a spec and 409 while running", async () => {
   const fake = splitSdk([task("schema")]);
   const { hub, splits } = statusHub();
-  const agent = await createAgent({ store, hub, cwd: root, sdk: fake.sdk });
+  const agent = await createAgent({
+    store,
+    hub,
+    cwd: root,
+    runs: new RunStore(store),
+    sdk: fake.sdk,
+  });
   const app = createApp(store, agent);
   const split = () => app.request("/api/agent/split", post({}));
   // A view that mounts mid-split learns of it from the state route.
