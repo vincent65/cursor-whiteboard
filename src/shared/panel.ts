@@ -42,7 +42,8 @@ export type PendingPermission = {
   id: string;
   tool: string;
   summary: string;
-  // False when the SDK suggested no lasting rule, so "always" means this session.
+  // True only when the SDK suggested a lasting rule to keep; without one the dialog
+  // offers no Allow always, and the broker answers a stray "always" as allow once.
   canAlways: boolean;
   at: string;
 };

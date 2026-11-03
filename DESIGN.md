@@ -96,7 +96,8 @@ Both sit above the composer, wrap when they run out of room, and truncate a long
 
 Claude is waiting on you, so the dialog wears `--warn`: a 1px border with a 4px left edge and a `--warn-tint` fill.
 The tool name is bold and the summary follows it on the same line.
-The three choices are plain buttons of equal weight, so neither Allow nor Deny is the easy default.
+It offers Allow once and Deny, plus Allow always when Claude Code suggested a rule to keep, so two or three choices.
+They are plain buttons of equal weight, so neither Allow nor Deny is the easy default.
 The same component appears in the panel, inset from its edges, and in a run card.
 
 ### Status strip
