@@ -183,6 +183,15 @@ export function pendingProposals(
   return [...byId].map(([id, counts]) => ({ id, counts }));
 }
 
+// Proposals whose ghosts all left the scene since the previous list.
+export function droppedProposals(
+  prev: readonly { id: string }[],
+  next: readonly { id: string }[],
+): string[] {
+  const still = new Set(next.map((p) => p.id));
+  return prev.map((p) => p.id).filter((id) => !still.has(id));
+}
+
 export function labelOf(elements: readonly El[], id: string): El | undefined {
   return elements.find(
     (e) =>

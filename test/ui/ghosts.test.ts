@@ -4,6 +4,7 @@ import {
   betweenTargets,
   bounds,
   decideProposal,
+  droppedProposals,
   type El,
   ghostOf,
   labelOf,
@@ -261,6 +262,16 @@ test("pendingProposals counts per proposal in first-seen order and ignores delet
     { id: "p_2", counts: { added: 1, updated: 1, deleted: 1 } },
     { id: "p_1", counts: { added: 1, updated: 0, deleted: 0 } },
   ]);
+});
+
+test("droppedProposals lists ids the previous pending list had and the next one lacks", () => {
+  const counts = { added: 1, updated: 0, deleted: 0 };
+  const list = (...ids: string[]) => ids.map((id) => ({ id, counts }));
+  expect(
+    droppedProposals(list("p_1", "p_2", "p_3"), list("p_2", "p_4")),
+  ).toEqual(["p_1", "p_3"]);
+  expect(droppedProposals(list(), list("p_1"))).toEqual([]);
+  expect(droppedProposals(list("p_1"), list("p_1"))).toEqual([]);
 });
 
 const board = () => {

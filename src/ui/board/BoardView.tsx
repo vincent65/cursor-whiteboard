@@ -30,6 +30,7 @@ import {
   applyProposal,
   type Counts,
   decideProposal,
+  droppedProposals,
   type El,
   listBoundArrows,
   pendingProposals,
@@ -184,11 +185,18 @@ export function BoardView({
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const [pending, setPending] = useState<{ id: string; counts: Counts }[]>([]);
   const pendingVersion = useRef(-1);
+  // The pending list as of the last scene version, to see which ids drop out.
+  const seen = useRef<{ id: string; counts: Counts }[]>([]);
+  // Timers for ghosts removed by hand (Delete, undo), cleared on unmount.
+  const drops = useRef(new Set<ReturnType<typeof setTimeout>>());
   // Pending proposals' titles; ghosts on the board carry only the id.
   const [titles, setTitles] = useState(new Map<string, string | null>());
   const { target, setTarget } = useRefine();
   // Decisions awaiting the server; their rows stay disabled until each settles.
   const [deciding, setDeciding] = useState<ReadonlySet<string>>(new Set());
+  // The same set for the drop timers, which outlive the render they came from.
+  const decidingNow = useRef(deciding);
+  decidingNow.current = deciding;
 
   useEffect(() => {
     onConflictChange(conflict);
@@ -388,16 +396,23 @@ export function BoardView({
   // The server decides first, so a proposal Claude is revising (409) keeps
   // its ghosts for the revise to replace. A proposal the server lost (404)
   // still resolves locally: the board is the record.
-  const decide = async (id: string, decision: Decision) => {
-    setDeciding((d) => new Set(d).add(id));
+  const tellServer = async (id: string, decision: Decision) => {
     try {
       await api.decideProposal(id, decision);
     } catch (err) {
       if (!(err instanceof api.ApiError && err.status === 404)) {
         setError(`Decision failed: ${(err as Error).message}`);
-        return;
+        return false;
       }
       console.warn(err.message);
+    }
+    return true;
+  };
+
+  const decide = async (id: string, decision: Decision) => {
+    setDeciding((d) => new Set(d).add(id));
+    try {
+      if (!(await tellServer(id, decision))) return;
     } finally {
       setDeciding((d) => {
         const next = new Set(d);
@@ -407,6 +422,8 @@ export function BoardView({
     }
     const ex = excalidraw.current;
     if (!ex) return;
+    // This removal is the decision itself, not one to reconcile.
+    seen.current = seen.current.filter((p) => p.id !== id);
     ex.updateScene({
       elements: throughGhosts(ex.getSceneElementsIncludingDeleted(), (els) =>
         decideProposal(els, id, decision),
@@ -421,6 +438,25 @@ export function BoardView({
     if (target?.id === id) setTarget(null);
   };
 
+  // Ghosts removed by hand leave the server's proposal pending forever. After a
+  // grace period (an undo may bring them back), one still gone is rejected.
+  const reconcileDrop = (id: string) => {
+    const timer = setTimeout(() => {
+      drops.current.delete(timer);
+      const ex = excalidraw.current;
+      if (!ex || decidingNow.current.has(id)) return;
+      const ghosts = pendingProposals(ex.getSceneElementsIncludingDeleted());
+      if (!ghosts.some((p) => p.id === id)) void tellServer(id, "rejected");
+    }, 1000);
+    drops.current.add(timer);
+  };
+  useEffect(() => {
+    const timers = drops.current;
+    return () => {
+      for (const t of timers) clearTimeout(t);
+    };
+  }, []);
+
   const onChange = (
     elements: readonly ExcalidrawElement[],
     appState: AppState,
@@ -432,6 +468,9 @@ export function BoardView({
     if (version !== pendingVersion.current) {
       pendingVersion.current = version;
       const next = pendingProposals(elements);
+      for (const id of droppedProposals(seen.current, next))
+        if (!decidingNow.current.has(id)) reconcileDrop(id);
+      seen.current = next;
       // Same list keeps the old state, so plain edits do not re-render.
       setPending((prev) =>
         JSON.stringify(prev) === JSON.stringify(next) ? prev : next,
