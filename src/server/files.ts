@@ -111,6 +111,9 @@ const SessionsSchema: z.ZodType<SessionsFile> = z.object({
         "failed",
         "interrupted",
       ]),
+      permissionMode: z
+        .enum(["acceptEdits", "default", "bypassPermissions"])
+        .default("acceptEdits"),
       prUrl: z.string().nullable(),
       costUsd: z.number(),
       startedAt: z.string(),

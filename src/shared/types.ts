@@ -20,6 +20,7 @@ export type RunStatus =
   | "done"
   | "failed"
   | "interrupted";
+export type RunPermissionMode = "acceptEdits" | "default" | "bypassPermissions";
 export type RunRecord = {
   id: string;
   taskSlug: string;
@@ -27,6 +28,8 @@ export type RunRecord = {
   worktree: string;
   branch: string;
   status: RunStatus;
+  // Records saved before this field read as acceptEdits.
+  permissionMode: RunPermissionMode;
   prUrl: string | null;
   costUsd: number;
   startedAt: string;

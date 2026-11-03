@@ -1,7 +1,13 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CanUseTool, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  CanUseTool,
+  HookCallbackMatcher,
+  HookInput,
+  SDKMessage,
+  SessionMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import {
   ExistsError,
   FileStore,
@@ -59,7 +65,10 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-function setup(script: Script) {
+function setup(
+  script: Script,
+  getSessionMessages: () => Promise<SessionMessage[]> = async () => [],
+) {
   const { query, runs: queries } = fakeQuery(script);
   const git = {
     createWorktree: vi.fn(async (repo: string, slug: string) => ({
@@ -67,6 +76,7 @@ function setup(script: Script) {
       branch: `blueprint/${slug}`,
     })),
   };
+  const sessionMessages = vi.fn(getSessionMessages);
   const manager = new RunManager({
     store,
     runs,
@@ -75,11 +85,17 @@ function setup(script: Script) {
     sdk: {
       query:
         query as unknown as typeof import("@anthropic-ai/claude-agent-sdk").query,
-      getSessionMessages: vi.fn(async () => []),
+      getSessionMessages: sessionMessages,
     },
     git,
   });
-  return { manager, query, queries, git };
+  return {
+    manager,
+    query,
+    queries,
+    git,
+    getSessionMessages: sessionMessages,
+  };
 }
 
 const view = (manager: RunManager, id: string) =>
@@ -155,6 +171,29 @@ test("launch creates a worktree, a working record, and sends the run prompt", as
   expect(options?.systemPrompt).not.toHaveProperty("append");
   expect(options?.mcpServers).toBeUndefined();
   expect(options?.hooks?.PreToolUse).toHaveLength(1);
+  // The board-write guard tells a run to leave the board alone, not to propose.
+  const [guard] = (options?.hooks?.PreToolUse ?? []) as HookCallbackMatcher[];
+  expect(
+    await guard.hooks[0](
+      {
+        hook_event_name: "PreToolUse",
+        session_id: "s",
+        transcript_path: "/t",
+        cwd: worktree,
+        tool_name: "Write",
+        tool_input: { file_path: ".blueprint/boards/main.excalidraw.json" },
+        tool_use_id: "u",
+      } as HookInput,
+      "u",
+      { signal: new AbortController().signal },
+    ),
+  ).toMatchObject({
+    hookSpecificOutput: {
+      permissionDecision: "deny",
+      permissionDecisionReason:
+        "Blueprint board files are read-only in a run. Leave the board to the user.",
+    },
+  });
   expect(options?.canUseTool).toBeTypeOf("function");
 
   await vi.waitFor(() => expect(queries[0].read).toHaveLength(1));
@@ -386,7 +425,11 @@ test("events and statuses carry the run id for two concurrent runs", async () =>
 });
 
 test("start marks active records interrupted and resume continues the saved session id in the worktree", async () => {
-  const record = (id: string, status: RunRecord["status"]): RunRecord => ({
+  // Saved before records had a permission mode: they read as acceptEdits.
+  const record = (
+    id: string,
+    status: RunRecord["status"],
+  ): Omit<RunRecord, "permissionMode"> => ({
     id,
     taskSlug: "alpha",
     sessionId: `sess-${id}`,
@@ -398,24 +441,57 @@ test("start marks active records interrupted and resume continues the saved sess
     startedAt: "2026-11-02T00:00:00.000Z",
     endedAt: status === "done" ? "2026-11-02T01:00:00.000Z" : null,
   });
-  await store.writeSessions({
-    plan: null,
-    runs: [
-      record("run_aaaaaa", "working"),
-      record("run_bbbbbb", "needs_you"),
-      record("run_cccccc", "done"),
-    ],
-  });
+  await writeFile(
+    join(root, ".blueprint", "sessions.json"),
+    JSON.stringify({
+      plan: null,
+      runs: [
+        record("run_aaaaaa", "working"),
+        record("run_bbbbbb", "needs_you"),
+        record("run_cccccc", "done"),
+      ],
+    }),
+  );
   await runs.load();
-  const { manager, queries } = setup(() =>
-    turnsOf(...textTurn("m", "picked it back up", "r")),
+  const savedTranscript = [
+    {
+      type: "user",
+      uuid: "u1",
+      session_id: "sess-run_aaaaaa",
+      parent_tool_use_id: null,
+      parent_agent_id: null,
+      message: { role: "user", content: "Implement alpha." },
+    },
+    {
+      type: "assistant",
+      uuid: "a1",
+      session_id: "sess-run_aaaaaa",
+      parent_tool_use_id: null,
+      parent_agent_id: null,
+      message: { id: "msg_old", content: [{ type: "text", text: "On it." }] },
+    },
+  ] as SessionMessage[];
+  const { manager, queries, getSessionMessages } = setup(
+    () => turnsOf(...textTurn("m", "picked it back up", "r")),
+    async () => savedTranscript,
   );
 
   await manager.start();
-  expect(manager.list().map((r) => [r.id, r.status, r.endedAt])).toEqual([
-    ["run_aaaaaa", "interrupted", null],
-    ["run_bbbbbb", "interrupted", null],
-    ["run_cccccc", "done", "2026-11-02T01:00:00.000Z"],
+  expect(getSessionMessages).toHaveBeenCalledWith("sess-run_aaaaaa", {
+    dir: "/w/run_aaaaaa",
+  });
+  // The saved transcript is there before anything resumes, and no status was derived.
+  expect(manager.transcript("run_aaaaaa")).toMatchObject([
+    { kind: "user", id: "u1", text: "Implement alpha." },
+    { kind: "assistant_text", text: "On it." },
+  ]);
+  expect(statusesOf("run_aaaaaa")).toEqual([]);
+  expect(
+    manager.list().map((r) => [r.id, r.status, r.endedAt, r.permissionMode]),
+  ).toEqual([
+    ["run_aaaaaa", "interrupted", null, "acceptEdits"],
+    ["run_bbbbbb", "interrupted", null, "acceptEdits"],
+    ["run_cccccc", "done", "2026-11-02T01:00:00.000Z", "acceptEdits"],
   ]);
   expect((await saved(manager, "run_aaaaaa"))?.status).toBe("interrupted");
   expect(sent).toContainEqual({ type: "runs.changed" });
@@ -437,7 +513,71 @@ test("start marks active records interrupted and resume continues the saved sess
     expect(view(manager, "run_aaaaaa")?.status).toBe("idle"),
   );
   expect(statusesOf("run_aaaaaa")).toEqual(["working", "idle"]);
+  // The same session carried on: the saved turn, then the continue message and its reply.
+  expect(
+    manager
+      .transcript("run_aaaaaa")
+      .flatMap((e) =>
+        e.kind === "user" || e.kind === "assistant_text" ? [e.text] : [],
+      ),
+  ).toEqual([
+    "Implement alpha.",
+    "On it.",
+    "Continue the task where you left off.",
+    "picked it back up",
+  ]);
   // The resumed process counts from zero, so its total adds to what the run had spent.
   expect((await saved(manager, "run_aaaaaa"))?.costUsd).toBeCloseTo(0.51);
   await manager.close();
+});
+
+test("a run launched with default resumes with default after a restart", async () => {
+  const { gate, release } = gated();
+  const first = setup((_text, turn) =>
+    (async function* () {
+      if (turn === 0) yield init("sess-d");
+      await gate;
+    })(),
+  );
+  const run = await first.manager.launch({
+    taskSlug: "alpha",
+    permissionMode: "default",
+  });
+  expect(first.queries[0].options?.permissionMode).toBe("default");
+  await vi.waitFor(() => expect(runs.run(run.id)?.sessionId).toBe("sess-d"));
+  await first.manager.close();
+  release();
+
+  // A new server: the store reads the file the last one left.
+  runs = new RunStore(store);
+  await runs.load();
+  // A session that cannot be loaded starts fresh, so the CLI has this one saved.
+  const second = setup(
+    () => turnsOf(...textTurn("m", "back", "r")),
+    async () =>
+      [
+        {
+          type: "assistant",
+          uuid: "a1",
+          session_id: "sess-d",
+          parent_tool_use_id: null,
+          parent_agent_id: null,
+          message: { id: "msg_d", content: [{ type: "text", text: "On it." }] },
+        },
+      ] as SessionMessage[],
+  );
+  await second.manager.start();
+  expect(runs.run(run.id)).toMatchObject({
+    status: "interrupted",
+    permissionMode: "default",
+  });
+  await second.manager.resume(run.id);
+  expect(second.queries[0].options).toMatchObject({
+    resume: "sess-d",
+    permissionMode: "default",
+  });
+  await vi.waitFor(() =>
+    expect(view(second.manager, run.id)?.status).toBe("idle"),
+  );
+  await second.manager.close();
 });

@@ -401,6 +401,7 @@ test("createAgent resumes the saved plan session and composes the selection head
     worktree: join(root, ".blueprint", "worktrees", "auth"),
     branch: "blueprint/auth",
     status: "done",
+    permissionMode: "acceptEdits",
     prUrl: null,
     costUsd: 0.5,
     startedAt: "2026-11-01T00:00:00.000Z",

@@ -5,7 +5,11 @@ import type {
   PendingPermission,
   PermissionDecision,
 } from "../../shared/panel.js";
-import type { RunRecord, RunStatus } from "../../shared/types.js";
+import type {
+  RunPermissionMode,
+  RunRecord,
+  RunStatus,
+} from "../../shared/types.js";
 import { PermissionBroker } from "../agent/broker.js";
 import { denyBoardWrites } from "../agent/hooks.js";
 import { PlanSession } from "../agent/session.js";
@@ -17,10 +21,12 @@ import type { RunStore } from "./store.js";
 
 const CONTINUE = "Continue the task where you left off.";
 const INTERRUPTED = "interrupted";
+const BOARD_READ_ONLY =
+  "Blueprint board files are read-only in a run. Leave the board to the user.";
 
 export type LaunchOptions = {
   taskSlug: string;
-  permissionMode: "acceptEdits" | "default" | "bypassPermissions";
+  permissionMode: RunPermissionMode;
 };
 export type RunView = RunRecord & {
   pending: PendingPermission[];
@@ -67,19 +73,26 @@ export class RunManager {
     this.#git = deps.git ?? { createWorktree };
   }
 
-  // No session survives a restart, so a run that was mid-turn reads interrupted.
+  // No session survives a restart, so a run that was mid-turn reads interrupted. Every run
+  // gets its session back, not started, with the saved transcript loaded.
   async start(): Promise<void> {
     const { runs, hub } = this.#deps;
     const stale = runs
       .runs()
       .filter((r) => r.status === "working" || r.status === "needs_you");
-    if (stale.length === 0) return;
     await Promise.all(
       stale.map((r) =>
         runs.patchRun(r.id, { status: "interrupted", endedAt: null }),
       ),
     );
-    hub.broadcast({ type: "runs.changed" });
+    if (stale.length > 0) hub.broadcast({ type: "runs.changed" });
+    await Promise.all(
+      runs
+        .runs()
+        .filter((r) => !this.#live.has(r.id))
+        // A new session already reads idle, so restoring derives no status.
+        .map((r) => this.#open(r).session.restore()),
+    );
   }
 
   async launch(opts: LaunchOptions): Promise<RunRecord> {
@@ -100,6 +113,7 @@ export class RunManager {
       worktree,
       branch,
       status: "working",
+      permissionMode: opts.permissionMode,
       prUrl: null,
       costUsd: 0,
       startedAt: now(),
@@ -107,7 +121,7 @@ export class RunManager {
     };
     await runs.upsertRun(record);
     hub.broadcast({ type: "runs.changed" });
-    this.#open(record, opts.permissionMode).session.send(
+    this.#open(record).session.send(
       runPrompt({
         task: found.task,
         taskFile: `.blueprint/tasks/${found.file}`,
@@ -118,7 +132,7 @@ export class RunManager {
     return { ...record };
   }
 
-  // A run with no session here (ended with the last server) resumes its saved one.
+  // A run that ended (done, failed, interrupted) resumes its saved session.
   async message(runId: string, text: string): Promise<string> {
     return this.#liveFor(this.#record(runId)).session.send(text);
   }
@@ -155,8 +169,6 @@ export class RunManager {
     });
   }
 
-  // ponytail: only what this process saw; a run from an earlier server shows none of its
-  // history until it resumes. Restore the saved session here if the sessions view needs it.
   transcript(runId: string): PanelEvent[] {
     this.#record(runId);
     return this.#live.get(runId)?.session.transcript() ?? [];
@@ -179,16 +191,12 @@ export class RunManager {
     return record;
   }
 
-  // ponytail: the launch's permission mode is not saved, so a session reopened after a
-  // restart runs with the default; add it to RunRecord if that surprises anyone.
+  // start() opened every saved run; this covers a manager that was never started.
   #liveFor(record: RunRecord): Live {
-    return this.#live.get(record.id) ?? this.#open(record, "acceptEdits");
+    return this.#live.get(record.id) ?? this.#open(record);
   }
 
-  #open(
-    record: RunRecord,
-    permissionMode: LaunchOptions["permissionMode"],
-  ): Live {
+  #open(record: RunRecord): Live {
     const { hub, sdk } = this.#deps;
     const runId = record.id;
     let asked = new Set<string>();
@@ -213,12 +221,12 @@ export class RunManager {
         cwd: record.worktree,
         options: {
           systemPrompt: { type: "preset", preset: "claude_code" },
-          permissionMode,
+          permissionMode: record.permissionMode,
           hooks: {
             PreToolUse: [
               {
                 matcher: "Write|Edit|MultiEdit|NotebookEdit",
-                hooks: [denyBoardWrites(record.worktree)],
+                hooks: [denyBoardWrites(record.worktree, BOARD_READ_ONLY)],
               },
             ],
           },
