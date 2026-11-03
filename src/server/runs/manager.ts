@@ -372,7 +372,8 @@ export class RunManager {
   #patch(live: Live, patch: Partial<RunRecord>): void {
     live.record = { ...live.record, ...patch };
     this.#deps.runs.patchRun(live.record.id, patch).then(
-      () => this.#deps.hub.broadcast({ type: "runs.changed" }),
+      // A write that lands after close() began tells no one: the sockets are going.
+      () => this.#closing || this.#deps.hub.broadcast({ type: "runs.changed" }),
       (err) => console.error(`could not save run ${live.record.id}`, err),
     );
   }

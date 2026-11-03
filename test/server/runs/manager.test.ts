@@ -250,6 +250,38 @@ test("launch creates a worktree, a working record, and sends the run prompt", as
   await manager.close();
 });
 
+test("a write that lands after close broadcasts nothing", async () => {
+  const { gate, release } = gated();
+  const { manager } = setup((_text, turn) =>
+    (async function* () {
+      if (turn === 0) yield init("sess-z");
+      await gate;
+    })(),
+  );
+  // Writes carrying the session id wait until the test lets them land.
+  let land: () => void = () => {};
+  const held = new Promise<void>((r) => {
+    land = r;
+  });
+  const write = store.writeSessions.bind(store);
+  vi.spyOn(store, "writeSessions").mockImplementation(async (s) => {
+    if (s.runs.some((r) => r.sessionId === "sess-z")) await held;
+    return write(s);
+  });
+
+  await manager.launch({ taskSlug: "alpha", permissionMode: "acceptEdits" });
+  await vi.waitFor(() => expect(manager.records()[0].sessionId).toBe("sess-z"));
+  await manager.close();
+  sent = [];
+  land();
+  release();
+  await runs.settled();
+  expect(runs.runs()[0].sessionId).toBe("sess-z");
+  // The manager hears of the landed write a few microtasks after the store.
+  await new Promise((r) => setTimeout(r, 0));
+  expect(sent).toEqual([]);
+});
+
 test("a turn ending with a PR URL makes the run done with prUrl and cost; without one it is idle", async () => {
   const { manager, queries } = setup((text, turn) =>
     turnsOf(
