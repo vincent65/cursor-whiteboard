@@ -2,11 +2,14 @@ import { readFile } from "node:fs/promises";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { extname, join, resolve, sep } from "node:path";
+import * as claudeSdk from "@anthropic-ai/claude-agent-sdk";
 import { serve } from "@hono/node-server";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { createAgent } from "./agent/index.js";
 import { createApp } from "./app.js";
 import { FileStore } from "./files.js";
+import { isAncestor } from "./runs/git.js";
+import { RunManager } from "./runs/manager.js";
 import { RunStore } from "./runs/store.js";
 import { watchPlan } from "./watch.js";
 import { WsHub } from "./ws.js";
@@ -33,13 +36,22 @@ export async function startServer(opts: {
   const store = new FileStore(opts.root);
   await store.init();
   const hub = new WsHub();
-  const agent = await createAgent({
+  // One store for the plan session and the runs, so their writes share one queue.
+  const runs = new RunStore(store);
+  // Loads the store; a corrupt file is reported by the agent and the runs start empty.
+  const agent = await createAgent({ store, hub, cwd: opts.root, runs });
+  const manager = new RunManager({
     store,
+    runs,
     hub,
-    cwd: opts.root,
-    runs: new RunStore(store),
+    root: opts.root,
+    sdk: claudeSdk,
   });
-  const app = createApp(store, agent);
+  await manager.start();
+  const app = createApp(store, agent, {
+    manager,
+    isAncestor: (branch) => isAncestor(opts.root, branch),
+  });
   const { injectWebSocket, upgradeWebSocket, wss } = createNodeWebSocket({
     app,
   });
@@ -91,7 +103,7 @@ export async function startServer(opts: {
       await stopWatching();
       // A hung or failing session must not keep the clients or the port.
       try {
-        await agent.close();
+        await Promise.all([agent.close(), manager.close()]);
       } finally {
         for (const client of wss.clients) client.terminate();
         await new Promise<void>((resolve, reject) =>

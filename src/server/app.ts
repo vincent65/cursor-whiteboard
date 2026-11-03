@@ -11,12 +11,18 @@ import {
   NotFoundError,
 } from "./files.js";
 import { routes } from "./routes.js";
+import { type RunRouteDeps, runRoutes } from "./runRoutes.js";
+import { GateError } from "./runs/gate.js";
 
 function statusFor(err: Error): ContentfulStatusCode {
   if (err instanceof InvalidNameError || err instanceof InvalidSceneError)
     return 400;
   if (err instanceof NotFoundError) return 404;
-  if (err instanceof ExistsError || err instanceof ProposalBusyError)
+  if (
+    err instanceof ExistsError ||
+    err instanceof ProposalBusyError ||
+    err instanceof GateError
+  )
     return 409;
   return 500;
 }
@@ -47,18 +53,25 @@ const sameOrigin: MiddlewareHandler = async (c, next) => {
   await next();
 };
 
-export function createApp(store: FileStore, agent?: Agent): Hono {
+export function createApp(
+  store: FileStore,
+  agent?: Agent,
+  runs?: RunRouteDeps,
+): Hono {
   const app = new Hono();
   // Also guards the WebSocket upgrade, which @hono/node-ws routes through app.
   app.use(sameOrigin);
   if (agent) app.route("/api/agent", agentRoutes(agent));
+  if (runs) app.route("/api/runs", runRoutes(store, runs));
   app.route("/api", routes(store, agent?.proposals));
   app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
   app.onError((err, c) => {
     const status = statusFor(err);
     // Anything unmapped (e.g. a corrupt board file) is a server bug: log it.
     if (status === 500) console.error(err);
-    return c.json({ error: err.message }, status);
+    // A failed gate also says which dependencies are missing.
+    const missing = err instanceof GateError ? { missing: err.missing } : {};
+    return c.json({ error: err.message, ...missing }, status);
   });
   return app;
 }
