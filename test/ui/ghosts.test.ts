@@ -7,6 +7,7 @@ import {
   type El,
   ghostOf,
   labelOf,
+  listBoundArrows,
   pendingProposals,
   placeBeside,
 } from "../../src/ui/board/ghosts";
@@ -681,4 +682,110 @@ test("betweenTargets wants one arrow in and one out, from two distinct existing 
     ),
   ).toBeNull();
   expect(betweenTargets([node, arrow("a", "b")], 0)).toBeNull();
+});
+
+test("an arrow end must not be in another pending proposal or deleted by this one", () => {
+  const els = connected();
+  const pendingB = applyProposal(
+    els,
+    { ...p, id: "p_2", ops: [{ op: "update", id: "b", strokeColor: "#f00" }] },
+    new Map(),
+    ctx,
+  ).elements;
+  const snapshot = structuredClone(pendingB);
+  expect(() =>
+    applyProposal(
+      pendingB,
+      { ...p, ops: [{ op: "add_arrow", from: "a", to: "b" }] },
+      new Map(),
+      ctx,
+    ),
+  ).toThrow("element b is in pending proposal p_2");
+  expect(() =>
+    applyProposal(
+      els,
+      {
+        ...p,
+        ops: [
+          { op: "delete", id: "b" },
+          { op: "add_arrow", from: "a", to: "b" },
+        ],
+      },
+      new Map(),
+      ctx,
+    ),
+  ).toThrow("op 1: arrow end b is deleted by this proposal");
+  expect(pendingB).toEqual(snapshot);
+});
+
+test("applyProposal reads refs the canonical way only", () => {
+  expect(() =>
+    applyProposal(
+      connected(),
+      {
+        ...p,
+        ops: [
+          { op: "add_node", label: "Cache", kind: "box" },
+          { op: "add_node", label: "Cache", kind: "box" },
+          { op: "add_arrow", from: "a", to: "$01" },
+        ],
+      },
+      new Map([...cacheNode(), [0, [el({ id: "m" })]]]),
+      ctx,
+    ),
+  ).toThrow("op 2: $01 must name an earlier add_node");
+});
+
+const arrowAB = (over: Partial<El> = {}) =>
+  el({
+    id: "ab",
+    type: "arrow",
+    startBinding: { elementId: "a", focus: 0, gap: 1 },
+    endBinding: { elementId: "b", focus: 0, gap: 1 },
+    ...over,
+  });
+
+test("listBoundArrows lists a live bound arrow on both of its ends", () => {
+  const a = el({ id: "a", boundElements: [{ id: "t", type: "text" }] });
+  const b = el({ id: "b" });
+  const out = listBoundArrows([a, b, arrowAB()]);
+  expect(byId(out, "a").boundElements).toEqual([
+    { id: "t", type: "text" },
+    { id: "ab", type: "arrow" },
+  ]);
+  expect(byId(out, "b").boundElements).toEqual([{ id: "ab", type: "arrow" }]);
+  expect(a.boundElements).toEqual([{ id: "t", type: "text" }]);
+});
+
+test("listBoundArrows never duplicates an entry", () => {
+  const a = el({ id: "a", boundElements: [{ id: "ab", type: "arrow" }] });
+  const loop = arrowAB({
+    id: "aa",
+    endBinding: { elementId: "a", focus: 0, gap: 1 },
+  });
+  const out = listBoundArrows([a, el({ id: "b" }), arrowAB(), loop]);
+  expect(byId(out, "a").boundElements).toEqual([
+    { id: "ab", type: "arrow" },
+    { id: "aa", type: "arrow" },
+  ]);
+});
+
+test("listBoundArrows skips deleted arrows and deleted targets", () => {
+  const a = el({ id: "a" });
+  const b = el({ id: "b", isDeleted: true });
+  const gone = arrowAB({ id: "gone", isDeleted: true });
+  const out = listBoundArrows([a, b, arrowAB(), gone]);
+  expect(byId(out, "a").boundElements).toEqual([{ id: "ab", type: "arrow" }]);
+  expect(byId(out, "b")).toBe(b);
+});
+
+test("listBoundArrows keeps unchanged elements by identity", () => {
+  const els = [
+    el({ id: "a", boundElements: [{ id: "ab", type: "arrow" }] }),
+    el({ id: "b", boundElements: [{ id: "ab", type: "arrow" }] }),
+    arrowAB(),
+    el({ id: "c" }),
+  ];
+  const out = listBoundArrows(els);
+  for (const [i, e] of out.entries()) expect(e).toBe(els[i]);
 });

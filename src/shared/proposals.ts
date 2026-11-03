@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isRef, refIndex } from "./refs.js";
 
 // The operations Claude's propose and revise tools accept.
 export const Op = z.discriminatedUnion("op", [
@@ -81,8 +82,6 @@ export const ProposalLogEntry: z.ZodType<ProposalLogEntry> =
     }),
   ]);
 
-const isRef = (end: string) => end.startsWith("$");
-
 // The existing element ids the ops point at, first-seen order, no duplicates.
 export function referencedIds(ops: Op[]): string[] {
   const ids = new Set<string>();
@@ -97,14 +96,17 @@ export function referencedIds(ops: Op[]): string[] {
   return [...ids];
 }
 
-// Every $<i> in an add_arrow must name an earlier add_node op of the same list.
+// Every add_arrow joins two different ends, and each $<i> among them names
+// an earlier add_node op of the same list.
 export function checkRefs(ops: Op[]): void {
   ops.forEach((op, i) => {
     if (op.op !== "add_arrow") return;
+    if (op.from === op.to)
+      throw new Error(`op ${i}: an arrow needs two different ends`);
     for (const end of [op.from, op.to]) {
       if (!isRef(end)) continue;
-      const j = /^\$\d+$/.test(end) ? Number(end.slice(1)) : i;
-      if (j >= i || ops[j].op !== "add_node")
+      const j = refIndex(end);
+      if (j === null || j >= i || ops[j].op !== "add_node")
         throw new Error(`op ${i}: ${end} must name an earlier add_node`);
     }
   });

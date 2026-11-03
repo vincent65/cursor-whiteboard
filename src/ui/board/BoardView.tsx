@@ -31,6 +31,7 @@ import {
   type Counts,
   decideProposal,
   type El,
+  listBoundArrows,
   pendingProposals,
 } from "./ghosts";
 import { renderMermaid, renderNode, renderNote } from "./mermaid";
@@ -79,46 +80,23 @@ const toPng = async (
     }),
   );
 
-// A shape drags only the arrows it lists, and restoring does not list them,
-// so every live bound arrow is added to both of its ends.
-function listBoundArrows(elements: ExcalidrawElement[]): ExcalidrawElement[] {
-  const arrowsOf = new Map<string, string[]>();
-  for (const e of elements) {
-    if (e.type !== "arrow" || e.isDeleted) continue;
-    for (const b of [e.startBinding, e.endBinding])
-      if (b)
-        arrowsOf.set(b.elementId, [...(arrowsOf.get(b.elementId) ?? []), e.id]);
-  }
-  return elements.map((e) => {
-    const missing = (arrowsOf.get(e.id) ?? []).filter(
-      (id) => !e.boundElements?.some((b) => b.id === id),
-    );
-    if (missing.length === 0) return e;
-    const listed = missing.map((id) => ({ id, type: "arrow" as const }));
-    return bumpVersion({
-      ...e,
-      boundElements: [...(e.boundElements ?? []), ...listed],
-    });
-  });
-}
-
 // ghosts.ts works on a structural slice of each element and leaves versions
 // alone; bumping what it replaced is what lets saves, undo, and the bar see the
-// change. Restoring re-measures changed labels and repairs arrow bindings.
+// change. Listing bound arrows on their ends goes through the same bump.
+// Restoring re-measures changed labels and repairs arrow bindings.
 function throughGhosts(
   elements: readonly ExcalidrawElement[],
   change: (elements: readonly El[]) => El[],
 ): ExcalidrawElement[] {
   const unchanged = new Set<unknown>(elements);
-  const next = (change(elements) as unknown as ExcalidrawElement[]).map((e) =>
+  const changed = listBoundArrows(change(elements));
+  const next = (changed as unknown as ExcalidrawElement[]).map((e) =>
     unchanged.has(e) ? e : bumpVersion(e),
   );
-  return listBoundArrows(
-    restoreElements(next, null, {
-      refreshDimensions: true,
-      repairBindings: true,
-    }),
-  );
+  return restoreElements(next, null, {
+    refreshDimensions: true,
+    repairBindings: true,
+  });
 }
 
 // Draws a proposal as ghosts. Every conversion runs before the scene is read,

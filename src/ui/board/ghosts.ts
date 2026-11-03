@@ -1,4 +1,5 @@
 import type { Decision, Op, Proposal } from "../../shared/proposals";
+import { isRef, refIndex } from "../../shared/refs";
 
 // Pure ghost logic: proposals land on the board as tagged, restyled elements
 // and only an accept makes them real. No Excalidraw import, so plain objects
@@ -36,6 +37,7 @@ export type El = {
   containerId?: string | null;
   text?: string;
   originalText?: string;
+  boundElements?: readonly { id: string; type: string }[] | null;
   fontSize?: number;
   fontFamily?: number;
   textAlign?: string;
@@ -126,18 +128,40 @@ export function betweenTargets(
   ops: readonly Op[],
   i: number,
 ): [string, string] | null {
-  const ref = `$${i}`;
+  const names = (end: string) => refIndex(end) === i;
   const touching = ops.flatMap((op) =>
-    op.op === "add_arrow" && (op.from === ref || op.to === ref) ? [op] : [],
+    op.op === "add_arrow" && (names(op.from) || names(op.to)) ? [op] : [],
   );
   if (touching.length !== 2) return null;
-  const into = touching.find((op) => op.to === ref);
-  const out = touching.find((op) => op.from === ref);
+  const into = touching.find((op) => names(op.to));
+  const out = touching.find((op) => names(op.from));
   if (!into || !out || into === out) return null;
   const [from, to] = [into.from, out.to];
-  return from.startsWith("$") || to.startsWith("$") || from === to
-    ? null
-    : [from, to];
+  return isRef(from) || isRef(to) || from === to ? null : [from, to];
+}
+
+// A shape drags only the arrows it lists, and Excalidraw's restore does not
+// list them, so each live bound arrow is added to its live ends. Elements
+// that need nothing are returned as they are.
+export function listBoundArrows(elements: readonly El[]): El[] {
+  const arrowsOf = new Map<string, Set<string>>();
+  for (const e of elements) {
+    if (e.type !== "arrow" || e.isDeleted) continue;
+    for (const b of [e.startBinding, e.endBinding]) {
+      if (!b) continue;
+      const ids = arrowsOf.get(b.elementId) ?? new Set();
+      arrowsOf.set(b.elementId, ids.add(e.id));
+    }
+  }
+  return elements.map((e) => {
+    if (e.isDeleted) return e;
+    const missing = [...(arrowsOf.get(e.id) ?? [])].filter(
+      (id) => !e.boundElements?.some((b) => b.id === id),
+    );
+    if (missing.length === 0) return e;
+    const listed = missing.map((id) => ({ id, type: "arrow" }));
+    return { ...e, boundElements: [...(e.boundElements ?? []), ...listed] };
+  });
 }
 
 export function pendingProposals(
@@ -175,24 +199,31 @@ export function applyProposal(
 ): { elements: El[]; ids: string[] } {
   const live = (id: string) =>
     elements.find((e) => e.id === id && !e.isDeleted);
+  // An existing element an op touches must not be in another pending proposal.
+  const claim = (id: string) => {
+    const target = live(id);
+    if (!target) throw new Error(`unknown element id ${id}`);
+    const other = ghostOf(target)?.proposalId;
+    if (other && other !== proposal.id)
+      throw new Error(`element ${id} is in pending proposal ${other}`);
+  };
   proposal.ops.forEach((op, i) => {
     if (op.op === "add_arrow") {
-      // The server's checkRefs rule, repeated so the UI bundle stays free of zod.
       for (const end of [op.from, op.to]) {
-        if (!end.startsWith("$")) {
-          if (!live(end)) throw new Error(`unknown element id ${end}`);
+        if (isRef(end)) {
+          const j = refIndex(end);
+          if (j === null || j >= i || proposal.ops[j].op !== "add_node")
+            throw new Error(`op ${i}: ${end} must name an earlier add_node`);
           continue;
         }
-        const j = /^\$\d+$/.test(end) ? Number(end.slice(1)) : i;
-        if (j >= i || proposal.ops[j].op !== "add_node")
-          throw new Error(`op ${i}: ${end} must name an earlier add_node`);
+        claim(end);
+        if (proposal.ops.some((o) => o.op === "delete" && o.id === end))
+          throw new Error(
+            `op ${i}: arrow end ${end} is deleted by this proposal`,
+          );
       }
     } else if (op.op === "update" || op.op === "delete") {
-      const target = live(op.id);
-      if (!target) throw new Error(`unknown element id ${op.id}`);
-      const other = ghostOf(target)?.proposalId;
-      if (other && other !== proposal.id)
-        throw new Error(`element ${op.id} is in pending proposal ${other}`);
+      claim(op.id);
       if (
         op.op === "update" &&
         op.label !== undefined &&
@@ -350,9 +381,7 @@ export function applyProposal(
     customData: tag("add", { strokeStyle: "solid" }),
   };
   const end = (ref: string) =>
-    ref.startsWith("$")
-      ? (nodes.get(Number(ref.slice(1))) as El)
-      : (live(ref) as El);
+    isRef(ref) ? (nodes.get(refIndex(ref) as number) as El) : (live(ref) as El);
   for (const op of proposal.ops) {
     if (op.op !== "add_arrow") continue;
     const from = end(op.from);
