@@ -120,7 +120,8 @@ export function DocView({
   useEffect(
     () =>
       api.connectWs(async (m) => {
-        if (m.kind !== "doc" || m.name !== name) return;
+        if (m.type !== "file-changed" || m.kind !== "doc" || m.name !== name)
+          return;
         const diskText = await api.getDoc(name).catch(() => null);
         const v = view.current;
         if (diskText === null || !v) return;

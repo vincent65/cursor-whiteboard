@@ -40,6 +40,7 @@ export async function startServer(opts: {
     "/ws",
     upgradeWebSocket(() => ({
       onOpen: (_ev, ws) => hub.add(ws),
+      onMessage: (ev, ws) => hub.handle(ws, String(ev.data)),
       onClose: (_ev, ws) => hub.remove(ws),
     })),
   );

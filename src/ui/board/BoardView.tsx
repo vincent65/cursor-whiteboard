@@ -169,7 +169,8 @@ export function BoardView({
   useEffect(
     () =>
       api.connectWs(async (m) => {
-        if (m.kind !== "board" || m.name !== name) return;
+        if (m.type !== "file-changed" || m.kind !== "board" || m.name !== name)
+          return;
         const board = await api.getBoard(name).catch(() => null);
         if (!board) return;
         const disk = saveState(
