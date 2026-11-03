@@ -3,7 +3,6 @@ import { EditorState, StateField } from "@codemirror/state";
 import { Decoration, type DecorationSet } from "@codemirror/view";
 import { basicSetup, EditorView } from "codemirror";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Citation } from "../../export/citations";
 import * as api from "../api";
 import { replaceFromDisk, theme } from "../docs/DocView";
 import { useServerEvent } from "../server-events";
@@ -45,11 +44,18 @@ export function SpecView() {
   const view = useRef<EditorView | null>(null);
   const [spec, setSpec] = useState<Spec | null>(null);
   const [splitting, setSplitting] = useState(false);
-  // A failed load or split.
+  // A failed load or split, until the next split status or successful load.
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(
-    () => api.getSpec().then(setSpec, (err: Error) => setError(err.message)),
+    () =>
+      api.getSpec().then(
+        (next) => {
+          setSpec(next);
+          setError(null);
+        },
+        (err: Error) => setError(err.message),
+      ),
     [],
   );
   useEffect(() => {
@@ -102,7 +108,7 @@ export function SpecView() {
     if (m.type !== "split.status") return;
     heardSplit.current = true;
     setSplitting(m.state === "running");
-    if (m.state === "error") setError(m.message ?? "The split failed.");
+    setError(m.state === "error" ? (m.message ?? "The split failed.") : null);
   });
 
   const split = () => {
@@ -114,7 +120,8 @@ export function SpecView() {
     });
   };
 
-  const dropped: Citation[] = spec?.dropped ?? [];
+  // The spec can cite one gone element many times; name it once.
+  const dropped = [...new Set((spec?.dropped ?? []).map((c) => c.raw))];
   return (
     <div className="spec">
       {spec && !hasText && (
@@ -124,7 +131,9 @@ export function SpecView() {
         <div className="notice">
           <span className="notice-text spec-dropped">
             {dropped.length > 0 &&
-              `Dropped ${dropped.length} citations that no longer resolve: ${dropped.map((c) => c.raw).join(", ")}`}
+              (dropped.length === 1
+                ? `Dropped 1 citation that no longer resolves: ${dropped[0]}`
+                : `Dropped ${dropped.length} citations that no longer resolve: ${dropped.join(", ")}`)}
           </span>
           <button
             type="button"

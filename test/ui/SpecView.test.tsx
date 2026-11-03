@@ -60,7 +60,7 @@ test("SpecView shows the empty state, then the spec with marked citations on fil
   await emit({ type: "file-changed", kind: "spec", name: "spec" });
   expect(
     await screen.findByText(
-      "Dropped 1 citations that no longer resolve: [[board:main#gone]]",
+      "Dropped 1 citation that no longer resolves: [[board:main#gone]]",
     ),
   ).toBeInTheDocument();
   const cite = container.querySelector(".cite");
@@ -142,4 +142,44 @@ test("a split status heard before the state arrives wins over it", async () => {
   expect(
     screen.getByRole("button", { name: "Split into tasks" }),
   ).toBeEnabled();
+});
+
+test("the dropped line names each citation once and counts them", async () => {
+  const gone = (id: string) => ({
+    kind: "board" as const,
+    page: "main",
+    id,
+    raw: `[[board:main#${id}]]`,
+  });
+  vi.mocked(api.getSpec).mockResolvedValue({
+    text: spec,
+    dropped: [gone("x"), gone("y"), gone("x")],
+  });
+  render(<SpecView />);
+  expect(
+    await screen.findByText(
+      "Dropped 2 citations that no longer resolve: [[board:main#x]], [[board:main#y]]",
+    ),
+  ).toBeInTheDocument();
+});
+
+test("an error clears on any split status and on a successful reload", async () => {
+  vi.mocked(api.getSpec).mockResolvedValue({ text: spec, dropped: [] });
+  render(<SpecView />);
+  await screen.findByRole("button", { name: "Split into tasks" });
+
+  // A split started in another tab clears this one's error.
+  await emit({ type: "split.status", state: "error", message: "bad graph" });
+  expect(screen.getByRole("alert")).toHaveTextContent("bad graph");
+  await emit({ type: "split.status", state: "running" });
+  expect(screen.queryByRole("alert")).toBeNull();
+  await emit({ type: "split.status", state: "error", message: "bad graph" });
+  await emit({ type: "split.status", state: "done" });
+  expect(screen.queryByRole("alert")).toBeNull();
+
+  vi.mocked(api.getSpec).mockRejectedValueOnce(new Error("server down"));
+  await emit({ type: "file-changed", kind: "spec", name: "spec" });
+  expect(await screen.findByRole("alert")).toHaveTextContent("server down");
+  await emit({ type: "file-changed", kind: "spec", name: "spec" });
+  await vi.waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
 });
