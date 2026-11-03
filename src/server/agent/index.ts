@@ -118,6 +118,8 @@ export async function createAgent(deps: {
         broadcastStatus();
       },
       onSessionId: (sessionId) => {
+        // ponytail: unserialized read-modify-write, safe while the plan session is the only
+        // writer; serialize through a promise chain once run sessions write the file too.
         void store
           .readSessions()
           // Unreadable (the corrupt file reported at startup): overwrite it from what loaded.
