@@ -12,7 +12,11 @@ export type AgentStatus =
   | "stopped";
 
 export type ServerMessage =
-  | { type: "file-changed"; kind: "board" | "doc"; name: string }
+  | {
+      type: "file-changed";
+      kind: "board" | "doc" | "spec" | "task";
+      name: string;
+    }
   | { type: "agent.event"; event: PanelEvent }
   | { type: "agent.status"; status: AgentStatus; message?: string }
   | {

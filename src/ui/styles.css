@@ -431,3 +431,92 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.spec {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.spec-dropped {
+  color: #b45309;
+  overflow-wrap: anywhere;
+}
+
+.spec-editor {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Read-only: there is no cursor, so no line is active. */
+.spec-editor .cm-activeLine,
+.spec-editor .cm-activeLineGutter {
+  background: none;
+}
+
+.cite {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Markdown highlighting colors the brackets inside a citation; keep it one color. */
+.cm-content .cite span {
+  color: inherit;
+}
+
+.plan-error {
+  margin: 0;
+  padding: var(--space) calc(var(--space) * 2);
+  color: #dc2626;
+}
+
+.plan-page {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) * 1.5);
+  max-width: 820px;
+  padding: calc(var(--space) * 2);
+}
+
+.task-card {
+  padding: calc(var(--space) * 1.5) calc(var(--space) * 2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.task-card > * {
+  margin: 0;
+}
+
+.task-card > * + * {
+  margin-top: var(--space);
+}
+
+.task-file,
+.task-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.task-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.task-list {
+  padding-left: calc(var(--space) * 2.5);
+}
+
+.task-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space) / 2) var(--space);
+  font-size: 12px;
+}
+
+.task-sources a {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}

@@ -6,6 +6,8 @@ import { useHashRoute } from "./hooks/useHashRoute";
 import { Sidebar } from "./nav/Sidebar";
 import { ClaudePanel } from "./panel/ClaudePanel";
 import { RefineProvider } from "./panel/refine";
+import { SpecView } from "./plan/SpecView";
+import { TasksView } from "./plan/TasksView";
 import { SelectionProvider } from "./selection";
 import { ServerEventsProvider, useServerEvent } from "./server-events";
 
@@ -45,7 +47,8 @@ function Shell() {
   // A file made outside the app (by hand or by Claude) joins the sidebar;
   // changes to listed files are the open view's to handle.
   useServerEvent((m) => {
-    if (m.type !== "file-changed") return;
+    if (m.type !== "file-changed" || m.kind === "spec" || m.kind === "task")
+      return;
     const known = m.kind === "board" ? boards : docs;
     if (!known?.includes(m.name)) refresh().catch(console.error);
   });
@@ -91,12 +94,8 @@ function Shell() {
             onConflictChange={onConflictChange}
           />
         )}
-        {route?.kind === "spec" && (
-          <p className="empty">Spec view arrives in Task 7.</p>
-        )}
-        {route?.kind === "tasks" && (
-          <p className="empty">Tasks view arrives in Task 7.</p>
-        )}
+        {route?.kind === "spec" && <SpecView />}
+        {route?.kind === "tasks" && <TasksView />}
         {!route && boards?.length === 0 && (
           <p className="empty">No boards yet. Create one from the sidebar.</p>
         )}

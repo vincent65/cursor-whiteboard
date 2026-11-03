@@ -8,7 +8,7 @@ import { useDebounced } from "../hooks/useDebounced";
 import { useServerEvent } from "../server-events";
 import { reconcileExternalChange } from "./reconcile";
 
-const theme = EditorView.theme({
+export const theme = EditorView.theme({
   "&": { height: "100%" },
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": {

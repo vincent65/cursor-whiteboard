@@ -5,7 +5,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { FileStore } from "../../src/server/files.js";
 import { watchPlan } from "../../src/server/watch.js";
 
-type Ev = { kind: "board" | "doc"; name: string };
+type Ev = { kind: "board" | "doc" | "spec" | "task"; name: string };
 
 let root: string;
 let store: FileStore;
@@ -83,4 +83,14 @@ test("watcher maps board files to kind board and strips the extension", async ()
   const next = eventFor("main");
   await writeFile(join(store.dir, "boards", "main.excalidraw.json"), "{}");
   expect(await next).toEqual({ kind: "board", name: "main" });
+});
+
+test("watcher reports the spec and task files", async () => {
+  const spec = eventFor("spec");
+  await writeFile(join(store.dir, "spec.md"), "## Goals");
+  expect(await spec).toEqual({ kind: "spec", name: "spec" });
+
+  const task = eventFor("01-auth");
+  await writeFile(join(store.dir, "tasks", "01-auth.md"), "---");
+  expect(await task).toEqual({ kind: "task", name: "01-auth" });
 });
