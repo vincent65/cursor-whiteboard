@@ -13,6 +13,7 @@ import {
   FileStore,
   NotFoundError,
 } from "../../../src/server/files.js";
+import { checkGate } from "../../../src/server/runs/gate.js";
 import { RunManager } from "../../../src/server/runs/manager.js";
 import { runPrompt } from "../../../src/server/runs/prompt.js";
 import { RunStore } from "../../../src/server/runs/store.js";
@@ -277,15 +278,24 @@ test("a turn ending with a PR URL makes the run done with prUrl and cost; withou
     endedAt: null,
   });
 
-  // A done run takes another message: it works again, then ends with no PR in that turn.
+  // A done run takes another message: it works again, and a turn with no PR leaves it done.
   await manager.message(a.id, "also fix the typo");
   await vi.waitFor(() =>
-    expect(statusesOf(a.id)).toEqual(["done", "working", "idle"]),
+    expect(statusesOf(a.id)).toEqual(["done", "working", "done"]),
   );
   expect(await saved(manager, a.id)).toMatchObject({
+    status: "done",
     prUrl: PR,
-    endedAt: null,
+    endedAt: expect.any(String),
   });
+  // So a task depending on it still passes the gate once its branch is merged.
+  expect(
+    await checkGate({
+      task: { ...task("gamma"), dependsOn: ["alpha"] },
+      runs: manager.records(),
+      isAncestor: async () => true,
+    }),
+  ).toEqual({ ok: true, missing: [] });
   expect(queries).toHaveLength(2);
   await expect(manager.message("run_000000", "hi")).rejects.toThrow(
     NotFoundError,

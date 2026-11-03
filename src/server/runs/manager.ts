@@ -323,8 +323,9 @@ export class RunManager {
 
   #fromSession(live: Live, status: AgentStatus, message?: string): Derived {
     switch (status) {
+      // Done sticks: a later turn with no URL leaves a run that opened its PR done.
       case "idle": {
-        const prUrl = prUrlIn(live.endedText ?? "");
+        const prUrl = prUrlIn(live.endedText ?? "") ?? live.record.prUrl;
         return prUrl ? { status: "done", prUrl } : { status: "idle" };
       }
       case "error":
