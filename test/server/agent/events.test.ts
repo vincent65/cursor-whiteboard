@@ -424,3 +424,72 @@ test("subagent messages are skipped and leave the main stream's state alone", ()
     },
   ]);
 });
+
+test("Blueprint's own tool results read as sentences, and their failures keep the message", () => {
+  const mapper = new SdkEventMapper();
+  const use = (id: string, name: string) =>
+    mapper.map(
+      sdk({
+        type: "assistant",
+        parent_tool_use_id: null,
+        message: {
+          id: `msg_${id}`,
+          content: [{ type: "tool_use", id, name, input: {} }],
+        },
+      }),
+    );
+  const result = (id: string, content: unknown, isError = false) =>
+    mapper.map(
+      sdk({
+        type: "user",
+        parent_tool_use_id: null,
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: id,
+              content,
+              is_error: isError,
+            },
+          ],
+        },
+      }),
+    );
+  const summary = (events: ReturnType<typeof result>) =>
+    events.map((e) => (e.kind === "tool_result" ? e.summary : e.kind));
+  const json = [{ type: "text", text: '{"proposalId":"p_3f004e69"}' }];
+
+  use("t1", "mcp__blueprint__propose");
+  expect(summary(result("t1", json))).toEqual([
+    "proposal p_3f004e69 is on the board",
+  ]);
+  use("t2", "mcp__blueprint__revise");
+  expect(summary(result("t2", json))).toEqual([
+    "proposal p_3f004e69 is on the board",
+  ]);
+  use("t3", "mcp__blueprint__get_board");
+  expect(
+    summary(
+      result("t3", [
+        { type: "text", text: "```mermaid\nflowchart TD\n```" },
+        { type: "image", data: "", mimeType: "image/png" },
+      ]),
+    ),
+  ).toEqual(["read the board"]);
+  use("t4", "mcp__blueprint__get_selection");
+  expect(summary(result("t4", [{ type: "text", text: "Login" }]))).toEqual([
+    "read the selection",
+  ]);
+  use("t5", "mcp__blueprint__propose");
+  expect(
+    summary(
+      result("t5", [{ type: "text", text: "unknown element id x" }], true),
+    ),
+  ).toEqual(["unknown element id x"]);
+  // Another tool's JSON is shown as it came.
+  use("t6", "Bash");
+  expect(summary(result("t6", '{"proposalId":"p_1"}'))).toEqual([
+    '{"proposalId":"p_1"}',
+  ]);
+});

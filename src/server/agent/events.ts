@@ -58,6 +58,21 @@ function resultText(content: unknown): string {
   return texts.length ? texts.join("\n").slice(0, SUMMARY_LIMIT) : "done";
 }
 
+// Blueprint's own tools answer in a sentence rather than their raw output.
+function ownResult(tool: string | undefined, text: string): string | undefined {
+  switch (tool) {
+    case "mcp__blueprint__get_board":
+      return "read the board";
+    case "mcp__blueprint__get_selection":
+      return "read the selection";
+    case "mcp__blueprint__propose":
+    case "mcp__blueprint__revise": {
+      const id = /"proposalId":"([^"]+)"/.exec(text)?.[1];
+      return id && `proposal ${id} is on the board`;
+    }
+  }
+}
+
 export class SdkEventMapper {
   #sessionId: string | undefined;
   #messageId = "";
@@ -65,6 +80,8 @@ export class SdkEventMapper {
   #streamed = new Map<number, string>();
   // Ids of streamed text blocks not yet delivered as a full assistant message, in order.
   #unfinished: string[] = [];
+  // Tool names by tool_use id, so a result can be read in its tool's terms.
+  #tools = new Map<string, string>();
 
   get sessionId(): string | undefined {
     return this.#sessionId;
@@ -124,6 +141,7 @@ export class SdkEventMapper {
             if (block.type === "tool_use") {
               const input = (block.input ?? {}) as Record<string, unknown>;
               const summary = summarizeTool(block.name, input);
+              this.#tools.set(block.id, block.name);
               return [
                 {
                   kind: "tool_use",
@@ -144,20 +162,21 @@ export class SdkEventMapper {
       case "user": {
         const content = msg.message.content;
         if (typeof content === "string") return [];
-        return content.flatMap((block): PanelEvent[] =>
-          block.type === "tool_result"
-            ? [
-                {
-                  kind: "tool_result",
-                  id: `${block.tool_use_id}:result`,
-                  toolUseId: block.tool_use_id,
-                  ok: !block.is_error,
-                  summary: resultText(block.content),
-                  at,
-                },
-              ]
-            : [],
-        );
+        return content.flatMap((block): PanelEvent[] => {
+          if (block.type !== "tool_result") return [];
+          const text = resultText(block.content);
+          const tool = this.#tools.get(block.tool_use_id);
+          return [
+            {
+              kind: "tool_result",
+              id: `${block.tool_use_id}:result`,
+              toolUseId: block.tool_use_id,
+              ok: !block.is_error,
+              summary: (!block.is_error && ownResult(tool, text)) || text,
+              at,
+            },
+          ];
+        });
       }
       case "result": {
         const error = resultError(msg);
