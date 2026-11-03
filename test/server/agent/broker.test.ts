@@ -133,3 +133,16 @@ test("an ask shows paths relative to the session directory", () => {
   });
   expect(broker.pending()[0]?.summary).toBe("editing src/login.ts");
 });
+
+// A row may cut a command short, but an ask must show everything it would allow.
+test("an ask shows the whole command, however long", () => {
+  const broker = new PermissionBroker({ cwd: "/repo", onChange() {} });
+  const command = `pytest -q && git add .\ngit commit -m "${"x".repeat(80)}" && git push`;
+  void broker.ask({
+    toolUseID: "t1",
+    tool: "Bash",
+    input: { command },
+    signal: new AbortController().signal,
+  });
+  expect(broker.pending()[0]?.summary).toBe(`running ${command}`);
+});

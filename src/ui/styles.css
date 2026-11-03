@@ -520,6 +520,11 @@ pre {
   overflow-wrap: anywhere;
 }
 
+/* An ask shows the whole command, keeping its line breaks. */
+.ask .cmd {
+  white-space: pre-wrap;
+}
+
 .panel .ask {
   margin: 0 var(--space) var(--space);
 }

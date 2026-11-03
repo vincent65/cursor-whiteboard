@@ -25,15 +25,21 @@ export function relativeTo(cwd: string | undefined): Relativize {
   return (text) => roots.reduce((t, root) => t.replaceAll(root, ""), text);
 }
 
+// full: the whole command, for an ask, which must show everything it would allow.
 export function summarizeTool(
   name: string,
   input: Record<string, unknown>,
   relativize: Relativize = (text) => text,
+  full = false,
 ): string {
-  return relativize(summarize(name, input));
+  return relativize(summarize(name, input, full));
 }
 
-function summarize(name: string, input: Record<string, unknown>): string {
+function summarize(
+  name: string,
+  input: Record<string, unknown>,
+  full: boolean,
+): string {
   switch (name) {
     case "Read":
       return `reading ${input.file_path}`;
@@ -42,7 +48,7 @@ function summarize(name: string, input: Record<string, unknown>): string {
     case "MultiEdit":
       return `editing ${input.file_path}`;
     case "Bash":
-      return `running ${String(input.command).slice(0, 60)}`;
+      return `running ${full ? input.command : String(input.command).slice(0, 60)}`;
     case "Grep":
     case "Glob":
       return `searching ${input.pattern}`;

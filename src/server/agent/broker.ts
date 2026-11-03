@@ -48,7 +48,7 @@ export class PermissionBroker {
         entry: {
           id,
           tool: req.tool,
-          summary: summarizeTool(req.tool, req.input, this.#relativize),
+          summary: summarizeTool(req.tool, req.input, this.#relativize, true),
           canAlways: !!req.suggestions?.length,
           at: new Date().toISOString(),
         },
