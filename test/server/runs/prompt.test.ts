@@ -1,4 +1,8 @@
-import { prUrlIn, runPrompt } from "../../../src/server/runs/prompt.js";
+import {
+  prUrlIn,
+  runPrompt,
+  shownRunPrompt,
+} from "../../../src/server/runs/prompt.js";
 import type { Task } from "../../../src/shared/tasks.js";
 
 const task: Task = {
@@ -117,4 +121,23 @@ test("prUrlIn allows surrounding whitespace and takes the first URL line", () =>
   ).toBe("https://github.com/o/r/pull/7");
   expect(prUrlIn("https://github.com/o/r/pull/7/files")).toBeNull();
   expect(prUrlIn("")).toBeNull();
+});
+
+test("shownRunPrompt labels a run's own prompt and keeps words sent after it", () => {
+  const run = { taskSlug: "auth-api", branch: "blueprint/auth-api" };
+  const prompt = runPrompt({
+    task,
+    taskFile: ".blueprint/tasks/02-auth-api.md",
+    spec: "## Goals\n- ship",
+    branch: run.branch,
+  });
+  expect(shownRunPrompt(prompt, run)).toBe("Start task auth-api");
+  expect(shownRunPrompt(`${prompt}\n\nAlso log out.`, run)).toBe(
+    "Also log out.",
+  );
+  // Another run's prompt, or any other words, are not this run's.
+  expect(
+    shownRunPrompt(prompt, { taskSlug: "db", branch: "blueprint/db" }),
+  ).toBeUndefined();
+  expect(shownRunPrompt("Fix the tests.", run)).toBeUndefined();
 });

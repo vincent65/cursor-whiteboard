@@ -10,7 +10,7 @@ import { PlanSession } from "../agent/session.js";
 import { ExistsError, type FileStore, NotFoundError } from "../files.js";
 import type { WsHub } from "../ws.js";
 import { createWorktree } from "./git.js";
-import { prUrlIn, runPrompt } from "./prompt.js";
+import { prUrlIn, runLabel, runPrompt, shownRunPrompt } from "./prompt.js";
 import type { RunStore } from "./store.js";
 
 const CONTINUE = "Continue the task where you left off.";
@@ -115,7 +115,10 @@ export class RunManager {
     };
     await runs.upsertRun(record);
     hub.broadcast({ type: "runs.changed" });
-    this.#open(record).session.send(runPrompt({ ...input, branch }));
+    this.#open(record).session.send(
+      runPrompt({ ...input, branch }),
+      runLabel(opts.taskSlug),
+    );
     return { ...record };
   }
 
@@ -145,7 +148,10 @@ export class RunManager {
     const prompt = await this.#freshPrompt(live);
     // Checked again: another resume may have started the run during the await.
     this.#interrupted(runId);
-    live.session.send(prompt ?? CONTINUE);
+    live.session.send(
+      prompt ?? CONTINUE,
+      prompt ? runLabel(record.taskSlug) : CONTINUE,
+    );
   }
 
   // For a run the user finished by hand, say by merging without the PR URL Claude would
@@ -333,6 +339,7 @@ export class RunManager {
           this.#derive(live);
         },
         onSessionId: (sessionId) => this.#patch(live, { sessionId }),
+        shownPrompt: (prompt) => shownRunPrompt(prompt, record),
       },
       record.sessionId || undefined,
     );

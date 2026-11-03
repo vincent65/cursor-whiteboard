@@ -219,6 +219,10 @@ test("launch creates a worktree, a working record, and sends the run prompt", as
       branch: "blueprint/alpha",
     }),
   );
+  // The transcript shows a short label, not the whole prompt.
+  expect(
+    manager.transcript(record.id).filter((e) => e.kind === "user"),
+  ).toMatchObject([{ text: "Start task alpha" }]);
   // The session id lands on the record once the CLI reports it.
   await vi.waitFor(() => expect(runs.run(record.id)?.sessionId).toBe("sess-a"));
   expect(
@@ -883,6 +887,10 @@ test("resume with no usable session id sends the full run prompt instead", async
     expect(q.options?.resume).toBeUndefined();
     await vi.waitFor(() => expect(q.read).toEqual([prompt]));
   }
+  for (const id of ["run_aaaaaa", "run_bbbbbb"])
+    expect(
+      manager.transcript(id).filter((e) => e.kind === "user"),
+    ).toMatchObject([{ text: "Start task beta" }]);
   await vi.waitFor(() =>
     expect(runs.run("run_bbbbbb")?.sessionId).toBe("sess-new"),
   );
@@ -1138,5 +1146,60 @@ test("a restored failed run keeps its reason and end until it runs again", async
     failure: null,
     endedAt: null,
   });
+  await manager.close();
+});
+
+test("a restored run transcript shows its saved run prompt as the label, or the words sent after it", async () => {
+  await store.writeSessions({
+    plan: null,
+    runs: [
+      {
+        id: "run_aaaaaa",
+        taskSlug: "alpha",
+        sessionId: "sess-a",
+        worktree: "/w/run_aaaaaa",
+        branch: "blueprint/alpha",
+        status: "idle",
+        permissionMode: "acceptEdits",
+        prUrl: null,
+        markedDone: false,
+        failure: null,
+        costUsd: 0,
+        startedAt: "2026-11-02T00:00:00.000Z",
+        endedAt: null,
+      },
+    ],
+  });
+  await runs.load();
+  const prompt = runPrompt({
+    task: task("alpha"),
+    taskFile: ".blueprint/tasks/01-alpha.md",
+    spec: "# Spec\n\nThe spec.\n",
+    branch: "blueprint/alpha",
+  });
+  const user = (uuid: string, content: string) =>
+    ({
+      type: "user",
+      uuid,
+      session_id: "sess-a",
+      parent_tool_use_id: null,
+      parent_agent_id: null,
+      message: { role: "user", content },
+    }) as SessionMessage;
+  const { manager } = setup(
+    () => turnsOf(),
+    async () => [
+      user("u1", prompt),
+      // A message with no session to resume carried the prompt along.
+      user("u2", `${prompt}\n\nAlso add a logout route.`),
+      user("u3", "Thanks."),
+    ],
+  );
+  await manager.start();
+  expect(
+    manager
+      .transcript("run_aaaaaa")
+      .flatMap((e) => (e.kind === "user" ? [e.text] : [])),
+  ).toEqual(["Start task alpha", "Also add a logout route.", "Thanks."]);
   await manager.close();
 });

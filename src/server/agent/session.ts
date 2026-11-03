@@ -33,6 +33,8 @@ export type SessionDeps = {
   onSessionId(id: string): void;
   // A send that will never run (Stop, run ended), by the user event id send returned.
   onNotSent?(sendId: string): void;
+  // How a restored transcript shows a saved prompt sent with a label, when not as itself.
+  shownPrompt?(prompt: string): string | undefined;
 };
 
 type Send = { id: string; text: string };
@@ -121,6 +123,7 @@ function savedAt(msg: SessionMessage): string {
 export function transcriptFrom(
   messages: SessionMessage[],
   cwd?: string,
+  shown?: (prompt: string) => string | undefined,
 ): PanelEvent[] {
   const events = new Map<string, PanelEvent>();
   const add = (e: PanelEvent) => events.set(e.id, e);
@@ -138,7 +141,8 @@ export function transcriptFrom(
         at,
       });
     } else if (prompt !== undefined) {
-      add({ kind: "user", id: msg.uuid, text: shownPrompt(prompt), at });
+      const text = shown?.(prompt) ?? shownPrompt(prompt);
+      add({ kind: "user", id: msg.uuid, text, at });
     } else {
       for (const e of mapper.map(msg as unknown as SDKMessage, msg.uuid))
         add({ ...e, at });
@@ -181,7 +185,8 @@ export class PlanSession {
           dir: this.#deps.cwd,
         });
         if (saved.length === 0) throw new Error(`session ${id} is empty`);
-        for (const e of transcriptFrom(saved, this.#deps.cwd))
+        const { cwd, shownPrompt } = this.#deps;
+        for (const e of transcriptFrom(saved, cwd, shownPrompt))
           this.#remember(e);
       } catch {
         this.#sessionId = undefined;

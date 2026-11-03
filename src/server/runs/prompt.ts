@@ -1,5 +1,13 @@
 import type { Task } from "../../shared/tasks.js";
 
+const head = (branch: string) =>
+  `You are implementing one task of a plan in this worktree, on branch ${branch}.`;
+const LAST_LINE =
+  "5. Print the pull request URL on its own line, then summarize what you did and anything left open.";
+
+// What the transcript shows for the run prompt: the whole prompt goes to Claude only.
+export const runLabel = (slug: string) => `Start task ${slug}`;
+
 // The first message of every run: the task file, the spec, and what done means.
 export function runPrompt(input: {
   task: Task;
@@ -11,7 +19,7 @@ export function runPrompt(input: {
   const acceptance =
     task.acceptance.map((line) => `- ${line}`).join("\n") ||
     "- none listed; use the task description and the specification";
-  return `You are implementing one task of a plan in this worktree, on branch ${branch}.
+  return `${head(branch)}
 
 ## Task (${taskFile})
 ${task.body}
@@ -29,7 +37,21 @@ ${spec}
 2. Implement the task with tests where the project has them; keep the existing checks green.
 3. Commit with clear conventional commit messages on this branch.
 4. Push the branch and open a pull request with \`gh pr create\` if \`gh\` is installed and authenticated; if it is not, say so and stop after pushing or committing.
-5. Print the pull request URL on its own line, then summarize what you did and anything left open.`;
+${LAST_LINE}`;
+}
+
+// A saved prompt as the run's transcript showed it live: its own run prompt reads as the
+// label, and words a message sent after it (with no session to resume) read as themselves.
+// Undefined for anything that is not this run's prompt.
+export function shownRunPrompt(
+  prompt: string,
+  run: { taskSlug: string; branch: string },
+): string | undefined {
+  if (!prompt.startsWith(`${head(run.branch)}\n`)) return undefined;
+  const end = prompt.indexOf(`${LAST_LINE}\n\n`);
+  return end < 0
+    ? runLabel(run.taskSlug)
+    : prompt.slice(end + LAST_LINE.length + 2);
 }
 
 const PR_URL = String.raw`https://github\.com/[\w.-]+/[\w.-]+/pull/\d+`;
