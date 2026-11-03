@@ -19,6 +19,15 @@ Answer only with the structured output; do not read or change any files.
 
 ${spec}`;
 
+// What an error result means, for one that carries no error text of its own.
+const FAILURES: Record<string, string> = {
+  error_max_turns: "the split ran out of turns",
+  error_max_structured_output_retries:
+    "Claude did not return a valid task list",
+  error_max_budget_usd: "the split hit its budget",
+  error_during_execution: "the split failed while running",
+};
+
 // draft-7: the CLI rejects Zod's default draft 2020-12 meta-schema as not a valid schema.
 const SCHEMA = z.toJSONSchema(TaskGraph, { target: "draft-7" });
 
@@ -45,7 +54,9 @@ export async function splitSpec(
     throw new Error("split failed: the query ended without a result");
   if (result.subtype !== "success")
     throw new Error(
-      `split failed: ${result.errors.join("\n") || result.subtype}`,
+      result.errors.length > 0
+        ? `split failed: ${result.errors.join("\n")}`
+        : (FAILURES[result.subtype] ?? `split failed: ${result.subtype}`),
     );
   const graph = TaskGraph.safeParse(result.structured_output);
   if (!graph.success)

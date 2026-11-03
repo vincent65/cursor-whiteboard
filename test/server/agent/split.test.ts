@@ -91,3 +91,24 @@ test("splitSpec rejects a result without valid structured output", async () => {
     splitSpec({ query: missing.query, cwd: "/repo" }, "# Spec"),
   ).rejects.toThrow(/split failed/);
 });
+
+test("an error result without errors reads as a sentence", async () => {
+  const sentences = {
+    error_max_turns: "the split ran out of turns",
+    error_max_structured_output_retries:
+      "Claude did not return a valid task list",
+    error_max_budget_usd: "the split hit its budget",
+    error_during_execution: "the split failed while running",
+  };
+  for (const [subtype, sentence] of Object.entries(sentences)) {
+    const fake = fakeQuery({
+      subtype,
+      is_error: true,
+      errors: [],
+      total_cost_usd: 0.1,
+    });
+    await expect(
+      splitSpec({ query: fake.query, cwd: "/repo" }, "# Spec"),
+    ).rejects.toThrow(new Error(sentence));
+  }
+});
