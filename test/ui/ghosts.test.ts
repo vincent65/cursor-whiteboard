@@ -1,0 +1,377 @@
+import type { Proposal } from "../../src/shared/proposals";
+import {
+  applyProposal,
+  bounds,
+  decideProposal,
+  type El,
+  ghostOf,
+  labelOf,
+  pendingProposals,
+  placeBeside,
+} from "../../src/ui/board/ghosts";
+
+const el = (over: Partial<El> & { id: string }): El => ({
+  type: "rectangle",
+  x: 0,
+  y: 0,
+  width: 100,
+  height: 50,
+  opacity: 100,
+  strokeStyle: "solid",
+  strokeColor: "#1e1e1e",
+  backgroundColor: "#eee",
+  groupIds: [],
+  ...over,
+});
+
+const p: Proposal = {
+  id: "p_1",
+  board: "b",
+  title: null,
+  ops: [],
+  at: "2026-11-02T00:00:00.000Z",
+};
+const viewport = { x: 0, y: 0, w: 1000, h: 800 };
+const ctx = { selectedIds: [], viewport };
+const byId = (els: readonly El[], id: string) => {
+  const found = els.find((e) => e.id === id);
+  if (!found) throw new Error(`no ${id}`);
+  return found;
+};
+const added = (els: readonly El[]) =>
+  els.filter((e) => ghostOf(e)?.ghost === "add");
+
+test("add ops land beside the anchor with the ghost style, group, and tag", () => {
+  const a = el({ id: "a" });
+  const rendered = new Map([
+    [
+      0,
+      [
+        el({ id: "r1", x: 10, y: 10, width: 60, height: 30 }),
+        el({ id: "r2", x: 10, y: 60, width: 40, height: 30, groupIds: ["g"] }),
+      ],
+    ],
+  ]);
+  const { elements, ids } = applyProposal(
+    [a],
+    { ...p, ops: [{ op: "add_diagram", mermaid: "x", near: ["a"] }] },
+    rendered,
+    ctx,
+  );
+  const ghosts = added(elements);
+  expect(bounds(ghosts)).toEqual({ x: 180, y: 0, w: 60, h: 80 });
+  for (const g of ghosts) {
+    expect(g.opacity).toBe(40);
+    expect(g.strokeStyle).toBe("dashed");
+    expect(g.groupIds[0]).toBe("p_1");
+    expect(g.customData).toEqual({
+      origin: "ai",
+      proposalId: "p_1",
+      ghost: "add",
+    });
+  }
+  expect(byId(elements, "r2").groupIds).toEqual(["p_1", "g"]);
+  expect(ids).toEqual(["r1", "r2"]);
+  expect(elements[0]).toBe(a);
+  expect(rendered.get(0)?.[0].x).toBe(10);
+});
+
+test("two additions stack downward with a 40px gap, and an empty board centers in the viewport", () => {
+  const ops: Proposal["ops"] = [
+    { op: "add_note", text: "one" },
+    { op: "add_note", text: "two" },
+  ];
+  const rendered = new Map([
+    [0, [el({ id: "n1", x: 500, y: 500, width: 200, height: 100 })]],
+    [1, [el({ id: "n2", x: -50, y: -50, width: 80, height: 40 })]],
+  ]);
+  const beside = applyProposal(
+    [el({ id: "a" })],
+    { ...p, ops },
+    rendered,
+    ctx,
+  ).elements;
+  expect(byId(beside, "n1")).toMatchObject({ x: 180, y: 0 });
+  expect(byId(beside, "n2")).toMatchObject({ x: 180, y: 140 });
+
+  const empty = applyProposal(
+    [el({ id: "gone", isDeleted: true })],
+    { ...p, ops },
+    rendered,
+    { selectedIds: [], viewport: { x: -100, y: 0, w: 1000, h: 800 } },
+  ).elements;
+  expect(byId(empty, "n1")).toMatchObject({ x: 300, y: 350 });
+  expect(byId(empty, "n2")).toMatchObject({ x: 300, y: 490 });
+});
+
+test("placeBeside and the anchor fall back from near ids to the selection to everything", () => {
+  expect(
+    placeBeside({ x: 0, y: 10, w: 100, h: 50 }, viewport, { w: 1, h: 1 }, 30),
+  ).toEqual({ x: 180, y: 40 });
+  const els = [
+    el({ id: "a" }),
+    el({ id: "b", x: 500, y: 300 }),
+    el({ id: "c", x: 1000, y: 600 }),
+  ];
+  const at = (near: string[], selectedIds: string[]) =>
+    byId(
+      applyProposal(
+        els,
+        { ...p, ops: [{ op: "add_note", text: "n", near }] },
+        new Map([[0, [el({ id: "n" })]]]),
+        { selectedIds, viewport },
+      ).elements,
+      "n",
+    );
+  expect(at(["b", "missing"], ["a"])).toMatchObject({ x: 680, y: 300 });
+  expect(at(["missing"], ["a"])).toMatchObject({ x: 180, y: 0 });
+  expect(at([], [])).toMatchObject({ x: 1180, y: 0 });
+});
+
+test("update snapshots before values, dashes the stroke, and rewrites the bound label", () => {
+  const b = el({ id: "b" });
+  const t = el({
+    id: "t",
+    type: "text",
+    containerId: "b",
+    text: "Old",
+    originalText: "Old",
+  });
+  const { elements, ids } = applyProposal(
+    [b, t],
+    {
+      ...p,
+      ops: [{ op: "update", id: "b", label: "New", backgroundColor: "#fff" }],
+    },
+    new Map(),
+    ctx,
+  );
+  const nb = byId(elements, "b");
+  const nt = byId(elements, "t");
+  expect(nt.text).toBe("New");
+  expect(nt.originalText).toBe("New");
+  expect(nb.strokeStyle).toBe("dashed");
+  expect(nb.backgroundColor).toBe("#fff");
+  expect(nb.strokeColor).toBe("#1e1e1e");
+  expect(nb.customData?.before).toEqual({
+    strokeStyle: "solid",
+    backgroundColor: "#eee",
+    label: "Old",
+    customData: undefined,
+  });
+  expect(ghostOf(nb)).toMatchObject({ proposalId: "p_1", ghost: "update" });
+  expect(ids).toEqual(["b"]);
+  expect(b.strokeStyle).toBe("solid");
+  expect(t.text).toBe("Old");
+});
+
+test("a text element is its own label", () => {
+  const t = el({ id: "t", type: "text", text: "Hi", originalText: "Hi" });
+  expect(labelOf([t], "t")).toBe(t);
+  const { elements } = applyProposal(
+    [t],
+    { ...p, ops: [{ op: "update", id: "t", label: "Bye" }] },
+    new Map(),
+    ctx,
+  );
+  expect(byId(elements, "t")).toMatchObject({
+    text: "Bye",
+    originalText: "Bye",
+  });
+  const rejected = decideProposal(elements, "p_1", "rejected");
+  expect(byId(rejected, "t")).toEqual(t);
+});
+
+test("delete shows red dashed at opacity 40 and keeps the element", () => {
+  const d = el({ id: "d", customData: { mine: 1 } });
+  const { elements } = applyProposal(
+    [d],
+    { ...p, ops: [{ op: "delete", id: "d" }] },
+    new Map(),
+    ctx,
+  );
+  const nd = byId(elements, "d");
+  expect(nd).toMatchObject({
+    opacity: 40,
+    strokeStyle: "dashed",
+    strokeColor: "#e03131",
+  });
+  expect(nd.isDeleted).toBeFalsy();
+  expect(ghostOf(nd)).toEqual({
+    origin: "ai",
+    proposalId: "p_1",
+    ghost: "delete",
+    before: {
+      strokeStyle: "solid",
+      opacity: 100,
+      strokeColor: "#1e1e1e",
+      customData: { mine: 1 },
+    },
+  });
+});
+
+test("an unknown id throws before anything changes", () => {
+  const els = [el({ id: "a" }), el({ id: "x", isDeleted: true })];
+  const snapshot = structuredClone(els);
+  expect(() =>
+    applyProposal(
+      els,
+      { ...p, ops: [{ op: "delete", id: "nope" }] },
+      new Map(),
+      ctx,
+    ),
+  ).toThrow("unknown element id nope");
+  expect(() =>
+    applyProposal(
+      els,
+      {
+        ...p,
+        ops: [
+          { op: "update", id: "a", strokeColor: "#000" },
+          { op: "delete", id: "x" },
+        ],
+      },
+      new Map(),
+      ctx,
+    ),
+  ).toThrow("unknown element id x");
+  expect(els).toEqual(snapshot);
+});
+
+test("pendingProposals counts per proposal in first-seen order and ignores deleted ghosts", () => {
+  const tag = (proposalId: string, ghost: string) => ({
+    origin: "ai",
+    proposalId,
+    ghost,
+  });
+  const els = [
+    el({ id: "1", customData: tag("p_2", "update") }),
+    el({ id: "2", customData: tag("p_1", "add") }),
+    el({ id: "3", customData: tag("p_2", "add") }),
+    el({ id: "4", customData: tag("p_2", "delete") }),
+    el({ id: "5", customData: tag("p_2", "add"), isDeleted: true }),
+    el({ id: "6", customData: tag("p_3", "add"), isDeleted: true }),
+    el({ id: "7", customData: { origin: "ai", proposalId: "p_1" } }),
+    el({ id: "8" }),
+  ];
+  expect(pendingProposals(els)).toEqual([
+    { id: "p_2", counts: { added: 1, updated: 1, deleted: 1 } },
+    { id: "p_1", counts: { added: 1, updated: 0, deleted: 0 } },
+  ]);
+});
+
+const board = () => {
+  const a = el({ id: "a" });
+  const u = el({ id: "u", x: 200 });
+  const ut = el({
+    id: "ut",
+    type: "text",
+    containerId: "u",
+    text: "Old",
+    originalText: "Old",
+  });
+  const d = el({ id: "d", x: 400, customData: { mine: 1 } });
+  const dt = el({
+    id: "dt",
+    type: "text",
+    containerId: "d",
+    text: "Bye",
+    originalText: "Bye",
+  });
+  return [a, u, ut, d, dt];
+};
+const mixed: Proposal = {
+  ...p,
+  ops: [
+    { op: "add_note", text: "n" },
+    { op: "update", id: "u", label: "New", strokeColor: "#f00" },
+    { op: "delete", id: "d" },
+  ],
+};
+const apply = (els: El[], nid = "n") =>
+  applyProposal(els, mixed, new Map([[0, [el({ id: nid })]]]), ctx).elements;
+
+test("accept makes additions real, keeps updates, deletes deletions with their labels", () => {
+  const els = board();
+  const applied = apply(els);
+  const out = decideProposal(applied, "p_1", "accepted");
+  expect(byId(out, "n")).toMatchObject({
+    opacity: 100,
+    strokeStyle: "solid",
+    customData: { origin: "ai", proposalId: "p_1" },
+  });
+  expect(byId(out, "n").customData).toEqual({
+    origin: "ai",
+    proposalId: "p_1",
+  });
+  expect(byId(out, "u")).toMatchObject({
+    strokeStyle: "solid",
+    strokeColor: "#f00",
+  });
+  expect(byId(out, "u").customData).toEqual({
+    origin: "ai",
+    proposalId: "p_1",
+  });
+  expect(byId(out, "ut").text).toBe("New");
+  expect(byId(out, "d").isDeleted).toBe(true);
+  expect(byId(out, "dt").isDeleted).toBe(true);
+  expect(byId(out, "a")).toBe(els[0]);
+  expect(pendingProposals(out)).toEqual([]);
+  expect(byId(applied, "d").isDeleted).toBeFalsy();
+});
+
+test("reject removes additions and restores updates and deletions exactly", () => {
+  const els = board();
+  const out = decideProposal(apply(els), "p_1", "rejected");
+  expect(byId(out, "n").isDeleted).toBe(true);
+  expect(byId(out, "u")).toEqual(els[1]);
+  expect(byId(out, "u")).not.toHaveProperty("customData");
+  expect(byId(out, "ut")).toEqual(els[2]);
+  expect(byId(out, "d")).toEqual(els[3]);
+  expect(byId(out, "dt")).toEqual(els[4]);
+  expect(pendingProposals(out)).toEqual([]);
+});
+
+test("two ops on one element reject back to the original", () => {
+  const u = el({ id: "u" });
+  const { elements } = applyProposal(
+    [u],
+    {
+      ...p,
+      ops: [
+        { op: "update", id: "u", strokeColor: "#f00" },
+        { op: "delete", id: "u" },
+      ],
+    },
+    new Map(),
+    ctx,
+  );
+  expect(ghostOf(byId(elements, "u"))?.ghost).toBe("delete");
+  expect(byId(decideProposal(elements, "p_1", "rejected"), "u")).toEqual(u);
+
+  const deletedFirst = applyProposal(
+    [u],
+    {
+      ...p,
+      ops: [
+        { op: "delete", id: "u" },
+        { op: "update", id: "u", strokeColor: "#f00" },
+      ],
+    },
+    new Map(),
+    ctx,
+  ).elements;
+  expect(byId(deletedFirst, "u").strokeColor).toBe("#e03131");
+  expect(ghostOf(byId(deletedFirst, "u"))?.ghost).toBe("delete");
+});
+
+test("replace flow: rejecting p_1 then applying p_1 again leaves one pending proposal", () => {
+  const once = apply(board());
+  const again = apply(decideProposal(once, "p_1", "rejected"), "n2");
+  expect(pendingProposals(again)).toEqual([
+    { id: "p_1", counts: { added: 1, updated: 1, deleted: 1 } },
+  ]);
+  const out = decideProposal(again, "p_1", "rejected");
+  expect(byId(out, "u")).toEqual(board()[1]);
+  expect(pendingProposals(out)).toEqual([]);
+});
