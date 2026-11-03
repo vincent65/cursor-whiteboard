@@ -55,6 +55,19 @@ test("golden: basic board renders exactly", async () => {
   );
 });
 
+test("connected arrows are listed with their ids after the diagram", async () => {
+  const board = BoardFile.parse(
+    JSON.parse(await readFile(fixture("basic.excalidraw.json"), "utf8")),
+  );
+  const md = boardGraphToMarkdown(excalidrawToBoardGraph(board, "main"));
+  expect(md).toContain(
+    '<!-- ids: n1=fr1 n2=r1 n3=r2 n4=e1 -->\n\n## Arrows\n\n- a1: "API" (r1) -> "Postgres" (r2) label "SQL"\n',
+  );
+  expect(boardGraphToMarkdown(graph([node("a", "A")]))).not.toContain(
+    "## Arrows",
+  );
+});
+
 test("labels are escaped for Mermaid", () => {
   expect(mermaidLabel('Say "hi" | [x]\nnext')).toBe(
     "Say #quot;hi#quot; #124; #91;x#93; next",

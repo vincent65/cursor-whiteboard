@@ -74,6 +74,10 @@ test("the prompt explains propose and revise", () => {
   expect(SYSTEM_PROMPT_APPEND).toMatch(/call revise with its proposalId/);
 });
 
+test("the prompt tells Claude where arrow ids come from", () => {
+  expect(SYSTEM_PROMPT_APPEND).toMatch(/arrows in its Arrows list/);
+});
+
 test("SYSTEM_PROMPT_APPEND covers its topics in order", () => {
   const order = [
     ".blueprint/",

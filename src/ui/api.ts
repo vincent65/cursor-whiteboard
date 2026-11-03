@@ -11,14 +11,25 @@ import type { IncomingScene } from "../shared/types";
 
 export type Entry = { name: string; updatedAt: string };
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function request(path: string, init?: RequestInit): Promise<Response> {
   const res = await fetch(`/api${path}`, init);
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as {
       error?: string;
     } | null;
-    throw new Error(
+    throw new ApiError(
       body?.error ?? `${init?.method ?? "GET"} ${path}: ${res.status}`,
+      res.status,
     );
   }
   return res;

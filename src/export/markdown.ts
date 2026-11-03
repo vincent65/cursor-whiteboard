@@ -66,6 +66,13 @@ export function boardGraphToMarkdown(graph: BoardGraph): string {
   const framed = (n: BoardNode): boolean =>
     n.frameId !== null && subgraphs.has(n.frameId);
 
+  const side = (id: string | null): string => {
+    const n = id === null ? undefined : nodes.get(id);
+    return n ? `"${plain(nodeLabel(n))}" (${n.id})` : "(free)";
+  };
+  const arrow = (e: (typeof edges)[number]): string =>
+    `- ${e.id}: ${side(e.from)} -> ${side(e.to)}${e.label.trim() ? ` label "${plain(e.label)}"` : ""}`;
+
   const sections = [`# Board: ${graph.board}`];
 
   if (linked.length > 0) {
@@ -95,18 +102,11 @@ export function boardGraphToMarkdown(graph: BoardGraph): string {
     sections.push(
       `## Diagram\n\n\`\`\`mermaid\n${lines.join("\n")}\n\`\`\`\n\n<!-- ids: ${idList} -->`,
     );
+    sections.push(`## Arrows\n\n${linked.map(arrow).join("\n")}`);
   }
 
   if (free.length > 0) {
-    const side = (id: string | null): string => {
-      const n = id === null ? undefined : nodes.get(id);
-      return n ? `"${plain(nodeLabel(n))}" (${n.id})` : "(free)";
-    };
-    const bullets = free.map(
-      (e) =>
-        `- ${e.id}: ${side(e.from)} -> ${side(e.to)}${e.label.trim() ? ` label "${plain(e.label)}"` : ""}`,
-    );
-    sections.push(`## Unconnected arrows\n\n${bullets.join("\n")}`);
+    sections.push(`## Unconnected arrows\n\n${free.map(arrow).join("\n")}`);
   }
 
   const bullets = graph.nodes

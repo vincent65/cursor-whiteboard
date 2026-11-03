@@ -378,9 +378,19 @@ export function BoardView({
       .then(load)
       .then(apply, (err: Error) => setError(err.message));
 
-  // The local change stands even if the server disagrees: the board is the
-  // record, and a proposal the server lost has nothing left to decide.
-  const decide = (id: string, decision: Decision) => {
+  // The server decides first, so a proposal Claude is revising (409) keeps
+  // its ghosts for the revise to replace. A proposal the server lost (404)
+  // still resolves locally: the board is the record.
+  const decide = async (id: string, decision: Decision) => {
+    try {
+      await api.decideProposal(id, decision);
+    } catch (err) {
+      if (!(err instanceof api.ApiError && err.status === 404)) {
+        setError(`Decision failed: ${(err as Error).message}`);
+        return;
+      }
+      console.warn(err.message);
+    }
     const ex = excalidraw.current;
     if (!ex) return;
     ex.updateScene({
@@ -389,12 +399,12 @@ export function BoardView({
       ),
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
-    if (target?.id === id) setTarget(null);
-    api.decideProposal(id, decision).catch((err: Error) => {
-      // api.ts keeps only the message; this is the server's 404 text.
-      if (err.message.endsWith("is not pending")) console.warn(err.message);
-      else setError(`Decision failed: ${err.message}`);
+    setTitles((t) => {
+      const next = new Map(t);
+      next.delete(id);
+      return next;
     });
+    if (target?.id === id) setTarget(null);
   };
 
   const onChange = (
