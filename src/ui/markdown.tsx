@@ -6,8 +6,9 @@ import { type Citation, parseCitations } from "../export/citations";
 // and every string goes in as a text node, so HTML in the input is never markup.
 // A citation such as [[board:main#a1]] stays text unless renderCitation is
 // given, which the spec view and the transcripts use for their links.
-// ponytail: no tables or images; lists nest by indentation but a blank line
-// inside a nested list ends it.
+// ponytail: no tables or images; lists nest by indentation, but a blank line
+// inside a nested list ends the whole outer list, so the nested items after it
+// render as a separate top-level list.
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
