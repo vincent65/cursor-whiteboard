@@ -25,10 +25,11 @@ ${acceptance}
 ${spec}
 
 ## Definition of done
-1. Implement the task with tests where the project has them; keep the existing checks green.
-2. Commit with clear conventional commit messages on this branch.
-3. Push the branch and open a pull request with \`gh pr create\` if \`gh\` is installed and authenticated; if it is not, say so and stop after pushing or committing.
-4. Print the pull request URL on its own line, then summarize what you did and anything left open.`;
+1. Create and edit files with the Write and Edit tools, not shell redirection.
+2. Implement the task with tests where the project has them; keep the existing checks green.
+3. Commit with clear conventional commit messages on this branch.
+4. Push the branch and open a pull request with \`gh pr create\` if \`gh\` is installed and authenticated; if it is not, say so and stop after pushing or committing.
+5. Print the pull request URL on its own line, then summarize what you did and anything left open.`;
 }
 
 const PR_URL = /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+$/;
