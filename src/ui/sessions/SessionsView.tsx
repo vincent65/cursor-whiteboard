@@ -43,9 +43,11 @@ function OtherSessionRow({ session }: { session: OtherSession }) {
     );
   };
 
-  // Opening again after a failure retries, without the old failure meanwhile.
+  // Opening again after a failure retries, without the old failure meanwhile. Closing
+  // drops a request in flight, so its late answer cannot overwrite a newer list.
   const toggle = () => {
-    if (!open && items === null) load();
+    if (open) latest.current++;
+    else if (items === null) load();
     setOpen(!open);
   };
 

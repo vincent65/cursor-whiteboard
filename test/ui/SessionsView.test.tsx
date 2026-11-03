@@ -371,3 +371,40 @@ test("an other session's transcript reloads on runs.changed: at once when open, 
   expect(await screen.findByText("Fixed?")).toBeVisible();
   expect(api.sessionTranscript).toHaveBeenCalledTimes(3);
 });
+
+test("an other session's late transcript, answered after its row closed, cannot overwrite a newer one", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.listRuns).mockResolvedValue([]);
+  vi.mocked(api.listSessions).mockResolvedValue([
+    {
+      sessionId: "o1",
+      summary: "Fix the login bug",
+      lastModified: Date.now(),
+      cwd: "/repo",
+      gitBranch: null,
+    },
+  ]);
+  let late: (list: Awaited<ReturnType<typeof api.sessionTranscript>>) => void =
+    () => {};
+  vi.mocked(api.sessionTranscript)
+    .mockReturnValueOnce(
+      new Promise((r) => {
+        late = r;
+      }),
+    )
+    .mockResolvedValueOnce([{ kind: "user", id: "u2", text: "Newer", at }]);
+  render(<SessionsView />);
+  const row = await screen.findByRole("button", { name: /Fix the login bug/ });
+
+  // Open, then close before the transcript answers; a run changes meanwhile.
+  await user.click(row);
+  await user.click(row);
+  emit({ type: "runs.changed" });
+  await act(async () => late([{ kind: "user", id: "u1", text: "Older", at }]));
+
+  // Opening again loads the newer transcript, and the late one never shows.
+  await user.click(row);
+  expect(await screen.findByText("Newer")).toBeVisible();
+  expect(screen.queryByText("Older")).toBeNull();
+  expect(api.sessionTranscript).toHaveBeenCalledTimes(2);
+});
