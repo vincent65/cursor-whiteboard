@@ -22,11 +22,15 @@ const DEMO_NAMES: Record<string, string> = {
 };
 
 test.afterEach(async ({ page }, info) => {
+  // Checked in every project, so a new flow cannot reach the demo without a name.
+  const name = DEMO_NAMES[info.title];
+  if (!name)
+    throw new Error(`no DEMO_NAMES entry for the test "${info.title}"`);
   const video = page.video();
   if (!video || info.status !== info.expectedStatus) return;
   // The video is complete once its page closes.
   await page.close();
-  await video.saveAs(join(DEMO_DIR, DEMO_NAMES[info.title]));
+  await video.saveAs(join(DEMO_DIR, name));
 });
 
 // A drag on the board's canvas, from and to points relative to the main area.
@@ -188,8 +192,8 @@ test("launch a run", async ({ page, start }) => {
   await expect(page).toHaveURL(/#\/sessions$/);
   const card = page.getByRole("article", { name: "login-page" });
   const status = card.getByRole("status");
-  // The run asks before pushing; Working before the ask lasts only until the ask
-  // arrives, so the held state is what the test waits on.
+  // The run writes, then asks before pushing; Working lasts only until the ask arrives,
+  // so the held state is what the test waits on.
   await expect(status).toHaveText("Needs you");
   const ask = card.getByRole("alertdialog");
   await expect(ask).toContainText("Allow Bash");

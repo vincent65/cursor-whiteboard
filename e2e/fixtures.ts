@@ -65,12 +65,15 @@ export const test = base.extend<
     { scope: "worker" },
   ],
   start: async ({ cli }, use) => {
-    const started: { root: string; child: ChildProcess }[] = [];
+    const started: { root: string; child?: ChildProcess }[] = [];
     await use(async (seed) => {
       // realpath: macOS's tmpdir is a symlink, and git reports worktrees by real path.
       const root = await realpath(
         await mkdtemp(join(tmpdir(), "blueprint-e2e-")),
       );
+      // Registered first, so a seed or git step that throws still leaves no directory.
+      const entry: (typeof started)[number] = { root };
+      started.push(entry);
       git(root, "init", "--quiet", "--initial-branch=main");
       await seed?.(root);
       git(root, "add", "--all");
@@ -79,11 +82,11 @@ export const test = base.extend<
         cwd: root,
         env: { ...process.env, BLUEPRINT_FAKE_SDK: SCENARIO },
       });
-      started.push({ root, child });
+      entry.child = child;
       return { root, url: await serverUrl(child) };
     });
     for (const { root, child } of started) {
-      if (child.exitCode === null && child.signalCode === null) {
+      if (child && child.exitCode === null && child.signalCode === null) {
         child.kill();
         await once(child, "exit");
       }
