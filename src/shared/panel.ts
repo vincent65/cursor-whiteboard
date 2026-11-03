@@ -31,7 +31,14 @@ export type PanelEvent =
       durationMs: number;
       at: string;
     }
-  | { kind: "error"; id: string; message: string; at: string };
+  | {
+      kind: "error";
+      id: string;
+      message: string;
+      // An error result's running total for the process, as a result's costUsd.
+      costUsd?: number;
+      at: string;
+    };
 
 export type PermissionDecision = {
   behavior: "allow" | "deny" | "always";

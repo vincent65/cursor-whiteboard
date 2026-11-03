@@ -322,13 +322,21 @@ test("an error result becomes an error event with the joined messages", () => {
         session_id: "s",
         uuid: "u-err",
         duration_ms: 10,
-        total_cost_usd: 0,
+        total_cost_usd: 0.04,
         is_error: true,
         num_turns: 1,
         errors: ["first", "second"],
       } satisfies ErrorFixture),
     ),
-  ).toEqual([{ kind: "error", id: "u-err", message: "first\nsecond", at: AT }]);
+  ).toEqual([
+    {
+      kind: "error",
+      id: "u-err",
+      message: "first\nsecond",
+      costUsd: 0.04,
+      at: AT,
+    },
+  ]);
 });
 
 test("a success result flagged is_error becomes an error event with its result text", () => {
@@ -353,6 +361,7 @@ test("a success result flagged is_error becomes an error event with its result t
       kind: "error",
       id: "u-auth",
       message: "Not logged in · Please run /login",
+      costUsd: 0,
       at: AT,
     },
   ]);

@@ -162,7 +162,15 @@ export class SdkEventMapper {
       case "result": {
         const error = resultError(msg);
         if (error !== undefined)
-          return [{ kind: "error", id: msg.uuid, message: error, at }];
+          return [
+            {
+              kind: "error",
+              id: msg.uuid,
+              message: error,
+              costUsd: msg.total_cost_usd,
+              at,
+            },
+          ];
         return [
           {
             kind: "result",
