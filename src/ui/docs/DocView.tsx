@@ -37,7 +37,11 @@ const highlight = syntaxHighlighting(
     { tag: tags.emphasis, fontStyle: "italic" },
     { tag: tags.strikethrough, textDecoration: "line-through" },
     { tag: [tags.link, tags.url], color: "var(--accent)" },
-    { tag: tags.monospace, fontFamily: "var(--font-mono)", fontSize: "0.9em" },
+    {
+      tag: tags.monospace,
+      fontFamily: "var(--font-mono)",
+      fontSize: "var(--fs-code-ratio)",
+    },
     {
       tag: [tags.processingInstruction, tags.contentSeparator, tags.quote],
       color: "var(--muted)",

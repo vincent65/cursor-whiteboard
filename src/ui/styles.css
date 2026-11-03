@@ -40,6 +40,8 @@
   --fs-md: 15px;
   --fs-lg: 17px;
   --fs-xl: 22px;
+  /* Code inside text: Cascadia Code runs large beside Assistant. */
+  --fs-code-ratio: 0.9em;
   --line-height: 1.5;
   --space: 8px;
 
@@ -447,11 +449,12 @@ pre {
   margin-top: calc(var(--space) / 4);
 }
 
+/* Less padding after than before, so punctuation that follows sits close. */
 .md code {
-  padding: 0 calc(var(--space) / 2);
+  padding: 0 calc(var(--space) / 4) 0 calc(var(--space) / 2);
   border-radius: var(--radius-sm);
   background: var(--code-bg);
-  font-size: 0.88em;
+  font-size: var(--fs-code-ratio);
 }
 
 .md pre {

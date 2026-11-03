@@ -15,13 +15,14 @@ The interface is set in Assistant, the face Excalidraw uses for its own toolbar,
 Code, branch names, task file names, and citation chips are set in Cascadia Code.
 Both faces are served from `/fonts`, copied in from Excalidraw's package at build time, so nothing loads from the network.
 
-| Token     | Size | Use                                                                                  |
-| --------- | ---- | ------------------------------------------------------------------------------------ |
-| `--fs-xs` | 12px | Meta lines, branch tags, status pills, code blocks                                   |
-| `--fs-sm` | 13px | Tool rows, chips, the status strip, sidebar section names                            |
-| `--fs-md` | 15px | Body text, buttons, inputs, Claude's headings below the top level                    |
-| `--fs-lg` | 17px | Card titles, Claude's top-level heading, a second-level heading in the spec and docs |
-| `--fs-xl` | 22px | The top-level heading in the spec and docs                                           |
+| Token             | Size  | Use                                                                                       |
+| ----------------- | ----- | ----------------------------------------------------------------------------------------- |
+| `--fs-xs`         | 12px  | Meta lines, branch tags, status pills, code blocks                                        |
+| `--fs-sm`         | 13px  | Tool rows, chips, the status strip, sidebar section names                                 |
+| `--fs-md`         | 15px  | Body text, buttons, inputs, Claude's headings below the top level                         |
+| `--fs-lg`         | 17px  | Card titles, Claude's top-level heading, a second-level heading in the spec and docs      |
+| `--fs-xl`         | 22px  | The top-level heading in the spec and docs                                                |
+| `--fs-code-ratio` | 0.9em | Code inside text, in Claude's Markdown and the doc editor, relative to the text around it |
 
 Body text uses a line height of 1.5.
 Weights are 400 for text, 600 for buttons and labels, and 700 for titles.
@@ -135,6 +136,8 @@ Paragraphs, headings, emphasis, inline code, fenced code, lists, links, and bloc
 A single newline is a line break, because Claude often writes a sentence per line.
 Headings start at `h3` below the panel's own `h2`, and a top-level heading is `--fs-lg`.
 Code blocks scroll sideways rather than wrap.
+Inline code has less padding after than before, so punctuation that follows sits close.
+An item indented two or more spaces under a list item starts a nested list.
 Links open in a new tab with `rel="noreferrer"`, and only `http`, `https`, and `mailto` links become links.
 A citation stays text unless the caller passes `renderCitation`, which the spec view uses for its chips.
 
