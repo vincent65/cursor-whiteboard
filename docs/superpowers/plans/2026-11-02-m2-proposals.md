@@ -322,6 +322,9 @@ decideProposal(id: string, decision: Decision): Promise<Proposal>;
 
 - Produces in `src/server/agentRoutes.ts`: `SendBody` gains `proposalId: z.string().optional()`; `POST /send` returns 404 `{ error: "proposal <id> is not pending" }` when `agent.send` throws `NotFoundError`; `GET /proposals` returns `agent.pendingProposals()`; `POST /proposals/:id/decision` with body `{ decision: "accepted" | "rejected" }` returns 204, 400 on a bad body, 404 when not pending.
 - Produces in `src/server/agent/session.ts`: `send(text: string, shown: string = text): string` emits the `user` event with `shown` (what the user typed) while `text` (notes, header, and typed text) goes to Claude; `createAgent` passes both. The panel then no longer needs to strip the selection header from user bubbles by regex (deferred from the milestone 1 review); Task 9, which owns `src/ui/panel/ClaudePanel.tsx`, removes that code and its test.
+- Produces in `src/server/agent/session.ts` (carried from the milestone 1 final review):
+  - sends are held by `PlanSession` itself and released to the SDK one per turn: a send while a turn runs stays in Blueprint's own queue until the previous `result` arrives, so `interrupt()` drops every pending send for real (the SDK otherwise writes queued sends to the CLI as soon as it initializes). The existing "queued send" and "Stop drops queued sends" tests are updated to this behaviour.
+  - when a resumed run fails before its init message, the restore-failed message carries the cause: `The previous session could not be loaded (<error message>); starting fresh.`
 - `src/server/index.ts`: `close()` wraps `agent.close()` in `try/finally` so clients are terminated and the server closes even if the session hangs or rejects (deferred from the milestone 1 review).
 
 - [ ] **Step 1: Write the failing tests**
@@ -640,7 +643,7 @@ git commit -m "feat(ui): the board applies proposals as ghosts and decides them"
 
 **Interfaces:**
 - Consumes: `useRefine` (Task 7), `agentSend` with `proposalId` (Task 7).
-- Produces: the regex that strips a `[Selection on board …]` header from user bubbles, and its test, are removed (the server now sends the typed text as the user event, Task 4); while `target` is set the panel shows a chip above the composer, `Refining <id> · <title>` with an `×` button that clears it, focuses the textarea, sends the next message with `proposalId: target.id`, and clears the target after the send resolves. Tool rows for `propose` and `revise` already read `proposing 2 changes` and `revising p_…` through `summarizeTool`.
+- Produces: the `Stopped` result row shows its cost as `Stopped · $<cost> total`, matching the Done row (carried from the milestone 1 final review); the regex that strips a `[Selection on board …]` header from user bubbles, and its test, are removed (the server now sends the typed text as the user event, Task 4); while `target` is set the panel shows a chip above the composer, `Refining <id> · <title>` with an `×` button that clears it, focuses the textarea, sends the next message with `proposalId: target.id`, and clears the target after the send resolves. Tool rows for `propose` and `revise` already read `proposing 2 changes` and `revising p_…` through `summarizeTool`.
 
 - [ ] **Step 1: Write the failing tests**
 
