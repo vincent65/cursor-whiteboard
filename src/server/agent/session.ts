@@ -11,6 +11,7 @@ import type {
 import type { AgentStatus } from "../../shared/messages.js";
 import type { PanelEvent } from "../../shared/panel.js";
 import { resultError, SdkEventMapper } from "./events.js";
+import { COMPILE_INSTRUCTION, COMPILE_LABEL } from "./prompt.js";
 
 const TRANSCRIPT_LIMIT = 500;
 const RESTORE_FAILED = "previous session could not be loaded; starting fresh";
@@ -101,6 +102,12 @@ function savedPrompt(msg: SessionMessage): string | undefined {
   return content.map((b: { text: string }) => b.text).join("\n");
 }
 
+// A saved compile shows its label, as it did live. Matched on the instruction's first line,
+// since the doc headings after it vary and decision notes may come before it.
+const COMPILE_LINE = COMPILE_INSTRUCTION.split("\n")[0];
+const shownPrompt = (prompt: string) =>
+  prompt.split("\n").includes(COMPILE_LINE) ? COMPILE_LABEL : prompt;
+
 export class PlanSession {
   #deps: SessionDeps;
   #sessionId: string | undefined;
@@ -151,7 +158,7 @@ export class PlanSession {
             this.#remember({
               kind: "user",
               id: msg.uuid,
-              text: prompt,
+              text: shownPrompt(prompt),
               at: now(),
             });
           } else {

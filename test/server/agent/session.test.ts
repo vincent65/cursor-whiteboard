@@ -6,6 +6,7 @@ import type {
   SDKUserMessage,
   SessionMessage,
 } from "@anthropic-ai/claude-agent-sdk";
+import { compileMessage } from "../../../src/server/agent/prompt.js";
 import {
   PlanSession,
   type SessionDeps,
@@ -697,6 +698,39 @@ test("restore shows the CLI's interrupt marker as a stopped result, not a user m
   expect(session.transcript()).toMatchObject([
     { kind: "user", id: "u1", text: "write an essay" },
     { kind: "result", id: "u2", subtype: "interrupted", costUsd: null },
+  ]);
+});
+
+test("restore shows a saved compile as its short label", async () => {
+  const user = (uuid: string, content: string) => ({
+    type: "user",
+    uuid,
+    session_id: "old",
+    parent_tool_use_id: null,
+    parent_agent_id: null,
+    message: { role: "user", content },
+  });
+  const message = compileMessage([{ file: "api.md", markdown: "# Auth" }]);
+  const saved = [
+    user("u1", message),
+    user("u2", `[Proposal p_1 "Cache" was accepted.]\n\n${message}`),
+    user("u3", "Compile the plan into .blueprint/spec.md please"),
+  ] as SessionMessage[];
+  const { session } = setup(() => turnsOf(), {
+    resumeId: "old",
+    getSessionMessages: vi.fn(async () => saved),
+  });
+
+  await session.restore();
+
+  expect(session.transcript()).toMatchObject([
+    { kind: "user", id: "u1", text: "Compile the plan into spec.md" },
+    { kind: "user", id: "u2", text: "Compile the plan into spec.md" },
+    {
+      kind: "user",
+      id: "u3",
+      text: "Compile the plan into .blueprint/spec.md please",
+    },
   ]);
 });
 

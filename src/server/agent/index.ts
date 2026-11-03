@@ -16,6 +16,7 @@ import type { WsHub } from "../ws.js";
 import { PermissionBroker } from "./broker.js";
 import { denyBoardWrites } from "./hooks.js";
 import {
+  COMPILE_LABEL,
   compileMessage,
   composeUserMessage,
   SYSTEM_PROMPT_APPEND,
@@ -275,12 +276,7 @@ export async function createAgent(deps: {
             markdown: await store.readDoc(name),
           })),
         );
-        return send(
-          compileMessage(docs),
-          undefined,
-          undefined,
-          "Compile the plan into spec.md",
-        );
+        return send(compileMessage(docs), undefined, undefined, COMPILE_LABEL);
       })().catch((err) => {
         // A run that ended meanwhile may have let a newer compile start; leave that one.
         if (compiling === p) compiling = undefined;

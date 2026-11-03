@@ -12,6 +12,9 @@ export const SYSTEM_PROMPT_APPEND = `You are planning inside Blueprint, a whiteb
 - Put long descriptions in a doc under \`.blueprint/docs/\` and leave a short note on the board.
 - The user sees your tool calls only as short rows, so put everything they need in your text answer.`;
 
+// What the user bubble shows for a compile, live and restored.
+export const COMPILE_LABEL = "Compile the plan into spec.md";
+
 export const COMPILE_INSTRUCTION = `Compile the plan into .blueprint/spec.md.
 Read every board export under .blueprint/export/boards/*.md and every doc under .blueprint/docs/.
 Read files with the Read and Glob tools, not Bash.
