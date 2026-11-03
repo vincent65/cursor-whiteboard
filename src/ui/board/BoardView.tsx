@@ -18,6 +18,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { BoardFile } from "../../export/schema";
 import * as api from "../api";
 import { useDebounced } from "../hooks/useDebounced";
+import { useServerEvent } from "../server-events";
 import {
   filesWithDataUrls,
   type PersistedKey,
@@ -165,34 +166,29 @@ export function BoardView({
     setConflict(false);
   }, []);
 
-  // ponytail: one socket per open board, as in DocView.
-  useEffect(
-    () =>
-      api.connectWs(async (m) => {
-        if (m.type !== "file-changed" || m.kind !== "board" || m.name !== name)
-          return;
-        const board = await api.getBoard(name).catch(() => null);
-        if (!board) return;
-        const disk = saveState(
-          board.elements as unknown as readonly ExcalidrawElement[],
-          board.appState,
-        );
-        const echo = [lastSaved.current, ...inFlight.current].some(
-          (s) => !shouldSave(s, disk),
-        );
-        if (echo) return;
-        const loaded = await load(board).catch(() => null);
-        const ex = excalidraw.current;
-        if (!loaded || !ex) return;
-        const current = saveState(
-          ex.getSceneElementsIncludingDeleted(),
-          ex.getAppState(),
-        );
-        if (shouldSave(lastSaved.current, current)) setConflict(true);
-        else apply(loaded);
-      }),
-    [name, apply],
-  );
+  useServerEvent(async (m) => {
+    if (m.type !== "file-changed" || m.kind !== "board" || m.name !== name)
+      return;
+    const board = await api.getBoard(name).catch(() => null);
+    if (!board) return;
+    const disk = saveState(
+      board.elements as unknown as readonly ExcalidrawElement[],
+      board.appState,
+    );
+    const echo = [lastSaved.current, ...inFlight.current].some(
+      (s) => !shouldSave(s, disk),
+    );
+    if (echo) return;
+    const loaded = await load(board).catch(() => null);
+    const ex = excalidraw.current;
+    if (!loaded || !ex) return;
+    const current = saveState(
+      ex.getSceneElementsIncludingDeleted(),
+      ex.getAppState(),
+    );
+    if (shouldSave(lastSaved.current, current)) setConflict(true);
+    else apply(loaded);
+  });
 
   const keepMine = () => {
     setConflict(false);

@@ -4,6 +4,7 @@ import { basicSetup, EditorView } from "codemirror";
 import { useEffect, useRef, useState } from "react";
 import * as api from "../api";
 import { useDebounced } from "../hooks/useDebounced";
+import { useServerEvent } from "../server-events";
 import { reconcileExternalChange } from "./reconcile";
 
 const theme = EditorView.theme({
@@ -116,28 +117,23 @@ export function DocView({
     };
   }, [name, save]);
 
-  // ponytail: one socket per open doc; share one from App if more views need it.
-  useEffect(
-    () =>
-      api.connectWs(async (m) => {
-        if (m.type !== "file-changed" || m.kind !== "doc" || m.name !== name)
-          return;
-        const diskText = await api.getDoc(name).catch(() => null);
-        const v = view.current;
-        if (diskText === null || !v) return;
-        const action = reconcileExternalChange({
-          dirty: dirty.current,
-          localText: v.state.doc.toString(),
-          diskText,
-        });
-        if (action === "reload") {
-          replace(v, diskText);
-          dirty.current = false;
-        }
-        setConflict(action === "banner" ? diskText : null);
-      }),
-    [name],
-  );
+  useServerEvent(async (m) => {
+    if (m.type !== "file-changed" || m.kind !== "doc" || m.name !== name)
+      return;
+    const diskText = await api.getDoc(name).catch(() => null);
+    const v = view.current;
+    if (diskText === null || !v) return;
+    const action = reconcileExternalChange({
+      dirty: dirty.current,
+      localText: v.state.doc.toString(),
+      diskText,
+    });
+    if (action === "reload") {
+      replace(v, diskText);
+      dirty.current = false;
+    }
+    setConflict(action === "banner" ? diskText : null);
+  });
 
   const keepMine = () => {
     setConflict(null);

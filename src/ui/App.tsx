@@ -4,8 +4,17 @@ import { BoardView } from "./board/BoardView";
 import { DocView } from "./docs/DocView";
 import { useHashRoute } from "./hooks/useHashRoute";
 import { Sidebar } from "./nav/Sidebar";
+import { ServerEventsProvider, useServerEvent } from "./server-events";
 
 export function App() {
+  return (
+    <ServerEventsProvider>
+      <Shell />
+    </ServerEventsProvider>
+  );
+}
+
+function Shell() {
   // Set by the open view while a disk conflict holds its saves back, so
   // leaving it would drop the edits.
   const conflictOpen = useRef(false);
@@ -25,6 +34,14 @@ export function App() {
   useEffect(() => {
     refresh().catch((err: Error) => window.alert(err.message));
   }, [refresh]);
+
+  // A file made outside the app (by hand or by Claude) joins the sidebar;
+  // changes to listed files are the open view's to handle.
+  useServerEvent((m) => {
+    if (m.type !== "file-changed") return;
+    const known = m.kind === "board" ? boards : docs;
+    if (!known?.includes(m.name)) refresh().catch(console.error);
+  });
 
   // The default route opens the first board once the list has loaded.
   useEffect(() => {

@@ -1,5 +1,5 @@
 import type { BoardFile } from "../export/schema";
-import type { ServerMessage } from "../shared/messages";
+import type { ClientMessage, ServerMessage } from "../shared/messages";
 import type { IncomingScene } from "../shared/types";
 
 export type Entry = { name: string; updatedAt: string };
@@ -66,20 +66,30 @@ export async function saveDoc(name: string, text: string): Promise<void> {
 // Board files store assets as "assets/<sha256>.<ext>", served under /api.
 export const assetUrl = (asset: string): string => `/api/${asset}`;
 
-export function connectWs(onMessage: (m: ServerMessage) => void): () => void {
+// Frames sent while the socket is connecting or reconnecting wait for it to open.
+export function connectWs(onMessage: (m: ServerMessage) => void): {
+  send(m: ClientMessage): void;
+  close(): void;
+} {
   let socket: WebSocket | null = null;
+  let isOpen = false;
+  const queue: string[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let delay = 500;
   let closed = false;
 
   const open = () => {
     const scheme = location.protocol === "https:" ? "wss" : "ws";
-    socket = new WebSocket(`${scheme}://${location.host}/ws`);
-    socket.onopen = () => {
+    const ws = new WebSocket(`${scheme}://${location.host}/ws`);
+    socket = ws;
+    ws.onopen = () => {
       delay = 500;
+      isOpen = true;
+      for (const frame of queue.splice(0)) ws.send(frame);
     };
-    socket.onmessage = (ev) => onMessage(JSON.parse(String(ev.data)));
-    socket.onclose = () => {
+    ws.onmessage = (ev) => onMessage(JSON.parse(String(ev.data)));
+    ws.onclose = () => {
+      isOpen = false;
       if (closed) return;
       timer = setTimeout(open, delay);
       delay = Math.min(delay * 2, 10_000);
@@ -87,9 +97,16 @@ export function connectWs(onMessage: (m: ServerMessage) => void): () => void {
   };
   open();
 
-  return () => {
-    closed = true;
-    clearTimeout(timer);
-    socket?.close();
+  return {
+    send(m) {
+      const frame = JSON.stringify(m);
+      if (isOpen) socket?.send(frame);
+      else queue.push(frame);
+    },
+    close() {
+      closed = true;
+      clearTimeout(timer);
+      socket?.close();
+    },
   };
 }
