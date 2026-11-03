@@ -75,6 +75,8 @@ Blueprint is a personal tool built for its author's own use; it is not offered a
    **Sessions** shows a card per run with its status, transcript, and a message box.
    A run that asks to use a tool reads **Needs you** until you allow or deny it on its card.
    Each run is told to commit on its branch, push, and open a pull request with `gh` if it can, then print the pull request's URL, which its card shows as a link.
+   Without `gh`, or without a remote, a run ends **Idle** with its work committed on its branch.
+   **Mark done** on its card marks it finished; once you merge its branch into your current branch, the tasks that depend on it launch without **Launch anyway**.
 
 The three recorded flows show this loop end to end against the fake SDK:
 
@@ -139,6 +141,7 @@ Blueprint writes the files and you commit them like any other change; it never c
 ```sh
 pnpm dev     # the server on port 4242 with reload, and the UI at http://localhost:5173
 pnpm check   # type checks, Biome, and the unit tests
+pnpm exec playwright install chromium   # once, before the first e2e or demo run
 pnpm e2e     # Playwright flows against the fake SDK
 pnpm demo    # the same flows, recorded into docs/demo/
 ```
