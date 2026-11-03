@@ -91,7 +91,14 @@ test("SessionsView routes run.event and run.status to the matching card only", a
   emit({
     type: "run.event",
     runId: "r1",
-    event: { kind: "permission", id: "p1", tool: "Bash", summary: "ls", at },
+    event: {
+      kind: "permission",
+      id: "p1",
+      tool: "Bash",
+      summary: "ls",
+      canAlways: true,
+      at,
+    },
   });
   emit({ type: "run.status", runId: "r1", status: "needs_you" });
   expect(within(first).getByRole("status")).toHaveTextContent("Needs you");

@@ -1,11 +1,5 @@
 import type { PendingPermission, PermissionDecision } from "../../shared/panel";
 
-const CHOICES: [string, PermissionDecision["behavior"]][] = [
-  ["Allow once", "allow"],
-  ["Allow always", "always"],
-  ["Deny", "deny"],
-];
-
 export function PermissionDialog({
   ask,
   onDecide,
@@ -18,7 +12,13 @@ export function PermissionDialog({
       <span id={ask.id} className="ask-text">
         Allow <strong>{ask.tool}</strong>: {ask.summary}
       </span>
-      {CHOICES.map(([label, behavior]) => (
+      {(
+        [
+          ["Allow once", "allow"],
+          [ask.canAlways ? "Allow always" : "Allow for this session", "always"],
+          ["Deny", "deny"],
+        ] as const
+      ).map(([label, behavior]) => (
         <button
           key={behavior}
           type="button"

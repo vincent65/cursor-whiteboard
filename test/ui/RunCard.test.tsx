@@ -164,8 +164,20 @@ test("RunCard's message box sends and the permission dialog answers with the run
       run={run({
         status: "needs_you",
         pending: [
-          { id: "p1", tool: "Bash", summary: "npm test", at },
-          { id: "p2", tool: "Write", summary: "src/a.ts", at },
+          {
+            id: "p1",
+            tool: "Bash",
+            summary: "npm test",
+            canAlways: false,
+            at,
+          },
+          {
+            id: "p2",
+            tool: "Write",
+            summary: "src/a.ts",
+            canAlways: true,
+            at,
+          },
         ],
       })}
       transcript={[]}

@@ -46,9 +46,17 @@ test("ask resolves allow, deny with default message, and always with the suggest
     behavior: "allow",
     updatedPermissions: [suggestion],
   });
+  // Without suggestions, always allows the tool for this session.
   await expect(noSuggestions).resolves.toEqual({
     behavior: "allow",
-    updatedPermissions: [],
+    updatedPermissions: [
+      {
+        type: "addRules",
+        rules: [{ toolName: "Read" }],
+        behavior: "allow",
+        destination: "session",
+      },
+    ],
   });
 });
 
@@ -69,12 +77,14 @@ test("pending lists open asks, answer with an unknown id is false, cancelAll den
       id: "t1",
       tool: "Bash",
       summary: "running `ls`",
+      canAlways: true,
       at: "2026-11-02T10:00:00.000Z",
     },
     {
       id: "t2",
       tool: "Read",
       summary: "reading a.md",
+      canAlways: false,
       at: "2026-11-02T10:00:00.000Z",
     },
   ];

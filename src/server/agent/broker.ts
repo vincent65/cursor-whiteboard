@@ -43,6 +43,7 @@ export class PermissionBroker {
           id,
           tool: req.tool,
           summary: summarizeTool(req.tool, req.input),
+          canAlways: !!req.suggestions?.length,
           at: new Date().toISOString(),
         },
         suggestions: req.suggestions,
@@ -61,7 +62,16 @@ export class PermissionBroker {
     if (decision.behavior === "always") {
       this.#settle(id, {
         behavior: "allow",
-        updatedPermissions: open.suggestions ?? [],
+        updatedPermissions: open.entry.canAlways
+          ? open.suggestions
+          : [
+              {
+                type: "addRules",
+                rules: [{ toolName: open.entry.tool }],
+                behavior: "allow",
+                destination: "session",
+              },
+            ],
       });
     } else if (decision.behavior === "allow") {
       this.#settle(id, { behavior: "allow" });

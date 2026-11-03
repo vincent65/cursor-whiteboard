@@ -184,7 +184,15 @@ test("a pending permission renders the dialog and Allow always calls agentPermis
   vi.mocked(api.agentState).mockResolvedValue(
     state({
       status: "needs_you",
-      pending: [{ id: "p1", tool: "Bash", summary: "running `ls`", at }],
+      pending: [
+        {
+          id: "p1",
+          tool: "Bash",
+          summary: "running `ls`",
+          canAlways: true,
+          at,
+        },
+      ],
     }),
   );
   renderPanel();
@@ -198,6 +206,7 @@ test("a pending permission renders the dialog and Allow always calls agentPermis
       id: "p2",
       tool: "Write",
       summary: "editing x",
+      canAlways: false,
       at,
     },
   });
@@ -210,6 +219,11 @@ test("a pending permission renders the dialog and Allow always calls agentPermis
     behavior: "always",
   });
   expect(await screen.findByText(/editing x/)).toBeVisible();
+  // Without the SDK's suggestions the choice promises only this session.
+  expect(screen.queryByRole("button", { name: "Allow always" })).toBeNull();
+  expect(
+    screen.getByRole("button", { name: "Allow for this session" }),
+  ).toBeVisible();
 
   // Leaving needs_you means every ask was settled, here or in another tab.
   emit({ type: "agent.status", status: "working" });
@@ -233,7 +247,14 @@ test("a permission ask keeps a transcript that was at the bottom pinned there", 
   // The dialog takes room from the transcript, so its last line would hide behind it.
   emit({
     type: "agent.event",
-    event: { kind: "permission", id: "p1", tool: "Bash", summary: "x", at },
+    event: {
+      kind: "permission",
+      id: "p1",
+      tool: "Bash",
+      summary: "x",
+      canAlways: true,
+      at,
+    },
   });
 
   expect(scrolls.at(-1)).toBe(500);

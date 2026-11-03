@@ -16,13 +16,7 @@ export type PanelEvent =
       summary: string;
       at: string;
     }
-  | {
-      kind: "permission";
-      id: string;
-      tool: string;
-      summary: string;
-      at: string;
-    }
+  | ({ kind: "permission" } & PendingPermission)
   | {
       kind: "result";
       id: string;
@@ -48,5 +42,7 @@ export type PendingPermission = {
   id: string;
   tool: string;
   summary: string;
+  // False when the SDK suggested no lasting rule, so "always" means this session.
+  canAlways: boolean;
   at: string;
 };
