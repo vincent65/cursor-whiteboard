@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { Markdown } from "../../src/ui/markdown";
 
 const md = (text: string) => render(<Markdown text={text} />).container;
@@ -140,4 +140,40 @@ test("citations stay text unless a renderer is given, and never inside code", ()
     "board:main:a1",
   ]);
   expect(c.querySelector("code")).toHaveTextContent("[[doc:notes.md#x]]");
+});
+
+test("markup on several lines of one block renders without a key warning", () => {
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  const c = md("**a** one\n**b** two\n\n- **c** three\n  **d** four");
+  expect(c.querySelectorAll("strong")).toHaveLength(4);
+  expect(error).not.toHaveBeenCalled();
+  error.mockRestore();
+});
+
+test("a link URL keeps its balanced parentheses", () => {
+  md("See [x](https://en.wikipedia.org/wiki/Foo_(bar)) here");
+  expect(screen.getByRole("link", { name: "x" })).toHaveAttribute(
+    "href",
+    "https://en.wikipedia.org/wiki/Foo_(bar)",
+  );
+});
+
+test("an asterisk inside a word is not emphasis", () => {
+  const c = md("a*b and c*d");
+  expect(c.querySelector("em")).toBeNull();
+  expect(c).toHaveTextContent("a*b and c*d");
+  expect(md("*word*").querySelector("em")).toHaveTextContent("word");
+});
+
+test("an item indented under another starts a nested list", () => {
+  const c = md("- one\n  - one a\n  - one b\n- two\n1. three\n   1. three a");
+  const outer = c.querySelector(".md > ul");
+  expect(outer?.children).toHaveLength(2);
+  const nested = outer?.querySelector("li > ul");
+  expect([...(nested?.children ?? [])].map((li) => li.textContent)).toEqual([
+    "one a",
+    "one b",
+  ]);
+  expect(outer?.children[0].firstChild?.textContent).toBe("one");
+  expect(c.querySelector(".md > ol li > ol li")).toHaveTextContent("three a");
 });

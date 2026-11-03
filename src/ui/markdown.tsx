@@ -6,7 +6,8 @@ import { type Citation, parseCitations } from "../export/citations";
 // and every string goes in as a text node, so HTML in the input is never markup.
 // A citation such as [[board:main#a1]] stays text unless renderCitation is
 // given, which the spec view uses for its links.
-// ponytail: no nested lists, tables, or images; an indented item joins the list.
+// ponytail: no tables or images; lists nest by indentation but a blank line
+// inside a nested list ends it.
 
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
@@ -14,7 +15,7 @@ const QUOTE = /^ {0,3}> ?/;
 const ITEM = /^\s*([-*+]|\d{1,9}[.)])[ \t]+(.*)$/;
 
 const INLINE =
-  /\\(?<esc>[\\`*_[\]()#>!+.-])|(?<tick>`+)(?<code>.+?)\k<tick>(?!`)|\[(?<label>[^\]\n]+)\]\((?<href>[^\s)]+)\)|(?<cite>\[\[(?:board|doc):[^#\]]+#[^\]]+\]\])|\*\*(?<b1>\S(?:.*?\S)?)\*\*|(?<!\w)__(?<b2>\S(?:.*?\S)?)__(?!\w)|\*(?<i1>\S(?:.*?\S)?)\*|(?<!\w)_(?<i2>\S(?:.*?\S)?)_(?!\w)/g;
+  /\\(?<esc>[\\`*_[\]()#>!+.-])|(?<tick>`+)(?<code>.+?)\k<tick>(?!`)|\[(?<label>[^\]\n]+)\]\((?<href>(?:[^\s()]|\([^\s()]*\))+)\)|(?<cite>\[\[(?:board|doc):[^#\]]+#[^\]]+\]\])|\*\*(?<b1>\S(?:.*?\S)?)\*\*|(?<!\w)__(?<b2>\S(?:.*?\S)?)__(?!\w)|(?<!\w)\*(?<i1>\S(?:.*?\S)?)\*(?!\w)|(?<!\w)_(?<i2>\S(?:.*?\S)?)_(?!\w)/g;
 
 const SAFE_HREF = /^(https?:|mailto:)/i;
 
@@ -57,13 +58,31 @@ function inline(text: string, cite?: RenderCitation): ReactNode[] {
 }
 
 // Lines of one block, each a soft break: Claude often writes a sentence per line.
-function lines(list: string[], cite?: RenderCitation): ReactNode[] {
-  const out: ReactNode[] = [];
-  for (const line of list) {
-    if (out.length) out.push(<br key={out.length} />);
-    out.push(...inline(line.trim(), cite));
-  }
-  return out;
+// Each line keys its own nodes, so markup on two lines cannot share a key.
+const lines = (list: string[], cite?: RenderCitation): ReactNode[] =>
+  list.map((line, n) => (
+    // biome-ignore lint/suspicious/noArrayIndexKey: lines never move
+    <Fragment key={n}>
+      {n > 0 && <br />}
+      {inline(line.trim(), cite)}
+    </Fragment>
+  ));
+
+const indent = (line: string) => line.length - line.trimStart().length;
+
+// A list item's lines: its text, then from the first indented item on, the
+// nested blocks it holds, dedented.
+function listItem(item: string[], cite?: RenderCitation): ReactNode[] {
+  const k = item.findIndex((l, n) => n > 0 && ITEM.test(l));
+  if (k < 0) return lines(item, cite);
+  const nested = item.slice(k);
+  const cut = Math.min(...nested.filter((l) => l.trim()).map(indent));
+  return [
+    <Fragment key="text">{lines(item.slice(0, k), cite)}</Fragment>,
+    <Fragment key="nested">
+      {blocks(nested.map((l) => l.slice(cut)).join("\n"), cite)}
+    </Fragment>,
+  ];
 }
 
 const startsBlock = (line: string) =>
@@ -117,25 +136,31 @@ function blocks(text: string, cite?: RenderCitation): ReactNode[] {
     const first = ITEM.exec(line);
     if (first) {
       const isOrdered = ordered(first[1]);
-      const sameKind = (l: string | undefined) => {
+      const base = indent(line);
+      // An item indented two or more past the first is nested in the one above.
+      const sibling = (l: string | undefined) => {
         const m = l === undefined ? null : ITEM.exec(l);
-        return m !== null && ordered(m[1]) === isOrdered;
+        return (
+          m !== null &&
+          indent(l as string) < base + 2 &&
+          ordered(m[1]) === isOrdered
+        );
       };
       const items: string[][] = [];
       while (i < src.length) {
         const l = src[i];
-        if (sameKind(l)) items.push([(ITEM.exec(l) as RegExpExecArray)[2]]);
+        if (sibling(l)) items.push([(ITEM.exec(l) as RegExpExecArray)[2]]);
         else if (!l.trim()) {
           // A blank line between items keeps the list going.
-          if (!sameKind(src[i + 1])) break;
-        } else if (/^\s/.test(l) || !startsBlock(l))
+          if (!sibling(src[i + 1])) break;
+        } else if (indent(l) > base || !startsBlock(l))
           items[items.length - 1].push(l);
         else break;
         i++;
       }
       const lis = items.map((item, n) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: items never move
-        <li key={n}>{lines(item, cite)}</li>
+        <li key={n}>{listItem(item, cite)}</li>
       ));
       const start = Number.parseInt(first[1], 10);
       out.push(
