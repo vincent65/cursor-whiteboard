@@ -1,0 +1,7 @@
+- **Status:** DONE
+- **Commits:**
+  - `255be22` fix(runs): a done run stopped while its CLI starts stays done
+  - `a7c5bea` fix(ui): other sessions keep their own load error, and an outdated runs failure is ignored
+- **Tests:** `pnpm check` exits 0 with typechecks and Biome clean, and all 352 tests in 51 files pass. Each new test failed before its fix. The test for ignoring an outdated runs failure also fails again if that check is taken out.
+- **Concerns:** none.
+- **Report:** the "Fix round 3" section is at the end of `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m4-runs/final-fix-report.md`

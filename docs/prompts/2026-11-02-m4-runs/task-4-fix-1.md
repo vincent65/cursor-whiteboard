@@ -1,0 +1,3 @@
+The task review of your Task 4 work found one Important issue and two minors. Fix them now, in this thread, on branch `m4-runs`.
+
+Read /Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m4-runs/task-4-findings-1.md and apply the rulings exactly. Files: `src/server/runs/gate.ts`, `src/server/runRoutes.ts`, `src/server/agentRoutes.ts`, new `src/server/http.ts`, and `test/server/runs/gate.test.ts` plus any route test whose expected message changes. Follow TDD for finding 1. Run `pnpm check` once (pristine). Commit with conventional messages and NO co-author trailer. Append a "Fix round 1" section to your report. End your turn with ONLY the short status contract.

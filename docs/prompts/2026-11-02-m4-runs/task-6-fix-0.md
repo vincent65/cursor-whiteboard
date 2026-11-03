@@ -1,0 +1,6 @@
+Rulings on your concerns. Two need a change before review; fix them now, in this thread, on branch `m4-runs` (these add the named server and shared files to your list):
+
+1. A failed run keeps its reason across a restart, and the card gets its title from the run. `RunRecord` gains `failure: string | null` (records without it read as null): the manager sets it with the error message when a run fails and clears it when the run works again. `RunView` gains `title: string` (the task file's title, or the slug when the task file is gone). `RunCard` reads `run.title` and `run.failure`; drop the extra `title` and `message` props (`onExpand` stays, it is needed). Tests: a manager test that a failed run's record carries the message and a later successful turn clears it; RunCard renders `Failed: <failure>` from the record.
+2. The UI no longer imports server modules. Move `RunView`, `LaunchOptions`, `GateResult` (with its missing-entry type), and `OtherSession` into `src/shared/runs.ts`; server and UI import them from there. `pnpm check` proves no UI file imports from `src/server`.
+
+The live run stays for the acceptance task. Run `pnpm check` once (pristine), commit with conventional messages and NO co-author trailer, append a "Fix round 0" section to your report, and end with the short status contract only.

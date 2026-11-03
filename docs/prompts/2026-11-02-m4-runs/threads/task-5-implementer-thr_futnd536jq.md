@@ -1,0 +1,7 @@
+- **Status:** DONE
+- **Commit:** `a9204ea fix(server): other sessions hide headless ones, keep the last 500 events, and show saved times`
+- **Tests:** the updated tests failed first against the committed source (3 of 3) and now pass; `pnpm check` is clean with 324/324 passing. Run against the real server on this repo, a session's transcript came back capped at 500 events with each event's original time.
+- **Concerns:**
+  - The SDK's types leave out `timestamp`, but real saved sessions include it, so `transcriptFrom` reads it when present and falls back to now. Restored plan and run transcripts now show their original times too.
+  - Every session in this repo was started through the SDK, so the other-sessions list is empty here. It shows only sessions started from the terminal, which matters for the Task 6 manual check.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m4-runs/task-5-report.md` (now with a "Fix round 1" section)

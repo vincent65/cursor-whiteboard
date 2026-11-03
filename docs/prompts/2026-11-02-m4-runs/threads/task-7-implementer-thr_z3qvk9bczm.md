@@ -1,0 +1,9 @@
+- Status: DONE_WITH_CONCERNS
+- Commit: `f591fce feat(ui): launch a task into a run from the tasks view`
+- Tests: the 2 test files pass 11 of 11. `pnpm check` is clean (334 tests pass), and `pnpm build` warns only about the old chunk size. I checked both card states and the dialog in the built app; I didn't press Launch against the real server because it would start a real session.
+- Concerns:
+  - I followed your resolution over the brief: a task with any run shows a `View run` link, so the brief's `Launched` label never appears.
+  - The server's reason codes are short (`not done`, `not merged`), so the dialog rewrites them to the brief's wording.
+  - After Cancel or Escape, focus goes to the page body, not back to the `Launch` button. This is a small accessibility gap.
+  - The browse tool added `.gstack/` to `.gitignore` and created a `.gstack/` folder. I reverted both; neither was committed.
+- Report: /Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m4-runs/task-7-report.md

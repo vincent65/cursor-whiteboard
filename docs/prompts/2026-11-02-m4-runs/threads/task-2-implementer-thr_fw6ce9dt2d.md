@@ -1,0 +1,7 @@
+- **Status:** DONE
+- **Commits:**
+  - `f88815f feat(runs): the run prompt and PR link detection`
+  - `68ea07a fix(runs): the run prompt says when no acceptance checks are listed`
+- **Tests:** the new no-acceptance check failed without the fix and passes with it. All 4 tests in `prompt.test.ts` pass, and `pnpm check` is clean (44 files, 303 tests).
+- **Concerns:** none. A task with no acceptance lines now shows `- none listed; use the task description and the specification`.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m4-runs/task-2-report.md`

@@ -1,0 +1,7 @@
+- **Status:** DONE
+- **Commits:**
+  - `0dc0f5e fix(runs): any done and merged run satisfies a dependency, and the gate says not ready`
+  - `b4031df refactor(server): agent and run routes share one body parser and permission schema`
+- **Tests:** The updated gate test failed before the fix and passes after it. `pnpm check` is clean: 47 files, 321 tests.
+- **Concerns:** None. The two deferred items are left as the ruling says.
+- **Report:** /Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m4-runs/task-4-report.md (new "Fix round 1" section)

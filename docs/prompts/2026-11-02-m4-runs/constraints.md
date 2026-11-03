@@ -1,0 +1,12 @@
+- Node 22.1 or later; TypeScript strict; ESM; server code uses NodeNext resolution with explicit `.js` extensions on relative imports.
+- No API key anywhere. Every run is an ordinary Claude Code session on the user's login.
+- Worktrees live at `.blueprint/worktrees/<slug>` on branch `blueprint/<slug>`, created from the repository's current `HEAD`; both paths are git-ignored by `blueprint init`.
+- Run sessions get no board tools; their context is the task file and the spec.
+- Run permission mode defaults to `acceptEdits`; the launch dialog offers `default` and `bypassPermissions`; whatever still prompts shows as a dialog in the sessions view.
+- Launch is gated: every `dependsOn` task needs a run with status `done` whose branch is an ancestor of `HEAD`; the dialog explains what is missing and offers an override.
+- Run status is one of `working`, `needs_you`, `idle`, `done`, `failed`, `interrupted`.
+- All agent output reaches the browser as typed WebSocket messages; commands go through HTTP routes so they are testable with `app.request()`.
+- No "Claude Code" branding in UI copy, except the literal `claude --resume` command the copy button produces.
+- Every UI test file that renders components or hooks starts with `// @vitest-environment jsdom`.
+- Commit messages use conventional commits and carry no co-author trailer.
+- `pnpm check` stays pristine; `pnpm build` warns only about the pre-existing chunk size.

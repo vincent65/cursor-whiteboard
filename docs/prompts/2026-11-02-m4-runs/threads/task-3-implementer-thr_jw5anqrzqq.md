@@ -1,0 +1,9 @@
+- **Status:** DONE
+- **Commits:**
+  - `d7f5676 feat(agent): the board-write guard checks every root it is given`
+  - `6e77fd4 feat(agent): an error result's event carries what its process spent`
+  - `a6ca48d fix(runs): fresh sessions get the run prompt, the live board is guarded, and failed spend counts`
+- **Tests:** `pnpm check` is clean (317 passed), and the runs and agent tests passed 8 runs in a row. Every fix has a test that fails when the fix is broken on purpose.
+- **Fixed flakiness:** two of my concurrency tests (concurrent resume from round 0, concurrent message from this round) wrongly assumed which call finished first. Both now pass regardless of order.
+- **Concerns:** none. The deferred item (`start()` loading every transcript up front) is untouched.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m4-runs/task-3-report.md` (new "Fix round 1" section)

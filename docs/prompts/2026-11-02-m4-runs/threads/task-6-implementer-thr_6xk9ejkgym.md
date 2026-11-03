@@ -1,0 +1,11 @@
+- Status: DONE_WITH_CONCERNS
+- Commits:
+  - `5b95f99 feat(ui): the sessions view with run cards and other sessions`
+  - `5944d4e fix(runs): a run keeps its failure reason and task title, and the UI imports run types from shared`
+- Tests: `pnpm check` is pristine and all 328 tests pass. The new manager assertion failed before the fix and passes after it. `pnpm build` warns only about the old chunk size.
+- Concerns:
+  - `manager.list()` is now async because it reads the task files for titles. The gate and the exclude list use a new sync `records()`, so `runRoutes.ts` and `index.ts` changed too.
+  - A biome override in `src/ui/**` now fails `pnpm check` on any import from `src/server`.
+  - Every `GET /api/runs` re-reads the task files.
+  - A failed run that is restored keeps its reason through a re-derive, but no test covers that.
+- Report: /Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m4-runs/task-6-report.md

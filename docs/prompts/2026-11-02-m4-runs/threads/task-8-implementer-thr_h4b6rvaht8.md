@@ -1,0 +1,14 @@
+- **Status:** DONE_WITH_CONCERNS
+- **Commit:** `ff078c0 fix(runs): a restored run keeps the last thing Claude said on its card`
+- **Tests:** `pnpm check` passes (334 tests). `pnpm build` warns only about the old chunk size. All six acceptance steps passed live; the PR link → Done path was checked only by its unit tests.
+- **Fix:** after a server restart, run cards lost Claude's last message. They now get it back from the saved transcript (test-first, then confirmed in the real UI).
+- **Not shown live:** with no remote, step 2's gate said `run not done`, not `branch not merged into HEAD`. I wrote the plan by hand instead of compiling and splitting it. I added a third task for step 5.
+- **Test setup, not a product bug:** the first hand-run `claude` session was hidden from Other sessions because it inherited my harness's `CLAUDE_CODE_ENTRYPOINT=sdk-cli`. A clean-env rerun was listed.
+- **Concerns:**
+  - Claude writes files with Bash `printf`, so Accept edits still asked 2 times per run.
+  - The transcript says "Done · $X total" for one process, while the card shows the run total and reads Idle.
+  - Claude's replies show as raw Markdown.
+  - Stop takes about 3 to 8 s to land.
+- **Browser:** Playwright's browser was in use by another session, so I used gstack browse. Its `stop` command added `.gstack/` to `.gitignore`; I reverted that.
+- **Cleanup:** server, browse and tmux sessions are stopped, and no run is active. The scratch repo stays at `/tmp/claude-501/bp-accept`; nothing was pushed. The three runs cost about $0.84.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m4-runs/task-8-report.md`

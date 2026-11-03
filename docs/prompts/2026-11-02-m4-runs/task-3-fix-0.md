@@ -1,0 +1,7 @@
+Rulings on your concerns. Cost (session total at start plus the result's total) and the `ExistsError` for a non-interrupted resume are accepted. Three need a change before review; fix them now, in this thread, on branch `m4-runs`:
+
+1. Permission mode is lost on restart. Add `permissionMode: "acceptEdits" | "default" | "bypassPermissions"` to `RunRecord` in `src/shared/types.ts` (records without it read as `acceptEdits`), store it at launch, and use it on resume. Test: a run launched with `default` resumes with `default`.
+2. A run's transcript is empty after a restart, but the acceptance run expects it intact. In `start()`, build each record's `PlanSession` (not started) with its saved session id and the worktree as cwd, and `await session.restore()` so `transcript(runId)` returns the saved transcript; `resume()` reuses that same session object (send starts it with `resume`). Test with the fake sdk's `getSessionMessages`: after start(), an interrupted run's transcript is the saved one, and resume sends on the same session.
+3. The board-write denial tells a run to "use the propose tool". Make the reason a parameter: `denyBoardWrites(root, reason = <the plan session's current text>)`; run sessions pass `Blueprint board files are read-only in a run. Leave the board to the user.` Update or add the hooks test.
+
+Run `pnpm check` once (pristine), commit with conventional messages and NO co-author trailer, append a "Fix round 0" section to your report, and end with the short status contract only.
