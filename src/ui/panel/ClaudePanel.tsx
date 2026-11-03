@@ -143,13 +143,15 @@ export function ClaudePanel() {
     if (!message.trim()) return;
     setText("");
     setFailure(null);
+    const refining = target?.id;
     try {
       await api.agentSend(
         message,
         selection?.ids.length ? selection : undefined,
-        target?.id,
+        refining,
       );
-      if (target) setTarget(null);
+      // A target picked while this was in flight stays.
+      setTarget((t) => (t?.id === refining ? null : t));
     } catch (err) {
       // Put the words back so a failed send loses nothing.
       setText((now) => now || message);

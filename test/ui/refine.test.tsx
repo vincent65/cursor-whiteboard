@@ -26,3 +26,17 @@ test("useRefine starts null and setTarget updates consumers", () => {
   act(() => setTarget(null));
   expect(screen.getByText("none")).toBeInTheDocument();
 });
+
+test("setTarget takes an updater, so a late clear leaves a newer target alone", () => {
+  render(
+    <RefineProvider>
+      <Consumer />
+    </RefineProvider>,
+  );
+  const clear = (id: string) => setTarget((t) => (t?.id === id ? null : t));
+  act(() => setTarget({ id: "p_2", title: null }));
+  act(() => clear("p_1"));
+  expect(screen.getByText("p_2:null")).toBeInTheDocument();
+  act(() => clear("p_2"));
+  expect(screen.getByText("none")).toBeInTheDocument();
+});

@@ -191,7 +191,7 @@ export function BoardView({
   const drops = useRef(new Set<ReturnType<typeof setTimeout>>());
   // Pending proposals' titles; ghosts on the board carry only the id.
   const [titles, setTitles] = useState(new Map<string, string | null>());
-  const { target, setTarget } = useRefine();
+  const { setTarget } = useRefine();
   // Decisions awaiting the server; their rows stay disabled until each settles.
   const [deciding, setDeciding] = useState<ReadonlySet<string>>(new Set());
   // The same set for the drop timers, which outlive the render they came from.
@@ -435,7 +435,7 @@ export function BoardView({
       next.delete(id);
       return next;
     });
-    if (target?.id === id) setTarget(null);
+    setTarget((t) => (t?.id === id ? null : t));
   };
 
   // Ghosts removed by hand leave the server's proposal pending forever. After a
