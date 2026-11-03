@@ -187,6 +187,8 @@ export function BoardView({
   // Pending proposals' titles; ghosts on the board carry only the id.
   const [titles, setTitles] = useState(new Map<string, string | null>());
   const { target, setTarget } = useRefine();
+  // Decisions awaiting the server; their rows stay disabled until each settles.
+  const [deciding, setDeciding] = useState<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
     onConflictChange(conflict);
@@ -387,6 +389,7 @@ export function BoardView({
   // its ghosts for the revise to replace. A proposal the server lost (404)
   // still resolves locally: the board is the record.
   const decide = async (id: string, decision: Decision) => {
+    setDeciding((d) => new Set(d).add(id));
     try {
       await api.decideProposal(id, decision);
     } catch (err) {
@@ -395,6 +398,12 @@ export function BoardView({
         return;
       }
       console.warn(err.message);
+    } finally {
+      setDeciding((d) => {
+        const next = new Set(d);
+        next.delete(id);
+        return next;
+      });
     }
     const ex = excalidraw.current;
     if (!ex) return;
@@ -465,7 +474,11 @@ export function BoardView({
         </div>
       )}
       <ProposalsBar
-        items={pending.map((p) => ({ ...p, title: titles.get(p.id) ?? null }))}
+        items={pending.map((p) => ({
+          ...p,
+          title: titles.get(p.id) ?? null,
+          busy: deciding.has(p.id),
+        }))}
         onDecide={decide}
         onRefine={(id) => setTarget({ id, title: titles.get(id) ?? null })}
       />

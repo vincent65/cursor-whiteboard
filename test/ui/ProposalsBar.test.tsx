@@ -8,8 +8,14 @@ const items = [
     id: "p_1",
     title: "Login flow",
     counts: { added: 2, updated: 0, deleted: 0 },
+    busy: false,
   },
-  { id: "p_2", title: null, counts: { added: 0, updated: 1, deleted: 1 } },
+  {
+    id: "p_2",
+    title: null,
+    counts: { added: 0, updated: 1, deleted: 1 },
+    busy: false,
+  },
 ];
 
 test("renders a row per proposal with counts and wires the buttons", async () => {
@@ -33,6 +39,24 @@ test("renders a row per proposal with counts and wires the buttons", async () =>
   await userEvent.click(row(second).getByRole("button", { name: "Refine" }));
   expect(onRefine).toHaveBeenCalledWith("p_2");
   expect(onDecide).toHaveBeenCalledTimes(2);
+});
+
+test("a row whose decision is in flight disables its buttons", () => {
+  render(
+    <ProposalsBar
+      items={[{ ...items[0], busy: true }, items[1]]}
+      onDecide={vi.fn()}
+      onRefine={vi.fn()}
+    />,
+  );
+  const row = (text: string) =>
+    within(screen.getByText(text).closest(".proposals-row") as HTMLElement);
+  const busy = row("Claude proposed Login flow · 2 added");
+  const idle = row("Claude proposed changes · 1 changed, 1 removed");
+  for (const name of ["Accept", "Reject", "Refine"]) {
+    expect(busy.getByRole("button", { name })).toBeDisabled();
+    expect(idle.getByRole("button", { name })).toBeEnabled();
+  }
 });
 
 test("renders nothing without proposals", () => {
