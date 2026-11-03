@@ -111,10 +111,12 @@ let clock: number;
 function setup(activeBoard: string | null = "flow") {
   const hub = { request: vi.fn(), activeBoard };
   const log: ProposalLogEntry[] = [];
+  let appendFails = false;
   clock = Date.parse("2026-11-02T00:00:00.000Z");
   const proposals = new ProposalStore(
     {
       appendProposal: async (entry) => {
+        if (appendFails) throw new Error("disk full");
         log.push(entry);
       },
       readProposals: async () => [...log],
@@ -129,7 +131,10 @@ function setup(activeBoard: string | null = "flow") {
     }
   )._registeredTools;
   const call = (name: string, args: unknown) => tools[name].handler(args, {});
-  return { hub, server, tools, call, proposals, log };
+  const failAppends = () => {
+    appendFails = true;
+  };
+  return { hub, server, tools, call, proposals, log, failAppends };
 }
 
 const ops: Op[] = [
@@ -604,4 +609,26 @@ test("every tool reconciles the board it reads, so a proposal whose ghosts staye
   await expect(call("revise", { proposalId: "p_4", ops })).rejects.toThrow(
     "proposal p_4 is not pending",
   );
+});
+
+test("a reconcile that cannot log warns and the read still answers", async () => {
+  const { hub, call, proposals, failAppends } = setup();
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const getBoard = () => {
+    hub.request.mockResolvedValueOnce({ png: PNG });
+    return call("get_board", { board: "flow" });
+  };
+  // Pending with no ghosts on flow, past the propose grace, and marked by one read.
+  await proposals.proposed(pending("p_1"));
+  clock += 10_000;
+  await getBoard();
+  clock += 3_000;
+  failAppends();
+
+  const result = await getBoard();
+  expect((result.content[0] as { text: string }).text).toContain("Login");
+  expect(warn).toHaveBeenCalledWith(
+    "could not reconcile proposals on board flow: disk full",
+  );
+  warn.mockRestore();
 });

@@ -60,10 +60,17 @@ export function createBoardTools(deps: {
 }): McpSdkServerConfigWithInstance {
   const { store, hub, proposals } = deps;
   // Every read settles the board's pending proposals first, so the list Claude sees or
-  // checks against never holds one whose ghosts the user removed long enough ago.
+  // checks against never holds one whose ghosts the user removed long enough ago. A
+  // reconcile that cannot log only warns, as on a save: the read itself still works.
   const read = async (board: string) => {
     const file = await store.readBoard(board);
-    await proposals.reconcile(board, file.elements);
+    await proposals
+      .reconcile(board, file.elements)
+      .catch((err) =>
+        console.warn(
+          `could not reconcile proposals on board ${board}: ${(err as Error).message}`,
+        ),
+      );
     return file;
   };
   const withPending = (text: string, board: string) => {
