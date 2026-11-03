@@ -6,12 +6,12 @@ export type GateResult = { ok: boolean; missing: Missing[] };
 
 export class GateError extends Error {
   constructor(readonly missing: Missing[]) {
-    super("dependencies are not merged");
+    super("dependencies are not ready");
   }
 }
 
-// Each dependency is judged by its newest run (runs are kept oldest first); only a done
-// run is checked against git.
+// A dependency is met by any done run whose branch is merged; only done runs reach git.
+// Otherwise it reports the best reason: a done run that is not merged, then any run.
 export async function checkGate(input: {
   task: Task;
   runs: RunRecord[];
@@ -20,15 +20,19 @@ export async function checkGate(input: {
   const missing = (
     await Promise.all(
       input.task.dependsOn.map(async (slug): Promise<Missing | null> => {
-        const run = input.runs.filter((r) => r.taskSlug === slug).at(-1);
-        const reason = !run
-          ? "no run"
-          : run.status !== "done"
-            ? "not done"
-            : (await input.isAncestor(run.branch))
-              ? null
-              : "not merged";
-        return reason && { slug, reason };
+        const runs = input.runs.filter((r) => r.taskSlug === slug);
+        const done = runs.filter((r) => r.status === "done");
+        const merged = await Promise.all(
+          done.map((r) => input.isAncestor(r.branch)),
+        );
+        if (merged.includes(true)) return null;
+        const reason =
+          done.length > 0
+            ? "not merged"
+            : runs.length > 0
+              ? "not done"
+              : "no run";
+        return { slug, reason };
       }),
     )
   ).filter((m) => m !== null);

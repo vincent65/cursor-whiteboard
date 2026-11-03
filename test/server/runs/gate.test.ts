@@ -31,12 +31,16 @@ test("checkGate reports each missing dependency with its reason", async () => {
     run("r1", "failed-dep", "failed"),
     run("r2", "unmerged-dep", "done"),
     run("r3", "merged-dep", "done"),
-    // The newest run for a slug decides: a later failure hides an older merge.
+    // Any done and merged run satisfies a slug, whatever came after it.
     run("r4", "retried-dep", "done"),
     run("r5", "retried-dep", "failed"),
+    // Otherwise the best reason wins: a done run that is not merged beats a failure.
+    run("r6", "mixed-dep", "done"),
+    run("r7", "mixed-dep", "failed"),
   ];
+  const unmerged = ["blueprint/unmerged-dep-r2", "blueprint/mixed-dep-r6"];
   const isAncestor = vi.fn(
-    async (branch: string) => branch !== "blueprint/unmerged-dep-r2",
+    async (branch: string) => !unmerged.includes(branch),
   );
 
   const gated = await checkGate({
@@ -46,6 +50,7 @@ test("checkGate reports each missing dependency with its reason", async () => {
       "unmerged-dep",
       "merged-dep",
       "retried-dep",
+      "mixed-dep",
     ]),
     runs,
     isAncestor,
@@ -56,12 +61,14 @@ test("checkGate reports each missing dependency with its reason", async () => {
       { slug: "no-run-dep", reason: "no run" },
       { slug: "failed-dep", reason: "not done" },
       { slug: "unmerged-dep", reason: "not merged" },
-      { slug: "retried-dep", reason: "not done" },
+      { slug: "mixed-dep", reason: "not merged" },
     ],
   });
   // Only done runs reach git.
   expect(isAncestor.mock.calls.map(([b]) => b).sort()).toEqual([
     "blueprint/merged-dep-r3",
+    "blueprint/mixed-dep-r6",
+    "blueprint/retried-dep-r4",
     "blueprint/unmerged-dep-r2",
   ]);
 

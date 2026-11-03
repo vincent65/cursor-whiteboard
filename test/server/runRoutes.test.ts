@@ -113,7 +113,7 @@ test("POST /api/runs refuses a gated task without override and launches with it"
   );
   expect(refused.status).toBe(409);
   expect(await refused.json()).toEqual({
-    error: "dependencies are not merged",
+    error: "dependencies are not ready",
     missing: [{ slug: "base", reason: "no run" }],
   });
   expect(manager.launch).not.toHaveBeenCalled();
