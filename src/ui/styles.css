@@ -449,8 +449,10 @@ pre {
   margin-top: calc(var(--space) / 4);
 }
 
-/* Less padding after than before, so punctuation that follows sits close. */
-.md code {
+/* Less padding after than before, so punctuation that follows sits close.
+   A tool row's command (.cmd) is the same chip. */
+.md code,
+.cmd {
   padding: 0 calc(var(--space) / 4) 0 calc(var(--space) / 2);
   border-radius: var(--radius-sm);
   background: var(--code-bg);

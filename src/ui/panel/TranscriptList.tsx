@@ -11,7 +11,7 @@ export function ToolSummary({ summary }: { summary: string }) {
   return (
     <>
       {RUNNING}
-      <code>{summary.slice(RUNNING.length)}</code>
+      <code className="cmd">{summary.slice(RUNNING.length)}</code>
     </>
   );
 }
