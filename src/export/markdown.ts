@@ -94,9 +94,9 @@ export function boardGraphToMarkdown(graph: BoardGraph): string {
     for (const e of linked) {
       const { start, end: head } = e.arrowheads;
       const [a, b] = start && !head ? [e.to, e.from] : [e.from, e.to];
-      const arrow = start && head ? "<-->" : start || head ? "-->" : "---";
+      const link = start && head ? "<-->" : start || head ? "-->" : "---";
       const label = e.label.trim() ? `|"${mermaidLabel(e.label)}"|` : "";
-      lines.push(`  ${sid(a)} ${arrow}${label} ${sid(b)}`);
+      lines.push(`  ${sid(a)} ${link}${label} ${sid(b)}`);
     }
     const idList = [...ids].map(([id, s]) => `${s}=${id}`).join(" ");
     sections.push(
