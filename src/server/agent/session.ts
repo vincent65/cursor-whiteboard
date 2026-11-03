@@ -14,6 +14,7 @@ import { resultError, SdkEventMapper } from "./events.js";
 
 const TRANSCRIPT_LIMIT = 500;
 const RESTORE_FAILED = "previous session could not be loaded; starting fresh";
+const NOT_SENT_ENDED = "Message not sent: Claude session ended before it ran";
 // The CLI saves a Stop as a user message with this text (or "... for tool use]").
 const INTERRUPT_MARKER = "[Request interrupted by user";
 
@@ -51,6 +52,13 @@ class InputQueue {
   end(): void {
     this.#ended = true;
     this.#wake?.();
+  }
+
+  // Drops the messages the SDK has not taken yet and returns how many there were.
+  drain(): number {
+    const count = this.#items.length;
+    this.#items = [];
+    return count;
   }
 
   async *messages(): AsyncGenerator<SDKUserMessage> {
@@ -201,11 +209,14 @@ export class PlanSession {
     );
   }
 
-  #stopRun(): void {
+  // Ends the run; returns how many queued messages it never sent.
+  #stopRun(): number {
     const run = this.#run;
     this.#run = undefined;
+    const dropped = run?.input.drain() ?? 0;
     run?.input.end();
     run?.query.close();
+    return dropped;
   }
 
   async #consume(run: Run): Promise<void> {
@@ -263,9 +274,15 @@ export class PlanSession {
     }
     // Thrown or ended on its own, this run is done: reap it so the next send resumes afresh.
     if (this.#run !== run) return;
-    this.#stopRun();
+    const dropped = this.#stopRun();
     this.#emit({ kind: "error", id: randomUUID(), message, at: now() });
+    this.#notSent(dropped, NOT_SENT_ENDED);
     this.#setStatus("error", message);
+  }
+
+  #notSent(count: number, message: string): void {
+    for (let i = 0; i < count; i++)
+      this.#emit({ kind: "error", id: randomUUID(), message, at: now() });
   }
 
   #emit(e: PanelEvent): void {

@@ -74,8 +74,9 @@ function textTurn(msgId: string, text: string, resultId: string): SDKMessage[] {
 type Script = (text: string, turn: number) => AsyncIterable<SDKMessage>;
 
 // A fake `query` that reads the prompt iterable in the background, like the SDK does, and
-// yields the scripted messages for each user message in order.
-function fakeQuery(script: Script, endAfter?: number) {
+// yields the scripted messages for each user message in order. With readLimit it stops
+// reading after that many, like a CLI that has not taken the rest, which stay queued.
+function fakeQuery(script: Script, endAfter?: number, readLimit?: number) {
   const runs: {
     options: Options | undefined;
     inputEnded: boolean;
@@ -97,9 +98,11 @@ function fakeQuery(script: Script, endAfter?: number) {
       const received: string[] = [];
       let wake: (() => void) | undefined;
       void (async () => {
+        let taken = 0;
         for await (const m of params.prompt as AsyncIterable<SDKUserMessage>) {
           received.push(m.message.content as string);
           wake?.();
+          if (++taken === readLimit) return;
         }
         run.inputEnded = true;
         wake?.();
@@ -140,9 +143,10 @@ function setup(
     getSessionMessages?: SessionDeps["getSessionMessages"];
     onEvent?: (e: PanelEvent) => void;
     endAfter?: number;
+    readLimit?: number;
   } = {},
 ) {
-  const { query, runs } = fakeQuery(script, opts.endAfter);
+  const { query, runs } = fakeQuery(script, opts.endAfter, opts.readLimit);
   const events: PanelEvent[] = [];
   const statuses: [string, string | undefined][] = [];
   const sessionIds: string[] = [];
@@ -436,6 +440,37 @@ test("a throwing event handler closes the run and the next send starts exactly o
   await vi.waitFor(() => expect(session.status).toBe("idle"));
   expect(query).toHaveBeenCalledTimes(2);
   expect(runs[1].options?.resume).toBe("sess-1");
+});
+
+test("messages still queued when a run throws are each reported as not sent", async () => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const { session, events } = setup(
+    () =>
+      (async function* () {
+        yield init("sess-1");
+        await gate;
+        throw new Error("process exited");
+      })(),
+    { readLimit: 1 },
+  );
+
+  session.send("one");
+  await vi.waitFor(() => expect(session.status).toBe("working"));
+  session.send("two");
+  session.send("three");
+  release();
+  await vi.waitFor(() => expect(session.status).toBe("error"));
+
+  expect(
+    events.flatMap((e) => (e.kind === "error" ? [e.message] : [])),
+  ).toEqual([
+    "process exited",
+    "Message not sent: Claude session ended before it ran",
+    "Message not sent: Claude session ended before it ran",
+  ]);
 });
 
 test("a query that ends on its own sets error and the next send starts a new query with resume", async () => {
