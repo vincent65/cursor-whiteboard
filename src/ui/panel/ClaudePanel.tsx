@@ -64,13 +64,20 @@ function Item({ item }: { item: TranscriptItem }) {
           {item.summary}
         </div>
       );
-    case "result":
+    case "result": {
+      const done = item.subtype !== "interrupted";
+      // The SDK's cost is the session's running total, not this turn's.
+      const cost =
+        item.costUsd === null
+          ? ""
+          : ` · $${item.costUsd.toFixed(4)}${done ? " total" : ""}`;
       return (
         <div className="msg-result">
-          {item.subtype === "interrupted" ? "Stopped" : "Done"}
-          {item.costUsd === null ? "" : ` · $${item.costUsd.toFixed(4)}`}
+          {done ? "Done" : "Stopped"}
+          {cost}
         </div>
       );
+    }
     case "error":
       return <div className="msg-result">✗ {item.message}</div>;
     case "permission":
