@@ -86,8 +86,10 @@ export function SessionsView() {
     new Map(),
   );
   const [others, setOthers] = useState<OtherSession[] | null>(null);
-  // A failed list load, until the next good one.
+  // A failed runs load, until the next good one.
   const [error, setError] = useState<string | null>(null);
+  // A failed load of the other sessions, which loads once.
+  const [othersError, setOthersError] = useState<string | null>(null);
   // A run transcript that failed to load, shown in its card until the next try.
   const [transcriptErrors, setTranscriptErrors] = useState<Map<string, string>>(
     new Map(),
@@ -104,13 +106,13 @@ export function SessionsView() {
         setRuns(list);
         setError(null);
       },
-      (err) => setError(errorText(err)),
+      (err) => n === latest.current && setError(errorText(err)),
     );
   }, []);
 
   useEffect(() => {
     load();
-    api.listSessions().then(setOthers, (err) => setError(errorText(err)));
+    api.listSessions().then(setOthers, (err) => setOthersError(errorText(err)));
   }, [load]);
 
   const patchRun = (id: string, patch: (run: RunView) => RunView) =>
@@ -221,6 +223,11 @@ export function SessionsView() {
         <h2 id="other-sessions" className="nav-title">
           Other sessions
         </h2>
+        {othersError && (
+          <p role="alert" className="plan-error">
+            {othersError}
+          </p>
+        )}
         {others?.length === 0 && (
           <p className="muted">No other Claude sessions in this repository.</p>
         )}

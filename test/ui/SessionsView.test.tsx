@@ -284,3 +284,44 @@ test("an other session's transcript retry clears its old failure", async () => {
   expect(await screen.findByText("Why does login fail?")).toBeVisible();
   expect(screen.queryByRole("alert")).toBeNull();
 });
+
+test("a good runs load keeps the other sessions' failure, and an outdated runs failure is ignored", async () => {
+  vi.mocked(api.listSessions).mockRejectedValueOnce(
+    new Error("sessions unreadable"),
+  );
+  let first: (list: RunView[]) => void = () => {};
+  vi.mocked(api.listRuns).mockReturnValueOnce(
+    new Promise((r) => {
+      first = r;
+    }),
+  );
+  render(<SessionsView />);
+  const others = screen.getByRole("region", { name: "Other sessions" });
+  expect(await within(others).findByRole("alert")).toHaveTextContent(
+    "sessions unreadable",
+  );
+
+  // The runs arrive after the sessions failed; that failure stays.
+  await act(async () => first([]));
+  expect(
+    await screen.findByText("No runs yet. Launch one from the tasks view."),
+  ).toBeInTheDocument();
+  expect(within(others).getByRole("alert")).toHaveTextContent(
+    "sessions unreadable",
+  );
+
+  // An older load that fails after a newer one landed says nothing.
+  let older: (err: Error) => void = () => {};
+  vi.mocked(api.listRuns)
+    .mockReturnValueOnce(
+      new Promise((_, reject) => {
+        older = reject;
+      }),
+    )
+    .mockResolvedValueOnce([]);
+  emit({ type: "runs.changed" });
+  emit({ type: "runs.changed" });
+  await act(async () => older(new Error("stale failure")));
+  expect(screen.queryByText("stale failure")).toBeNull();
+  expect(screen.getAllByRole("alert")).toHaveLength(1);
+});
