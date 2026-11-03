@@ -57,3 +57,30 @@ test("turns a typed name into a slug and alerts only when none remains", async (
   expect(onCreateDoc).toHaveBeenCalledTimes(2);
   expect(alert).toHaveBeenCalledOnce();
 });
+
+test("the sidebar shows Spec and Tasks links", () => {
+  render(
+    <Sidebar
+      boards={["main"]}
+      docs={[]}
+      active={{ kind: "tasks" }}
+      onCreateBoard={() => {}}
+      onCreateDoc={() => {}}
+    />,
+  );
+  const spec = screen.getByRole("link", { name: "Spec" });
+  const tasks = screen.getByRole("link", { name: "Tasks" });
+  expect(spec).toHaveAttribute("href", "#/spec");
+  expect(spec).not.toHaveAttribute("aria-current");
+  expect(tasks).toHaveAttribute("href", "#/tasks");
+  expect(tasks).toHaveAttribute("aria-current", "page");
+  expect(screen.getByRole("link", { name: "main" })).not.toHaveAttribute(
+    "aria-current",
+  );
+  // Plan sits above Boards and Docs.
+  expect(screen.getAllByRole("heading").map((h) => h.textContent)).toEqual([
+    "Plan",
+    "Boards",
+    "Docs",
+  ]);
+});

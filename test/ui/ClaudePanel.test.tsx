@@ -18,6 +18,7 @@ vi.mock("../../src/ui/api", () => ({
   agentSend: vi.fn(async () => "u2"),
   agentInterrupt: vi.fn(async () => {}),
   agentPermission: vi.fn(async () => {}),
+  agentCompile: vi.fn(async () => ({ id: "u9" })),
 }));
 
 const handlers = new Set<(m: ServerMessage) => void>();
@@ -251,6 +252,26 @@ test("an error status shows the message", async () => {
   emit({ type: "agent.status", status: "error", message: "the CLI exited" });
   expect(screen.getByRole("status")).toHaveTextContent("Error: the CLI exited");
   expect(screen.getByRole("textbox", { name: "Message Claude" })).toBeEnabled();
+});
+
+test("Compile calls agentCompile", async () => {
+  vi.mocked(api.agentState).mockResolvedValue(state({ status: "starting" }));
+  renderPanel();
+  const compile = screen.getByRole("button", { name: "Compile" });
+  await waitFor(() =>
+    expect(screen.getByRole("status")).toHaveTextContent("Starting"),
+  );
+  expect(compile).toBeDisabled();
+
+  emit({ type: "agent.status", status: "idle" });
+  expect(compile).toBeEnabled();
+  await userEvent.click(compile);
+  expect(api.agentCompile).toHaveBeenCalledOnce();
+
+  // A failure shows the server's message in the failure line.
+  vi.mocked(api.agentCompile).mockRejectedValueOnce(new Error("busy"));
+  await userEvent.click(compile);
+  expect(await screen.findByRole("alert")).toHaveTextContent("busy");
 });
 
 function RefineButton() {

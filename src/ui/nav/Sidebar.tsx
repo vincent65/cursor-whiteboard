@@ -1,4 +1,5 @@
 import { slugify } from "../../shared/slug";
+import type { Route } from "../hooks/useHashRoute";
 
 type Kind = "board" | "doc";
 
@@ -6,7 +7,7 @@ function NavSection(props: {
   title: string;
   kind: Kind;
   names: string[];
-  active: { kind: Kind; name: string } | null;
+  active: Route;
   onCreate(name: string): void;
 }) {
   const { title, kind, names, active, onCreate } = props;
@@ -27,7 +28,10 @@ function NavSection(props: {
               className="nav-link"
               href={`#/${kind}s/${name}`}
               aria-current={
-                active?.kind === kind && active.name === name
+                active &&
+                "name" in active &&
+                active.kind === kind &&
+                active.name === name
                   ? "page"
                   : undefined
               }
@@ -53,12 +57,28 @@ export function Sidebar({
 }: {
   boards: string[];
   docs: string[];
-  active: { kind: Kind; name: string } | null;
+  active: Route;
   onCreateBoard(name: string): void;
   onCreateDoc(name: string): void;
 }) {
   return (
     <nav className="sidebar" aria-label="Plan files">
+      <section className="nav-section">
+        <h2 className="nav-title">Plan</h2>
+        <ul className="nav-list">
+          {(["spec", "tasks"] as const).map((kind) => (
+            <li key={kind}>
+              <a
+                className="nav-link"
+                href={`#/${kind}`}
+                aria-current={active?.kind === kind ? "page" : undefined}
+              >
+                {kind === "spec" ? "Spec" : "Tasks"}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
       <NavSection
         title="Boards"
         kind="board"

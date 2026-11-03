@@ -1,11 +1,37 @@
 import { useEffect, useState } from "react";
 
-export type Route = { kind: "board" | "doc"; name: string } | null;
+export type Route =
+  | { kind: "board" | "doc"; name: string; focus?: string[] }
+  | { kind: "spec" }
+  | { kind: "tasks" }
+  | null;
+
+// A hand-typed malformed escape keeps its raw text rather than throwing.
+const decode = (s: string) => {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+};
 
 function parseRoute(hash: string): Route {
-  const m = /^#\/(boards|docs)\/([^/]+)$/.exec(hash);
+  if (hash === "#/spec") return { kind: "spec" };
+  if (hash === "#/tasks") return { kind: "tasks" };
+  const m = /^#\/(boards|docs)\/([^/?]+)(?:\?focus=([^&]*))?$/.exec(hash);
   if (!m) return null;
-  return { kind: m[1] === "boards" ? "board" : "doc", name: m[2] };
+  const kind = m[1] === "boards" ? "board" : "doc";
+  const focus = (m[3] ?? "").split(",").filter(Boolean).map(decode);
+  return focus.length ? { kind, name: m[2], focus } : { kind, name: m[2] };
+}
+
+// The inverse of parseRoute: each focus id is encoded, so commas inside ids survive.
+export function routeHash(route: Exclude<Route, null>): string {
+  if (route.kind === "spec" || route.kind === "tasks") return `#/${route.kind}`;
+  const focus = route.focus?.length
+    ? `?focus=${route.focus.map(encodeURIComponent).join(",")}`
+    : "";
+  return `#/${route.kind}s/${route.name}${focus}`;
 }
 
 // The route in the URL hash. While leaving would lose edits the open view

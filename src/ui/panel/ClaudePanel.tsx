@@ -168,6 +168,11 @@ export function ClaudePanel() {
   const stop = () =>
     api.agentInterrupt().catch((err: Error) => setFailure(err.message));
 
+  const compile = () => {
+    setFailure(null);
+    api.agentCompile().catch((err: Error) => setFailure(err.message));
+  };
+
   const decide = (id: string) => (behavior: PermissionDecision["behavior"]) =>
     api.agentPermission(id, { behavior }).then(
       () => setPending((list) => list.filter((p) => p.id !== id)),
@@ -192,6 +197,14 @@ export function ClaudePanel() {
         >
           {statusText(status)}
         </span>
+        <button
+          type="button"
+          className="button"
+          disabled={status.status === "starting"}
+          onClick={compile}
+        >
+          Compile
+        </button>
         <button
           type="button"
           className="button"

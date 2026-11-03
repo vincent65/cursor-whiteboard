@@ -1,3 +1,4 @@
+import type { Citation } from "../export/citations";
 import type { BoardFile } from "../export/schema";
 import type {
   AgentStatus,
@@ -7,6 +8,7 @@ import type {
 } from "../shared/messages";
 import type { PendingPermission, PermissionDecision } from "../shared/panel";
 import type { Decision, Proposal } from "../shared/proposals";
+import type { TaskFile } from "../shared/tasks";
 import type { IncomingScene } from "../shared/types";
 
 export type Entry = { name: string; updatedAt: string };
@@ -81,6 +83,15 @@ export async function saveDoc(name: string, text: string): Promise<void> {
   });
 }
 
+// Unknown citations are cut from the served text and listed in `dropped`.
+export const getSpec = async (): Promise<{
+  text: string | null;
+  dropped: Citation[];
+}> => (await request("/spec")).json();
+
+export const listTasks = async (): Promise<TaskFile[]> =>
+  (await request("/tasks")).json();
+
 // Board files store assets as "assets/<sha256>.<ext>", served under /api.
 export const assetUrl = (asset: string): string => `/api/${asset}`;
 
@@ -110,6 +121,16 @@ export const agentSend = async (
   const res = await request("/agent/send", { method: "POST", ...json(body) });
   return ((await res.json()) as { id: string }).id;
 };
+
+// Starts a compile turn in the plan session; returns the user event id.
+export const agentCompile = async (): Promise<{ id: string }> =>
+  (await request("/agent/compile", { method: "POST" })).json();
+
+// Throws the server's message when there is no spec (404) or a split is
+// already running (409).
+export async function agentSplit(): Promise<void> {
+  await request("/agent/split", { method: "POST" });
+}
 
 export async function agentInterrupt(): Promise<void> {
   await request("/agent/interrupt", { method: "POST" });

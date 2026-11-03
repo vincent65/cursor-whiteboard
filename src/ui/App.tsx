@@ -89,6 +89,12 @@ function Shell() {
             onConflictChange={onConflictChange}
           />
         )}
+        {route?.kind === "spec" && (
+          <p className="empty">Spec view arrives in Task 7.</p>
+        )}
+        {route?.kind === "tasks" && (
+          <p className="empty">Tasks view arrives in Task 7.</p>
+        )}
         {!route && boards?.length === 0 && (
           <p className="empty">No boards yet. Create one from the sidebar.</p>
         )}
