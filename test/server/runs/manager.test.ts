@@ -441,6 +441,56 @@ test("markDone makes an idle run done, and it stays done through later turns, a 
   await after.manager.close();
 });
 
+test("a done or marked-done run stopped while its CLI starts stays done", async () => {
+  const record = (id: string, over: Partial<RunRecord>): RunRecord => ({
+    id,
+    taskSlug: "alpha",
+    sessionId: `sess-${id}`,
+    worktree: `/w/${id}`,
+    branch: "blueprint/alpha",
+    status: "done",
+    permissionMode: "acceptEdits",
+    prUrl: null,
+    markedDone: false,
+    failure: null,
+    costUsd: 0,
+    startedAt: "2026-11-02T00:00:00.000Z",
+    endedAt: "2026-11-02T00:01:00.000Z",
+    ...over,
+  });
+  await store.writeSessions({
+    plan: null,
+    runs: [
+      record("run_aaaaaa", { prUrl: PR }),
+      record("run_bbbbbb", { markedDone: true }),
+      record("run_cccccc", { status: "idle", endedAt: null }),
+    ],
+  });
+  await runs.load();
+  // The CLI never initializes, so a stop ends the process instead of interrupting it.
+  const { gate, release } = gated();
+  const { manager } = setup(() =>
+    (async function* () {
+      await gate;
+      yield* turnsOf();
+    })(),
+  );
+  await manager.start();
+
+  for (const id of ["run_aaaaaa", "run_bbbbbb", "run_cccccc"]) {
+    await manager.message(id, "one more thing");
+    await vi.waitFor(() => expect(statusesOf(id)).toEqual(["working"]));
+    await manager.stop(id);
+  }
+  expect(statusesOf("run_aaaaaa")).toEqual(["working", "done"]);
+  expect(statusesOf("run_bbbbbb")).toEqual(["working", "done"]);
+  // A run that was never done goes back to idle.
+  expect(statusesOf("run_cccccc")).toEqual(["working", "idle"]);
+  expect((await saved(manager, "run_bbbbbb")).status).toBe("done");
+  release();
+  await manager.close();
+});
+
 test("an error result fails the run with the message", async () => {
   const { manager, queries } = setup((text) =>
     text === "try again"

@@ -352,17 +352,16 @@ export class RunManager {
 
   #fromSession(live: Live, status: AgentStatus, message?: string): Derived {
     switch (status) {
-      // Done sticks: a later turn with no URL leaves a run that opened its PR, or was
-      // marked done, done.
-      case "idle": {
+      // Done sticks: a later turn with no URL, or a stop while the CLI starts, leaves a
+      // run that opened its PR, or was marked done, done.
+      case "idle":
+      case "stopped": {
         const prUrl = prUrlIn(live.endedText ?? "") ?? live.record.prUrl;
         if (prUrl) return { status: "done", prUrl };
         return { status: live.record.markedDone ? "done" : "idle" };
       }
       case "error":
         return { status: "failed", message };
-      case "stopped":
-        return { status: "idle" };
       default:
         return { status: "working" };
     }
