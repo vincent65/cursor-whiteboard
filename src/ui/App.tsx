@@ -7,7 +7,7 @@ import { Sidebar } from "./nav/Sidebar";
 import { ClaudePanel } from "./panel/ClaudePanel";
 import { RefineProvider } from "./panel/refine";
 import { SpecView } from "./plan/SpecView";
-import { TasksView } from "./plan/TasksView";
+import { TasksView, useSplitCost } from "./plan/TasksView";
 import { SelectionProvider } from "./selection";
 import { ServerEventsProvider, useServerEvent } from "./server-events";
 
@@ -53,6 +53,8 @@ function Shell() {
     if (!known?.includes(m.name)) refresh().catch(console.error);
   });
 
+  const splitCost = useSplitCost();
+
   // The default route opens the first board once the list has loaded.
   useEffect(() => {
     if (!route && boards?.length) location.replace(`#/boards/${boards[0]}`);
@@ -95,7 +97,7 @@ function Shell() {
           />
         )}
         {route?.kind === "spec" && <SpecView />}
-        {route?.kind === "tasks" && <TasksView />}
+        {route?.kind === "tasks" && <TasksView cost={splitCost} />}
         {!route && boards?.length === 0 && (
           <p className="empty">No boards yet. Create one from the sidebar.</p>
         )}

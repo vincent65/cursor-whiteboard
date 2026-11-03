@@ -10,9 +10,23 @@ function Source({ source }: { source: string }) {
   return c ? <a href={citationHash(c)}>{source}</a> : <span>{source}</span>;
 }
 
-export function TasksView() {
-  const [tasks, setTasks] = useState<TaskFile[] | null>(null);
+// The last split's cost. A split usually finishes while the spec view is
+// open, so App holds this and hands it to the tasks view.
+export function useSplitCost(): number | null {
   const [cost, setCost] = useState<number | null>(null);
+  useServerEvent((m) => {
+    if (
+      m.type === "split.status" &&
+      m.state === "done" &&
+      m.costUsd !== undefined
+    )
+      setCost(m.costUsd);
+  });
+  return cost;
+}
+
+export function TasksView({ cost }: { cost: number | null }) {
+  const [tasks, setTasks] = useState<TaskFile[] | null>(null);
   // A failed load or split, shown until the next split starts.
   const [error, setError] = useState<string | null>(null);
 
@@ -28,9 +42,7 @@ export function TasksView() {
     if (m.type === "file-changed" && m.kind === "task") void load();
     if (m.type !== "split.status") return;
     setError(m.state === "error" ? (m.message ?? "The split failed.") : null);
-    if (m.state !== "done") return;
-    if (m.costUsd !== undefined) setCost(m.costUsd);
-    void load();
+    if (m.state === "done") void load();
   });
 
   return (

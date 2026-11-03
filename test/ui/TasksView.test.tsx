@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import type { ServerMessage } from "../../src/shared/messages";
 import type { TaskFile } from "../../src/shared/tasks";
 import * as api from "../../src/ui/api";
-import { TasksView } from "../../src/ui/plan/TasksView";
+import { TasksView, useSplitCost } from "../../src/ui/plan/TasksView";
 
 vi.mock("../../src/ui/api", () => ({ listTasks: vi.fn() }));
 
@@ -47,6 +47,12 @@ const files: TaskFile[] = [
   },
 ];
 
+// Like App: keeps the split cost while another route is open.
+function Shell({ open }: { open: boolean }) {
+  const cost = useSplitCost();
+  return open ? <TasksView cost={cost} /> : null;
+}
+
 beforeEach(() => {
   vi.resetAllMocks();
   handlers.clear();
@@ -54,7 +60,7 @@ beforeEach(() => {
 
 test("TasksView renders cards with dependencies and source links, and the empty state", async () => {
   vi.mocked(api.listTasks).mockResolvedValueOnce([]);
-  render(<TasksView />);
+  render(<TasksView cost={null} />);
   expect(
     await screen.findByText("No tasks yet. Split the spec first."),
   ).toBeInTheDocument();
@@ -80,13 +86,21 @@ test("TasksView renders cards with dependencies and source links, and the empty 
 
   const first = (await screen.findByText("01-db.md")).closest("article");
   expect(first && within(first).queryByText(/Depends on/)).toBeNull();
-  expect(screen.getByText("Split cost $0.4213")).toBeInTheDocument();
   expect(screen.queryByText(/No tasks yet/)).toBeNull();
+});
+
+test("the split cost shows even when the split finished on another route", async () => {
+  vi.mocked(api.listTasks).mockResolvedValue(files);
+  const { rerender } = render(<Shell open={false} />);
+  await emit({ type: "split.status", state: "done", costUsd: 0.4213 });
+
+  rerender(<Shell open />);
+  expect(await screen.findByText("Split cost $0.4213")).toBeInTheDocument();
 });
 
 test("TasksView reloads when a task file changes on disk", async () => {
   vi.mocked(api.listTasks).mockResolvedValueOnce([]);
-  render(<TasksView />);
+  render(<TasksView cost={null} />);
   await screen.findByText("No tasks yet. Split the spec first.");
 
   vi.mocked(api.listTasks).mockResolvedValueOnce(files);
@@ -96,7 +110,7 @@ test("TasksView reloads when a task file changes on disk", async () => {
 
 test("TasksView shows a split error until the next split", async () => {
   vi.mocked(api.listTasks).mockResolvedValue([]);
-  render(<TasksView />);
+  render(<TasksView cost={null} />);
   await screen.findByText("No tasks yet. Split the spec first.");
 
   await emit({ type: "split.status", state: "error", message: "boom" });
