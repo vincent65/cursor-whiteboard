@@ -118,3 +118,24 @@ test("TasksView shows a split error until the next split", async () => {
   await emit({ type: "split.status", state: "running" });
   expect(screen.queryByRole("alert")).toBeNull();
 });
+
+test("a repeated acceptance line or source renders each time without a key warning", async () => {
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.mocked(api.listTasks).mockResolvedValueOnce([
+    {
+      file: "01-db.md",
+      task: task("db", {
+        acceptance: ["It works", "It works"],
+        sources: ["[[board:main#a1]]", "[[board:main#a1]]"],
+      }),
+    },
+  ]);
+  render(<TasksView cost={null} />);
+
+  expect(await screen.findAllByText("It works")).toHaveLength(2);
+  expect(
+    screen.getAllByRole("link", { name: "[[board:main#a1]]" }),
+  ).toHaveLength(2);
+  expect(error).not.toHaveBeenCalled();
+  error.mockRestore();
+});

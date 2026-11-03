@@ -65,15 +65,17 @@ export function TasksView({ cost }: { cost: number | null }) {
           )}
           {task.acceptance.length > 0 && (
             <ul className="task-list">
-              {task.acceptance.map((a) => (
-                <li key={a}>{a}</li>
+              {task.acceptance.map((a, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: lines can repeat and never move
+                <li key={i}>{a}</li>
               ))}
             </ul>
           )}
           {task.sources.length > 0 && (
             <p className="task-sources">
-              {task.sources.map((s) => (
-                <Source key={s} source={s} />
+              {task.sources.map((s, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: sources can repeat and never move
+                <Source key={i} source={s} />
               ))}
             </p>
           )}
