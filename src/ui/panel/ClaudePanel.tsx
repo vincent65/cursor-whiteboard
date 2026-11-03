@@ -67,9 +67,8 @@ function Item({ item }: { item: TranscriptItem }) {
     case "result":
       return (
         <div className="msg-result">
-          {item.costUsd === null
-            ? "Done"
-            : `Done · $${item.costUsd.toFixed(4)}`}
+          {item.subtype === "interrupted" ? "Stopped" : "Done"}
+          {item.costUsd === null ? "" : ` · $${item.costUsd.toFixed(4)}`}
         </div>
       );
     case "error":

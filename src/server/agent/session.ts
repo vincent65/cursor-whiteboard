@@ -25,7 +25,8 @@ export type SessionDeps = {
   onSessionId(id: string): void;
 };
 
-type Run = { input: InputQueue; query: Query };
+// interrupted: interrupt() was called during the turn in flight, so its result ends the turn.
+type Run = { input: InputQueue; query: Query; interrupted: boolean };
 
 // The streaming prompt: yields pushed messages in order and stays open until ended.
 class InputQueue {
@@ -146,7 +147,10 @@ export class PlanSession {
   }
 
   async interrupt(): Promise<void> {
-    await this.#run?.query.interrupt();
+    const run = this.#run;
+    if (!run) return;
+    if (this.#status !== "idle") run.interrupted = true;
+    await run.query.interrupt();
   }
 
   async close(): Promise<void> {
@@ -168,6 +172,7 @@ export class PlanSession {
           ...(this.#sessionId ? { resume: this.#sessionId } : {}),
         },
       }),
+      interrupted: false,
     };
     this.#run = run;
     this.#setStatus("starting");
@@ -194,6 +199,21 @@ export class PlanSession {
           }
           // The query only starts on a send, so a turn is already in flight.
           if (this.#status === "starting") this.#setStatus("working");
+        }
+        const stopped = msg.type === "result" && run.interrupted;
+        if (stopped) run.interrupted = false;
+        if (stopped && msg.subtype !== "success") {
+          // The SDK answers an interrupt with an error result; the reader asked for the stop.
+          this.#emit({
+            kind: "result",
+            id: msg.uuid,
+            subtype: "interrupted",
+            costUsd: msg.total_cost_usd,
+            durationMs: msg.duration_ms,
+            at: now(),
+          });
+          this.#setStatus("idle");
+          continue;
         }
         for (const e of mapper.map(msg)) this.#emit(e);
         if (msg.type === "result") {

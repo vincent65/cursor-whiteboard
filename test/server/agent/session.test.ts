@@ -457,6 +457,59 @@ test("interrupt calls query.interrupt and close ends the input stream", async ()
   await vi.waitFor(() => expect(runs[0].inputEnded).toBe(true));
 });
 
+test("an error result after interrupt ends the turn as interrupted, not as an error", async () => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const { session, query, events, statuses } = setup((text, turn) =>
+    (async function* () {
+      if (turn === 0) yield init("sess-1");
+      if (text === "long") {
+        yield textTurn("msg_long", "partial answer", "unused")[0];
+        await gate;
+        yield sdk({
+          type: "result",
+          subtype: "error_during_execution",
+          uuid: "r-stop",
+          errors: ["[ede_diagnostic] interrupted"],
+          total_cost_usd: 0.02,
+          duration_ms: 7,
+        });
+      } else {
+        yield sdk({
+          type: "result",
+          subtype: "error_max_turns",
+          uuid: "r-err",
+          errors: ["max turns reached"],
+        });
+      }
+    })(),
+  );
+
+  session.send("long");
+  await vi.waitFor(() => expect(session.status).toBe("working"));
+  await session.interrupt();
+  release();
+  await vi.waitFor(() => expect(session.status).toBe("idle"));
+
+  expect(events.at(-1)).toMatchObject({
+    kind: "result",
+    id: "r-stop",
+    subtype: "interrupted",
+    costUsd: 0.02,
+    durationMs: 7,
+  });
+  expect(events.some((e) => e.kind === "error")).toBe(false);
+  expect(statuses.some(([s]) => s === "error")).toBe(false);
+
+  // The next turn runs on the same query, and its own error result is still an error.
+  session.send("next");
+  await vi.waitFor(() => expect(session.status).toBe("error"));
+  expect(query).toHaveBeenCalledTimes(1);
+  expect(events.at(-1)).toMatchObject({ kind: "error", id: "r-err" });
+});
+
 test("the transcript keeps the last 500 events", async () => {
   const { session } = setup((_text, turn) =>
     turnsOf(...(turn === 0 ? [init("s")] : [])),

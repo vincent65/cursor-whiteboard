@@ -104,6 +104,14 @@ test("panel renders restored transcript, sends on Enter with the current selecti
       durationMs: 900,
       at,
     },
+    {
+      kind: "result",
+      id: "r2",
+      subtype: "interrupted",
+      costUsd: 0.02,
+      durationMs: 300,
+      at,
+    },
   ];
   vi.mocked(api.agentState).mockResolvedValue(state({ transcript }));
   renderPanel();
@@ -121,6 +129,7 @@ test("panel renders restored transcript, sends on Enter with the current selecti
     { normalizeWhitespace: false },
   );
   expect(screen.getByText("Done · $0.0123")).toHaveClass("msg-result");
+  expect(screen.getByText("Stopped · $0.0200")).toHaveClass("msg-result");
   expect(screen.getByRole("status")).toHaveTextContent("Idle");
   expect(screen.getByText("2 selected: Auth, DB")).toBeVisible();
 
