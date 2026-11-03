@@ -1,6 +1,8 @@
 import type {
   Options,
   SDKMessage,
+  SDKResultError,
+  SDKResultSuccess,
   SDKUserMessage,
   SessionMessage,
 } from "@anthropic-ai/claude-agent-sdk";
@@ -11,6 +13,22 @@ import {
 import type { PanelEvent } from "../../../src/shared/panel.js";
 
 const sdk = (msg: unknown) => msg as SDKMessage;
+
+// Result fixtures typed against the SDK, so a field the session reads cannot be left out.
+type ResultKeys =
+  | "type"
+  | "subtype"
+  | "session_id"
+  | "is_error"
+  | "num_turns"
+  | "duration_ms"
+  | "total_cost_usd";
+type SuccessFixture = Pick<SDKResultSuccess, ResultKeys | "result"> & {
+  uuid: string;
+};
+type ErrorFixture = Pick<SDKResultError, ResultKeys | "errors"> & {
+  uuid: string;
+};
 
 const init = (sessionId: string) =>
   sdk({ type: "system", subtype: "init", session_id: sessionId, uuid: "i" });
@@ -42,10 +60,14 @@ function textTurn(msgId: string, text: string, resultId: string): SDKMessage[] {
     sdk({
       type: "result",
       subtype: "success",
+      session_id: "s",
       uuid: resultId,
+      is_error: false,
+      num_turns: 1,
+      result: text,
       total_cost_usd: 0.01,
       duration_ms: 5,
-    }),
+    } satisfies SuccessFixture),
   ];
 }
 
@@ -280,16 +302,25 @@ test("an error result sets status error and the next send starts a fresh query w
         ? sdk({
             type: "result",
             subtype: "error_max_turns",
+            session_id: "sess-1",
             uuid: "r-err",
+            is_error: true,
+            num_turns: 3,
             errors: ["max turns reached"],
-          })
+            total_cost_usd: 0,
+            duration_ms: 1,
+          } satisfies ErrorFixture)
         : sdk({
             type: "result",
             subtype: "success",
+            session_id: "sess-1",
             uuid: "r-ok",
+            is_error: false,
+            num_turns: 1,
+            result: "ok",
             total_cost_usd: 0,
             duration_ms: 1,
-          }),
+          } satisfies SuccessFixture),
     ),
   );
 
@@ -304,6 +335,39 @@ test("an error result sets status error and the next send starts a fresh query w
   expect(runs[0].close).toHaveBeenCalled();
   expect(runs[0].inputEnded).toBe(true);
   expect(runs[1].options?.resume).toBe("sess-1");
+});
+
+test("a success result flagged is_error sets status error with its result text", async () => {
+  const { session, events, statuses } = setup(() =>
+    turnsOf(
+      init("sess-1"),
+      sdk({
+        type: "result",
+        subtype: "success",
+        session_id: "sess-1",
+        uuid: "r-auth",
+        is_error: true,
+        num_turns: 0,
+        result: "Not logged in · Please run /login",
+        total_cost_usd: 0,
+        duration_ms: 2,
+      } satisfies SuccessFixture),
+    ),
+  );
+
+  session.send("hi");
+  await vi.waitFor(() => expect(session.status).toBe("error"));
+
+  expect(statuses.at(-1)).toEqual([
+    "error",
+    "Not logged in · Please run /login",
+  ]);
+  expect(events.at(-1)).toMatchObject({
+    kind: "error",
+    id: "r-auth",
+    message: "Not logged in · Please run /login",
+  });
+  expect(events.some((e) => e.kind === "result")).toBe(false);
 });
 
 test("a throwing event handler closes the run and the next send starts exactly one new query", async () => {
@@ -506,18 +570,26 @@ test("an error result after interrupt ends the turn as interrupted, not as an er
         yield sdk({
           type: "result",
           subtype: "error_during_execution",
+          session_id: "sess-1",
           uuid: "r-stop",
+          is_error: true,
+          num_turns: 1,
           errors: ["[ede_diagnostic] interrupted"],
           total_cost_usd: 0.02,
           duration_ms: 7,
-        });
+        } satisfies ErrorFixture);
       } else {
         yield sdk({
           type: "result",
           subtype: "error_max_turns",
+          session_id: "sess-1",
           uuid: "r-err",
+          is_error: true,
+          num_turns: 3,
           errors: ["max turns reached"],
-        });
+          total_cost_usd: 0.02,
+          duration_ms: 1,
+        } satisfies ErrorFixture);
       }
     })(),
   );

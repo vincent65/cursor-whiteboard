@@ -1,4 +1,7 @@
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  SDKMessage,
+  SDKResultMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import type { PanelEvent } from "../../shared/panel.js";
 
 const SUMMARY_LIMIT = 120;
@@ -26,6 +29,13 @@ export function summarizeTool(
     default:
       return name;
   }
+}
+
+// A failed turn's message, or undefined when it succeeded. The CLI reports auth and API
+// failures as a success result flagged is_error, with the message in `result`.
+export function resultError(msg: SDKResultMessage): string | undefined {
+  if (msg.subtype !== "success") return msg.errors.join("\n");
+  return msg.is_error ? msg.result : undefined;
 }
 
 function resultText(content: unknown): string {
@@ -138,22 +148,21 @@ export class SdkEventMapper {
             : [],
         );
       }
-      case "result":
-        if (msg.subtype === "success") {
-          return [
-            {
-              kind: "result",
-              id: msg.uuid,
-              subtype: msg.subtype,
-              costUsd: msg.total_cost_usd,
-              durationMs: msg.duration_ms,
-              at,
-            },
-          ];
-        }
+      case "result": {
+        const error = resultError(msg);
+        if (error !== undefined)
+          return [{ kind: "error", id: msg.uuid, message: error, at }];
         return [
-          { kind: "error", id: msg.uuid, message: msg.errors.join("\n"), at },
+          {
+            kind: "result",
+            id: msg.uuid,
+            subtype: "success",
+            costUsd: msg.total_cost_usd,
+            durationMs: msg.duration_ms,
+            at,
+          },
         ];
+      }
       default:
         return [];
     }

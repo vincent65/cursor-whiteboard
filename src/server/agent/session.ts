@@ -10,7 +10,7 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentStatus } from "../../shared/messages.js";
 import type { PanelEvent } from "../../shared/panel.js";
-import { SdkEventMapper } from "./events.js";
+import { resultError, SdkEventMapper } from "./events.js";
 
 const TRANSCRIPT_LIMIT = 500;
 const RESTORE_FAILED = "previous session could not be loaded; starting fresh";
@@ -228,8 +228,9 @@ export class PlanSession {
         }
         for (const e of mapper.map(msg)) this.#emit(e);
         if (msg.type === "result") {
-          if (msg.subtype === "success") this.#setStatus("idle");
-          else this.#setStatus("error", msg.errors.join("\n"));
+          const error = resultError(msg);
+          if (error === undefined) this.#setStatus("idle");
+          else this.#setStatus("error", error);
         } else if (
           this.#status === "idle" &&
           (msg.type === "stream_event" || msg.type === "assistant")

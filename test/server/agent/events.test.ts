@@ -1,4 +1,8 @@
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  SDKMessage,
+  SDKResultError,
+  SDKResultSuccess,
+} from "@anthropic-ai/claude-agent-sdk";
 import {
   SdkEventMapper,
   summarizeTool,
@@ -14,6 +18,22 @@ afterEach(() => {
 });
 
 const sdk = (msg: unknown) => msg as SDKMessage;
+
+// Result fixtures typed against the SDK, so a field the mapper reads cannot be left out.
+type ResultKeys =
+  | "type"
+  | "subtype"
+  | "session_id"
+  | "is_error"
+  | "num_turns"
+  | "duration_ms"
+  | "total_cost_usd";
+type SuccessFixture = Pick<SDKResultSuccess, ResultKeys | "result"> & {
+  uuid: string;
+};
+type ErrorFixture = Pick<SDKResultError, ResultKeys | "errors"> & {
+  uuid: string;
+};
 
 test("summarizeTool follows the table", () => {
   expect(summarizeTool("Read", { file_path: "docs/a.md" })).toBe(
@@ -188,8 +208,9 @@ test("mapper turns a scripted SDK stream into panel events in order", () => {
       duration_ms: 4200,
       total_cost_usd: 0.0123,
       is_error: false,
+      num_turns: 2,
       result: "done",
-    }),
+    } satisfies SuccessFixture),
   ];
   expect(stream.flatMap((m) => mapper.map(m))).toEqual([
     {
@@ -288,8 +309,36 @@ test("an error result becomes an error event with the joined messages", () => {
         duration_ms: 10,
         total_cost_usd: 0,
         is_error: true,
+        num_turns: 1,
         errors: ["first", "second"],
-      }),
+      } satisfies ErrorFixture),
     ),
   ).toEqual([{ kind: "error", id: "u-err", message: "first\nsecond", at: AT }]);
+});
+
+test("a success result flagged is_error becomes an error event with its result text", () => {
+  // The CLI reports auth and API failures this way, e.g. when the user is logged out.
+  const mapper = new SdkEventMapper();
+  expect(
+    mapper.map(
+      sdk({
+        type: "result",
+        subtype: "success",
+        session_id: "s",
+        uuid: "u-auth",
+        duration_ms: 3,
+        total_cost_usd: 0,
+        is_error: true,
+        num_turns: 0,
+        result: "Not logged in · Please run /login",
+      } satisfies SuccessFixture),
+    ),
+  ).toEqual([
+    {
+      kind: "error",
+      id: "u-auth",
+      message: "Not logged in · Please run /login",
+      at: AT,
+    },
+  ]);
 });
