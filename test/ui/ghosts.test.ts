@@ -465,3 +465,168 @@ test("a delete ghost fades its label too and counts the pair once", () => {
   const accepted = decideProposal(elements, "p_1", "accepted");
   expect(byId(accepted, "dt").isDeleted).toBe(true);
 });
+
+// Boxes a (0,0) and b (300,0), 100x50, joined by arrow ab.
+const connected = () => [
+  el({ id: "a" }),
+  el({ id: "b", x: 300 }),
+  el({
+    id: "ab",
+    type: "arrow",
+    x: 100,
+    y: 25,
+    width: 200,
+    height: 0,
+    points: [
+      [0, 0],
+      [200, 0],
+    ],
+    startBinding: { elementId: "a", focus: 0, gap: 1 },
+    endBinding: { elementId: "b", focus: 0, gap: 1 },
+  }),
+];
+const between: Proposal = {
+  ...p,
+  ops: [
+    { op: "delete", id: "ab" },
+    { op: "add_node", label: "Cache", kind: "box", near: ["a"] },
+    { op: "add_arrow", from: "a", to: "$1" },
+    { op: "add_arrow", from: "$1", to: "b", label: "reads" },
+  ],
+};
+const cacheNode = () =>
+  new Map([
+    [
+      1,
+      [
+        el({ id: "n", x: 5, y: 5 }),
+        el({ id: "nt", type: "text", containerId: "n", x: 30, y: 20 }),
+      ],
+    ],
+  ]);
+const arrows = (els: readonly El[]) =>
+  added(els).filter((e) => e.type === "arrow");
+
+test("add_node is placed beside the anchor and add_arrow binds both ends", () => {
+  const els = connected();
+  const { elements, ids } = applyProposal(els, between, cacheNode(), ctx);
+  expect(byId(elements, "n")).toMatchObject({ x: 180, y: 0 });
+  expect(byId(elements, "nt")).toMatchObject({ x: 205, y: 15 });
+  const [into, out] = arrows(elements);
+  expect(into).toMatchObject({
+    x: 100,
+    y: 25,
+    width: 80,
+    height: 0,
+    points: [
+      [0, 0],
+      [80, 0],
+    ],
+    startBinding: { elementId: "a", focus: 0, gap: 1 },
+    endBinding: { elementId: "n", focus: 0, gap: 1 },
+    startArrowhead: null,
+    endArrowhead: "arrow",
+  });
+  expect(out).toMatchObject({
+    x: 280,
+    y: 25,
+    points: [
+      [0, 0],
+      [20, 0],
+    ],
+    startBinding: { elementId: "n" },
+    endBinding: { elementId: "b" },
+  });
+  for (const g of [into, out]) {
+    expect(g).toMatchObject({ opacity: 40, strokeStyle: "dashed" });
+    expect(g.groupIds).toEqual(["p_1"]);
+    expect(g.customData).toEqual({
+      origin: "ai",
+      proposalId: "p_1",
+      ghost: "add",
+      before: { strokeStyle: "solid" },
+    });
+  }
+  // The label is bound text at the midpoint, tagged like its arrow.
+  const label = added(elements).find((e) => e.containerId === out.id) as El;
+  expect(label).toMatchObject({
+    type: "text",
+    text: "reads",
+    originalText: "reads",
+    // One 20px line tall, so restoring keeps it and centers it on the midpoint.
+    x: 290,
+    y: 12.5,
+    width: 0,
+    height: 25,
+    opacity: 40,
+    groupIds: ["p_1"],
+    customData: into.customData,
+  });
+  expect(ids).toEqual(["ab", "n", "nt", into.id, out.id, label.id]);
+  expect(new Set(ids).size).toBe(ids.length);
+  expect(pendingProposals(elements)).toEqual([
+    { id: "p_1", counts: { added: 3, updated: 0, deleted: 1 } },
+  ]);
+  // Targets are untouched here; BoardView lists the arrows on them.
+  expect(byId(elements, "a")).toBe(els[0]);
+  expect(byId(elements, "b")).toBe(els[1]);
+
+  const accepted = decideProposal(elements, "p_1", "accepted");
+  expect(arrows(accepted)).toEqual([]);
+  for (const id of [into.id, out.id])
+    expect(byId(accepted, id)).toMatchObject({
+      opacity: 100,
+      strokeStyle: "solid",
+      customData: { origin: "ai", proposalId: "p_1" },
+    });
+  expect(byId(accepted, "ab").isDeleted).toBe(true);
+  const rejected = decideProposal(elements, "p_1", "rejected");
+  expect(byId(rejected, into.id).isDeleted).toBe(true);
+  expect(byId(rejected, label.id).isDeleted).toBe(true);
+  expect(byId(rejected, "ab")).toEqual(connected()[2]);
+});
+
+test("an arrow between diagonal shapes starts and ends on their borders", () => {
+  const { elements } = applyProposal(
+    [el({ id: "a" }), el({ id: "b", x: 200, y: 200, width: 100, height: 100 })],
+    { ...p, ops: [{ op: "add_arrow", from: "a", to: "b" }] },
+    new Map(),
+    ctx,
+  );
+  // Centers (50,25) and (250,250): the line leaves a through its bottom edge and enters b through its top.
+  const [arrow] = arrows(elements);
+  expect(arrow.x).toBeCloseTo(50 + 25 * (200 / 225));
+  expect(arrow.y).toBeCloseTo(50);
+  const [, [dx, dy]] = arrow.points as [number, number][];
+  expect(arrow.x + dx).toBeCloseTo(250 - 50 * (200 / 225));
+  expect(arrow.y + dy).toBeCloseTo(200);
+});
+
+test("a $ reference to a missing node throws before anything changes", () => {
+  const els = connected();
+  const snapshot = structuredClone(els);
+  const run = (ops: Proposal["ops"]) => () =>
+    applyProposal(els, { ...p, ops }, cacheNode(), ctx);
+  expect(
+    run([
+      { op: "delete", id: "ab" },
+      { op: "add_node", label: "Cache", kind: "box" },
+      { op: "add_arrow", from: "$0", to: "b" },
+    ]),
+  ).toThrow("op 2: $0 must name an earlier add_node");
+  expect(
+    run([
+      { op: "delete", id: "ab" },
+      { op: "add_node", label: "Cache", kind: "box" },
+      { op: "add_arrow", from: "a", to: "$4" },
+    ]),
+  ).toThrow("op 2: $4 must name an earlier add_node");
+  expect(
+    run([
+      { op: "delete", id: "ab" },
+      { op: "add_node", label: "Cache", kind: "box" },
+      { op: "add_arrow", from: "gone", to: "$1" },
+    ]),
+  ).toThrow("unknown element id gone");
+  expect(els).toEqual(snapshot);
+});

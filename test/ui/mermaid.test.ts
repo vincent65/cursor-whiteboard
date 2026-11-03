@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {
   renderMermaid,
+  renderNode,
   renderNote,
   SUPPORTED,
 } from "../../src/ui/board/mermaid";
@@ -50,4 +51,22 @@ test("a note is one measured text element", () => {
   const [note] = renderNote("Cache lives here");
   expect(note.type).toBe("text");
   expect(note.width).toBeGreaterThan(0);
+});
+
+test("renderNode makes a shape with a bound label", () => {
+  for (const [kind, type] of [
+    ["box", "rectangle"],
+    ["ellipse", "ellipse"],
+    ["diamond", "diamond"],
+  ] as const) {
+    const els = renderNode("Cache", kind);
+    expect(els).toHaveLength(2);
+    const [shape, label] = els;
+    expect(shape.type).toBe(type);
+    expect(label).toMatchObject({ type: "text", containerId: shape.id });
+    expect((label as { originalText: string }).originalText).toBe("Cache");
+    expect(shape.boundElements).toEqual([{ type: "text", id: label.id }]);
+    expect(shape.width).toBeGreaterThan(0);
+  }
+  expect(renderNode("x", "box")[0].id).not.toBe(renderNode("x", "box")[0].id);
 });

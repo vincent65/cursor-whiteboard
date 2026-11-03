@@ -508,3 +508,50 @@ test("selectionGraph keeps only selected nodes, edges between them, and selected
   });
   expect(selectionGraph(graph, []).board).toBe("flow");
 });
+
+test("revise can retitle, and keeps the title when none is given", async () => {
+  const { hub, call, proposals } = setup();
+  await proposals.proposed(pending("p_1"));
+  hub.request.mockResolvedValue({ elementIds: [] });
+  await call("revise", { proposalId: "p_1", title: "Redis cache", ops });
+  expect(hub.request.mock.calls[0][0].proposal.title).toBe("Redis cache");
+  expect(proposals.get("p_1")?.title).toBe("Redis cache");
+  await call("revise", { proposalId: "p_1", ops });
+  expect(proposals.get("p_1")?.title).toBe("Redis cache");
+});
+
+test("propose and revise refuse a bad $ reference before checking ids or drawing", async () => {
+  const { hub, call, proposals, log } = setup();
+  const bad = [
+    { op: "add_node", label: "Cache", kind: "box" },
+    { op: "add_arrow", from: "zzz", to: "$2" },
+  ];
+  await expect(call("propose", { ops: bad })).rejects.toThrow(
+    "op 1: $2 must name an earlier add_node",
+  );
+  await proposals.proposed(pending("p_1"));
+  await expect(call("revise", { proposalId: "p_1", ops: bad })).rejects.toThrow(
+    "op 1: $2 must name an earlier add_node",
+  );
+  expect(hub.request).not.toHaveBeenCalled();
+  expect(log.map((e) => e.event)).toEqual(["proposed"]);
+
+  // $ references are not element ids; real ends still are.
+  hub.request.mockResolvedValueOnce({ elementIds: [] });
+  await call("propose", {
+    ops: [
+      { op: "delete", id: "e" },
+      { op: "add_node", label: "Cache", kind: "box", near: ["a"] },
+      { op: "add_arrow", from: "a", to: "$1" },
+      { op: "add_arrow", from: "$1", to: "b" },
+    ],
+  });
+  await expect(
+    call("propose", {
+      ops: [
+        { op: "add_node", label: "Cache", kind: "box" },
+        { op: "add_arrow", from: "$0", to: "q" },
+      ],
+    }),
+  ).rejects.toThrow("unknown element id q");
+});

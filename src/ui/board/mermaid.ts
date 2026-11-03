@@ -25,3 +25,14 @@ export function renderNote(text: string): ExcalidrawElement[] {
     { regenerateIds: true },
   );
 }
+
+export function renderNode(
+  label: string,
+  kind: "box" | "ellipse" | "diamond",
+): ExcalidrawElement[] {
+  const type = kind === "box" ? "rectangle" : kind;
+  return convertToExcalidrawElements(
+    [{ type, x: 0, y: 0, label: { text: label } }],
+    { regenerateIds: true },
+  );
+}

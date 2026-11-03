@@ -33,7 +33,7 @@ import {
   type El,
   pendingProposals,
 } from "./ghosts";
-import { renderMermaid, renderNote } from "./mermaid";
+import { renderMermaid, renderNode, renderNote } from "./mermaid";
 import { ProposalsBar } from "./ProposalsBar";
 import {
   filesWithDataUrls,
@@ -79,6 +79,29 @@ const toPng = async (
     }),
   );
 
+// A shape drags only the arrows it lists, and restoring does not list them,
+// so every live bound arrow is added to both of its ends.
+function listBoundArrows(elements: ExcalidrawElement[]): ExcalidrawElement[] {
+  const arrowsOf = new Map<string, string[]>();
+  for (const e of elements) {
+    if (e.type !== "arrow" || e.isDeleted) continue;
+    for (const b of [e.startBinding, e.endBinding])
+      if (b)
+        arrowsOf.set(b.elementId, [...(arrowsOf.get(b.elementId) ?? []), e.id]);
+  }
+  return elements.map((e) => {
+    const missing = (arrowsOf.get(e.id) ?? []).filter(
+      (id) => !e.boundElements?.some((b) => b.id === id),
+    );
+    if (missing.length === 0) return e;
+    const listed = missing.map((id) => ({ id, type: "arrow" as const }));
+    return bumpVersion({
+      ...e,
+      boundElements: [...(e.boundElements ?? []), ...listed],
+    });
+  });
+}
+
 // ghosts.ts works on a structural slice of each element and leaves versions
 // alone; bumping what it replaced is what lets saves, undo, and the bar see the
 // change. Restoring re-measures changed labels and repairs arrow bindings.
@@ -90,10 +113,12 @@ function throughGhosts(
   const next = (change(elements) as unknown as ExcalidrawElement[]).map((e) =>
     unchanged.has(e) ? e : bumpVersion(e),
   );
-  return restoreElements(next, null, {
-    refreshDimensions: true,
-    repairBindings: true,
-  });
+  return listBoundArrows(
+    restoreElements(next, null, {
+      refreshDimensions: true,
+      repairBindings: true,
+    }),
+  );
 }
 
 // Draws a proposal as ghosts. Every conversion runs before the scene is read,
@@ -108,6 +133,8 @@ async function applyProposalRequest(
     if (op.op === "add_diagram")
       rendered.set(i, await renderMermaid(op.mermaid));
     else if (op.op === "add_note") rendered.set(i, renderNote(op.text));
+    else if (op.op === "add_node")
+      rendered.set(i, renderNode(op.label, op.kind));
   }
   const appState = ex.getAppState();
   const view = getVisibleSceneBounds(appState);

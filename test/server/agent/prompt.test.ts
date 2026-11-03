@@ -98,3 +98,11 @@ test("SYSTEM_PROMPT_APPEND covers its topics in order", () => {
   for (const kind of ["flowchart", "sequence", "class", "ER", "state"])
     expect(SYSTEM_PROMPT_APPEND).toContain(kind);
 });
+
+test("the prompt names add_node, add_arrow, and the $ reference", () => {
+  expect(SYSTEM_PROMPT_APPEND).toMatch(/add_node/);
+  expect(SYSTEM_PROMPT_APPEND).toMatch(/add_arrow/);
+  expect(SYSTEM_PROMPT_APPEND).toContain(
+    "To put a new node between two existing ones, delete their arrow, add_node the new one, and add_arrow from each side using $<index> to name the new node.",
+  );
+});

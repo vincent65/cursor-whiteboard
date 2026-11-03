@@ -36,8 +36,18 @@ export type El = {
   containerId?: string | null;
   text?: string;
   originalText?: string;
+  fontSize?: number;
+  fontFamily?: number;
+  textAlign?: string;
+  verticalAlign?: string;
+  points?: readonly (readonly [number, number])[];
+  startBinding?: Binding | null;
+  endBinding?: Binding | null;
+  startArrowhead?: string | null;
+  endArrowhead?: string | null;
   customData?: Record<string, unknown>;
 };
+export type Binding = { elementId: string; focus: number; gap: number };
 export type Bounds = { x: number; y: number; w: number; h: number };
 // Scene coordinates: x = -scrollX, y = -scrollY, w = width / zoom, h = height / zoom.
 export type Viewport = Bounds;
@@ -47,6 +57,10 @@ const GAP_X = 80;
 const GAP_Y = 40;
 const GHOST_OPACITY = 40;
 const DELETE_COLOR = "#e03131";
+const ARROW_COLOR = "#1e1e1e";
+// Excalidraw's default label size and Excalifont, as its own arrow labels use.
+const LABEL_FONT = { fontSize: 20, fontFamily: 5 };
+const LABEL_LINE = 25; // one line at Excalifont's 1.25 line height
 const KINDS: readonly string[] = ["add", "update", "delete"];
 
 export function ghostOf(e: El): Ghost | null {
@@ -91,6 +105,21 @@ export function placeBeside(
   };
 }
 
+const center = (b: Bounds) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
+
+// Where the line from b's center toward `to` leaves b's bounding box.
+function borderPoint(b: Bounds, to: { x: number; y: number }) {
+  const c = center(b);
+  const dx = to.x - c.x;
+  const dy = to.y - c.y;
+  // ponytail: the box stands in for ellipses and diamonds too, so their arrows stop a little short.
+  const t =
+    dx === 0 && dy === 0
+      ? 0
+      : Math.min(b.w / 2 / Math.abs(dx), b.h / 2 / Math.abs(dy));
+  return { x: c.x + t * dx, y: c.y + t * dy };
+}
+
 export function pendingProposals(
   elements: readonly El[],
 ): { id: string; counts: Counts }[] {
@@ -127,7 +156,18 @@ export function applyProposal(
   const live = (id: string) =>
     elements.find((e) => e.id === id && !e.isDeleted);
   proposal.ops.forEach((op, i) => {
-    if (op.op === "update" || op.op === "delete") {
+    if (op.op === "add_arrow") {
+      // The server's checkRefs rule, repeated so the UI bundle stays free of zod.
+      for (const end of [op.from, op.to]) {
+        if (!end.startsWith("$")) {
+          if (!live(end)) throw new Error(`unknown element id ${end}`);
+          continue;
+        }
+        const j = /^\$\d+$/.test(end) ? Number(end.slice(1)) : i;
+        if (j >= i || proposal.ops[j].op !== "add_node")
+          throw new Error(`op ${i}: ${end} must name an earlier add_node`);
+      }
+    } else if (op.op === "update" || op.op === "delete") {
       const target = live(op.id);
       if (!target) throw new Error(`unknown element id ${op.id}`);
       const other = ghostOf(target)?.proposalId;
@@ -164,9 +204,16 @@ export function applyProposal(
   };
   let offsetY = 0;
   let stackTop: { x: number; y: number } | undefined;
+  // The placed shape of each add_node op, by op index, for $ references.
+  const nodes = new Map<number, El>();
 
   proposal.ops.forEach((op, i) => {
-    if (op.op === "add_diagram" || op.op === "add_note") {
+    if (op.op === "add_arrow") return;
+    if (
+      op.op === "add_diagram" ||
+      op.op === "add_note" ||
+      op.op === "add_node"
+    ) {
       const group = rendered.get(i) ?? [];
       const b = bounds(group) as Bounds;
       const a = anchor(elements, op.near ?? [], ctx.selectedIds);
@@ -177,7 +224,7 @@ export function applyProposal(
           : placeBeside(a, ctx.viewport, b, offsetY);
       if (!a) stackTop ??= to;
       for (const e of group) {
-        out.push({
+        const placed: El = {
           ...e,
           x: e.x + to.x - b.x,
           y: e.y + to.y - b.y,
@@ -186,8 +233,10 @@ export function applyProposal(
           // Excalidraw lists groups innermost first, so the proposal is outermost.
           groupIds: [...e.groupIds, proposal.id],
           customData: tag("add", { strokeStyle: e.strokeStyle }),
-        });
+        };
+        out.push(placed);
         ids.push(e.id);
+        if (op.op === "add_node" && !e.containerId) nodes.set(i, placed);
       }
       offsetY += b.h + GAP_Y;
       return;
@@ -255,6 +304,72 @@ export function applyProposal(
     next.customData = tag("update", snapshot(cur, before));
     out[idx] = next;
   });
+
+  // Arrows go last, so both ends are where this proposal leaves them.
+  const ghostStyle = {
+    opacity: GHOST_OPACITY,
+    strokeStyle: "dashed",
+    backgroundColor: "transparent",
+    groupIds: [proposal.id],
+    customData: tag("add", { strokeStyle: "solid" }),
+  };
+  const end = (ref: string) =>
+    ref.startsWith("$")
+      ? (nodes.get(Number(ref.slice(1))) as El)
+      : (live(ref) as El);
+  for (const op of proposal.ops) {
+    if (op.op !== "add_arrow") continue;
+    const from = end(op.from);
+    const to = end(op.to);
+    const fb = bounds([from]) as Bounds;
+    const tb = bounds([to]) as Bounds;
+    const start = borderPoint(fb, center(tb));
+    const stop = borderPoint(tb, center(fb));
+    const dx = stop.x - start.x;
+    const dy = stop.y - start.y;
+    const arrow: El = {
+      ...ghostStyle,
+      id: crypto.randomUUID(),
+      type: "arrow",
+      x: start.x,
+      y: start.y,
+      width: Math.abs(dx),
+      height: Math.abs(dy),
+      strokeColor: ARROW_COLOR,
+      points: [
+        [0, 0],
+        [dx, dy],
+      ],
+      startBinding: { elementId: from.id, focus: 0, gap: 1 },
+      endBinding: { elementId: to.id, focus: 0, gap: 1 },
+      startArrowhead: null,
+      endArrowhead: "arrow",
+    };
+    out.push(arrow);
+    ids.push(arrow.id);
+    if (op.label === undefined) continue;
+    // Restoring drops a zero-sized element and grows a centered text from x
+    // both ways but from y downward, so it starts one line tall around the midpoint.
+    // ponytail: a label that wraps to two lines sits half a line low until the arrow moves.
+    const label: El = {
+      ...ghostStyle,
+      ...LABEL_FONT,
+      id: crypto.randomUUID(),
+      type: "text",
+      x: start.x + dx / 2,
+      y: start.y + dy / 2 - LABEL_LINE / 2,
+      width: 0,
+      height: LABEL_LINE,
+      strokeColor: ARROW_COLOR,
+      containerId: arrow.id,
+      text: op.label,
+      originalText: op.label,
+      textAlign: "center",
+      verticalAlign: "middle",
+    };
+    out.push(label);
+    ids.push(label.id);
+  }
   return { elements: out, ids };
 }
 

@@ -177,3 +177,18 @@ test("beginRevise requires a pending proposal and queues behind a decision in fl
     reason: new NotFoundError("proposal p_1 is not pending"),
   });
 });
+
+test("revise can retitle", async () => {
+  const files = fakeFiles();
+  const store = new ProposalStore(files);
+  await store.proposed(proposal("p_1", "Cache"));
+  await store.revised({ ...proposal("p_1", "Redis cache"), ops: newOps });
+  expect(store.get("p_1")?.title).toBe("Redis cache");
+  expect(files.log.at(-1)).toMatchObject({
+    event: "revised",
+    proposal: { title: "Redis cache" },
+  });
+  const replayed = new ProposalStore(fakeFiles(files.log));
+  await replayed.load();
+  expect(replayed.get("p_1")?.title).toBe("Redis cache");
+});

@@ -11,6 +11,7 @@ import {
   excalidrawToBoardGraph,
 } from "../../export/index.js";
 import {
+  checkRefs,
   type Op,
   type Proposal,
   Propose,
@@ -176,6 +177,7 @@ export function createBoardTools(deps: {
     Propose.shape,
     async (args) => {
       const board = openBoard();
+      checkRefs(args.ops);
       await checkIds(board, args.ops);
       const p: Proposal = {
         id: proposals.newId(),
@@ -192,7 +194,7 @@ export function createBoardTools(deps: {
 
   const revise = tool(
     "revise",
-    "Replace every ghost of a pending proposal with a complete new op list. Returns the proposal id.",
+    "Replace every ghost of a pending proposal with a complete new op list, and its title if one is given. Returns the proposal id.",
     Revise.shape,
     async (args) => {
       const board = openBoard();
@@ -207,9 +209,11 @@ export function createBoardTools(deps: {
       // A decision arriving mid revise is refused rather than racing the id check or redraw.
       await proposals.beginRevise(prev.id);
       try {
+        checkRefs(args.ops);
         await checkIds(board, args.ops);
         const p: Proposal = {
           ...prev,
+          title: args.title ?? prev.title,
           ops: args.ops,
           at: new Date().toISOString(),
         };
