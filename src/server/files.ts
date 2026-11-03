@@ -129,6 +129,13 @@ export function assertSlug(name: string): void {
     throw new InvalidNameError(`invalid name: ${JSON.stringify(name)}`);
 }
 
+// A directory's entries; a missing directory, such as a deleted .blueprint/, has none.
+const entries = (dir: string): Promise<string[]> =>
+  readdir(dir).catch((err: NodeJS.ErrnoException) => {
+    if (err.code === "ENOENT") return [];
+    throw err;
+  });
+
 const exists = (path: string) =>
   access(path).then(
     () => true,
@@ -164,8 +171,7 @@ export class FileStore {
   }
 
   async init(): Promise<void> {
-    for (const d of SUBDIRS)
-      await mkdir(join(this.dir, d), { recursive: true });
+    await this.makeDirs();
     const path = join(this.root, ".gitignore");
     const text = await readFile(path, "utf8").catch(
       (err: NodeJS.ErrnoException) => {
@@ -306,7 +312,7 @@ export class FileStore {
 
   async listTasks(): Promise<TaskFile[]> {
     const dir = join(this.dir, "tasks");
-    const names = (await readdir(dir)).filter((f) => f.endsWith(".md")).sort();
+    const names = (await entries(dir)).filter((f) => f.endsWith(".md")).sort();
     return Promise.all(
       names.map(async (file) => {
         let task: Task;
@@ -328,7 +334,7 @@ export class FileStore {
     const ordered = orderTasks(tasks);
     for (const task of ordered) assertSlug(task.slug);
     const dir = join(this.dir, "tasks");
-    const old = (await readdir(dir)).filter((f) => f.endsWith(".md"));
+    const old = (await entries(dir)).filter((f) => f.endsWith(".md"));
     const files = ordered.map((task, i) => ({
       file: taskFileName(i, task.slug),
       task,
@@ -370,6 +376,7 @@ export class FileStore {
   // A crash mid-append can leave a last line with no newline: a torn one (not JSON, which
   // readProposals skips) is cut off, a whole one missing only its newline gets it first.
   async appendProposal(entry: ProposalLogEntry): Promise<void> {
+    await this.restoreDirs();
     const path = this.proposalsPath();
     const tail = await unfinishedTail(path);
     let prefix = "";
@@ -444,7 +451,7 @@ export class FileStore {
     suffix: string,
   ): Promise<{ name: string; updatedAt: string }[]> {
     const dir = join(this.dir, subdir);
-    const names = (await readdir(dir))
+    const names = (await entries(dir))
       .filter((f) => f.endsWith(suffix))
       .map((f) => f.slice(0, -suffix.length))
       .sort();
@@ -456,8 +463,19 @@ export class FileStore {
     );
   }
 
+  private async makeDirs(): Promise<void> {
+    for (const d of SUBDIRS)
+      await mkdir(join(this.dir, d), { recursive: true });
+  }
+
+  // .blueprint/ deleted while the server runs comes back whole on the next write.
+  private async restoreDirs(): Promise<void> {
+    if (!(await exists(this.dir))) await this.makeDirs();
+  }
+
   // Atomic: write a sibling temp file, then rename it over the target.
   private async write(path: string, data: Buffer | string): Promise<void> {
+    await this.restoreDirs();
     const tmp = `${path}.tmp-${randomBytes(6).toString("hex")}`;
     try {
       await writeFile(tmp, data);

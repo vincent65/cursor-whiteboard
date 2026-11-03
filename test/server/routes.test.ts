@@ -481,3 +481,22 @@ test("GET /api/tasks lists parsed task files", async () => {
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual([{ file: "01-db.md", task }]);
 });
+
+test("with .blueprint/ deleted, lists are empty, a board or doc is 404, and creating one works", async () => {
+  await store.createBoard("main");
+  await rm(store.dir, { recursive: true, force: true });
+
+  for (const path of ["/api/boards", "/api/docs", "/api/tasks"]) {
+    const res = await app.request(path);
+    expect([path, res.status]).toEqual([path, 200]);
+    expect(await res.json()).toEqual([]);
+  }
+  expect((await app.request("/api/boards/main")).status).toBe(404);
+  expect((await app.request("/api/docs/notes")).status).toBe(404);
+  expect(
+    (await app.request("/api/boards", post({ name: "main" }))).status,
+  ).toBe(201);
+  expect((await app.request("/api/docs", post({ name: "notes" }))).status).toBe(
+    201,
+  );
+});

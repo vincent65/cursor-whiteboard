@@ -461,3 +461,30 @@ test("citationIndex covers board elements and doc headings", async () => {
     ]),
   );
 });
+
+test("a .blueprint/ deleted while the server runs lists as empty, reads as not found, and comes back on the next write", async () => {
+  await store.init();
+  await store.createBoard("main");
+  await rm(store.dir, { recursive: true, force: true });
+
+  expect(await store.listBoards()).toEqual([]);
+  expect(await store.listDocs()).toEqual([]);
+  expect(await store.listTasks()).toEqual([]);
+  await expect(store.readBoard("main")).rejects.toThrow(NotFoundError);
+  await expect(store.readDoc("notes")).rejects.toThrow(NotFoundError);
+
+  await store.createBoard("main");
+  await store.createDoc("notes");
+  await store.replaceTasks([]);
+  await store.writeSessions({ plan: null, runs: [] });
+  await store.appendProposal({
+    event: "accepted",
+    at: "2026-11-03T00:00:00.000Z",
+    id: "p_1",
+  });
+  expect((await store.listBoards()).map((b) => b.name)).toEqual(["main"]);
+  expect((await store.listDocs()).map((d) => d.name)).toEqual(["notes"]);
+  expect(await store.readProposals()).toHaveLength(1);
+  for (const d of ["boards", "docs", "assets", "tasks", "export", "worktrees"])
+    expect(existsSync(join(store.dir, d))).toBe(true);
+});
