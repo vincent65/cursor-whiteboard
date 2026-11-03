@@ -214,3 +214,72 @@ test("SessionsView lists other sessions with a read-only transcript, or says the
     await screen.findByText("No other Claude sessions in this repository."),
   ).toBeInTheDocument();
 });
+
+test("SessionsView clears a failed load on the next good one and shows a failed transcript in its card", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.listRuns).mockRejectedValueOnce(new Error("runs unreadable"));
+  render(<SessionsView />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("runs unreadable");
+
+  vi.mocked(api.listRuns).mockResolvedValue([
+    run("r1", "auth-api", "2026-11-02T01:00:00.000Z"),
+  ]);
+  emit({ type: "runs.changed" });
+  const card = await screen.findByRole("article", { name: "auth-api" });
+  expect(screen.queryByRole("alert")).toBeNull();
+
+  // A transcript that fails to load says so in its own card, not at the top.
+  vi.mocked(api.runTranscript).mockRejectedValueOnce(new Error("no session"));
+  await user.click(
+    within(card).getByRole("button", { name: "Show transcript" }),
+  );
+  expect(await within(card).findByRole("alert")).toHaveTextContent(
+    "no session",
+  );
+  expect(screen.getAllByRole("alert")).toHaveLength(1);
+
+  // Opening it again retries, and the old failure goes as the retry starts.
+  let answer: (events: []) => void = () => {};
+  vi.mocked(api.runTranscript).mockReturnValueOnce(
+    new Promise((r) => {
+      answer = r;
+    }),
+  );
+  await user.click(
+    within(card).getByRole("button", { name: "Hide transcript" }),
+  );
+  await user.click(
+    within(card).getByRole("button", { name: "Show transcript" }),
+  );
+  expect(api.runTranscript).toHaveBeenCalledTimes(2);
+  expect(within(card).queryByRole("alert")).toBeNull();
+  await act(async () => answer([]));
+  expect(within(card).getByText("Nothing yet.")).toBeInTheDocument();
+});
+
+test("an other session's transcript retry clears its old failure", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.listRuns).mockResolvedValue([]);
+  vi.mocked(api.listSessions).mockResolvedValue([
+    {
+      sessionId: "o1",
+      summary: "Fix the login bug",
+      lastModified: Date.now(),
+      cwd: "/repo",
+      gitBranch: null,
+    },
+  ]);
+  vi.mocked(api.sessionTranscript)
+    .mockRejectedValueOnce(new Error("session gone"))
+    .mockResolvedValueOnce([
+      { kind: "user", id: "u1", text: "Why does login fail?", at },
+    ]);
+  render(<SessionsView />);
+  const row = await screen.findByRole("button", { name: /Fix the login bug/ });
+  await user.click(row);
+  expect(await screen.findByRole("alert")).toHaveTextContent("session gone");
+  await user.click(row);
+  await user.click(row);
+  expect(await screen.findByText("Why does login fail?")).toBeVisible();
+  expect(screen.queryByRole("alert")).toBeNull();
+});

@@ -32,11 +32,14 @@ function OtherSessionRow({ session }: { session: OtherSession }) {
   const [items, setItems] = useState<PanelEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Opening again after a failure retries, without the old failure meanwhile.
   const toggle = () => {
-    if (!open && items === null)
+    if (!open && items === null) {
+      setError(null);
       api
         .sessionTranscript(session.sessionId)
         .then(setItems, (err) => setError(errorText(err)));
+    }
     setOpen(!open);
   };
 
@@ -83,7 +86,12 @@ export function SessionsView() {
     new Map(),
   );
   const [others, setOthers] = useState<OtherSession[] | null>(null);
+  // A failed list load, until the next good one.
   const [error, setError] = useState<string | null>(null);
+  // A run transcript that failed to load, shown in its card until the next try.
+  const [transcriptErrors, setTranscriptErrors] = useState<Map<string, string>>(
+    new Map(),
+  );
   const loaded = useRef(new Set<string>());
   // Only the newest list request may land, so a slow older one cannot undo it.
   const latest = useRef(0);
@@ -91,7 +99,11 @@ export function SessionsView() {
   const load = useCallback(() => {
     const n = ++latest.current;
     api.listRuns().then(
-      (list) => n === latest.current && setRuns(list),
+      (list) => {
+        if (n !== latest.current) return;
+        setRuns(list);
+        setError(null);
+      },
       (err) => setError(errorText(err)),
     );
   }, []);
@@ -131,10 +143,20 @@ export function SessionsView() {
     }
   });
 
-  // Live events heard before the saved transcript arrives land on top of it.
+  const setTranscriptError = (id: string, message: string | null) =>
+    setTranscriptErrors((all) => {
+      const next = new Map(all);
+      if (message === null) next.delete(id);
+      else next.set(id, message);
+      return next;
+    });
+
+  // Live events heard before the saved transcript arrives land on top of it. Opening
+  // again after a failure retries, without the old failure meanwhile.
   const expand = (id: string) => {
     if (loaded.current.has(id)) return;
     loaded.current.add(id);
+    setTranscriptError(id, null);
     api.runTranscript(id).then(
       (saved) =>
         setTranscripts((all) =>
@@ -145,7 +167,7 @@ export function SessionsView() {
         ),
       (err) => {
         loaded.current.delete(id);
-        setError(errorText(err));
+        setTranscriptError(id, errorText(err));
       },
     );
   };
@@ -185,6 +207,7 @@ export function SessionsView() {
             key={run.id}
             run={run}
             transcript={transcripts.get(run.id) ?? []}
+            transcriptError={transcriptErrors.get(run.id) ?? null}
             onMessage={(text) => api.runMessage(run.id, text)}
             onStop={() => api.runStop(run.id)}
             onResume={() => api.runResume(run.id)}

@@ -26,10 +26,12 @@ const shellPath = (p: string) =>
 
 type Handler<A extends unknown[] = []> = (...args: A) => unknown;
 
-// onExpand: the transcript was opened, so the caller can load it.
+// onExpand: the transcript was opened, so the caller can load it; transcriptError: why
+// loading it failed.
 export function RunCard({
   run,
   transcript,
+  transcriptError = null,
   onMessage,
   onStop,
   onResume,
@@ -39,6 +41,7 @@ export function RunCard({
 }: {
   run: RunView;
   transcript: PanelEvent[];
+  transcriptError?: string | null;
   onMessage: Handler<[text: string]>;
   onStop: Handler;
   onResume: Handler;
@@ -201,7 +204,11 @@ export function RunCard({
           ref={list}
           onScroll={onScroll}
         >
-          {transcript.length ? (
+          {transcriptError ? (
+            <p role="alert" className="panel-failure">
+              {transcriptError}
+            </p>
+          ) : transcript.length ? (
             <TranscriptList items={transcript} />
           ) : (
             <p className="muted">Nothing yet.</p>
