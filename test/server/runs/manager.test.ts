@@ -516,6 +516,8 @@ test("start marks active records interrupted and resume continues the saved sess
     { kind: "assistant_text", text: "On it." },
   ]);
   expect(statusesOf("run_aaaaaa")).toEqual([]);
+  // The card's preview of what Claude last said survives the restart.
+  expect((await view(manager, "run_aaaaaa"))?.lastText).toBe("On it.");
   expect(
     (await manager.list()).map((r) => [
       r.id,

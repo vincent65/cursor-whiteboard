@@ -74,7 +74,16 @@ export class RunManager {
         .runs()
         .filter((r) => !this.#live.has(r.id))
         // A new session already reads idle, so restoring derives no status.
-        .map((r) => this.#open(r).session.restore()),
+        .map(async (r) => {
+          const live = this.#open(r);
+          await live.session.restore();
+          const said = live.session
+            .transcript()
+            .flatMap((e) =>
+              e.kind === "assistant_text" && !e.partial ? [e.text] : [],
+            );
+          live.lastText = said.at(-1) ?? null;
+        }),
     );
   }
 
