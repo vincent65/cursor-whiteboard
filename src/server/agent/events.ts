@@ -25,14 +25,16 @@ export function relativeTo(cwd: string | undefined): Relativize {
   return (text) => roots.reduce((t, root) => t.replaceAll(root, ""), text);
 }
 
-// full: the whole command, for an ask, which must show everything it would allow.
+// full: the command verbatim, for an ask, which must show exactly what it would allow;
+// a row may cut it short and drop the session directory from its paths.
 export function summarizeTool(
   name: string,
   input: Record<string, unknown>,
   relativize: Relativize = (text) => text,
   full = false,
 ): string {
-  return relativize(summarize(name, input, full));
+  const summary = summarize(name, input, full);
+  return full && name === "Bash" ? summary : relativize(summary);
 }
 
 function summarize(

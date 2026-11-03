@@ -146,3 +146,16 @@ test("an ask shows the whole command, however long", () => {
   });
   expect(broker.pending()[0]?.summary).toBe(`running ${command}`);
 });
+
+// A row may shorten paths, but a command shown with a path cut away is not the command run.
+test("an ask shows a command verbatim, with its paths as written", () => {
+  const broker = new PermissionBroker({ cwd: "/repo", onChange() {} });
+  const command = "cd /tmp && rm -rf /repo/build";
+  void broker.ask({
+    toolUseID: "t1",
+    tool: "Bash",
+    input: { command },
+    signal: new AbortController().signal,
+  });
+  expect(broker.pending()[0]?.summary).toBe(`running ${command}`);
+});
