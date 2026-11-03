@@ -32,3 +32,14 @@ export type PanelEvent =
       at: string;
     }
   | { kind: "error"; id: string; message: string; at: string };
+
+export type PermissionDecision = {
+  behavior: "allow" | "deny" | "always";
+  message?: string;
+};
+export type PendingPermission = {
+  id: string;
+  tool: string;
+  summary: string;
+  at: string;
+};

@@ -1,0 +1,124 @@
+import type { PermissionUpdate } from "@anthropic-ai/claude-agent-sdk";
+import { PermissionBroker } from "../../../src/server/agent/broker.js";
+
+const suggestion: PermissionUpdate = {
+  type: "addRules",
+  rules: [{ toolName: "Bash", ruleContent: "ls" }],
+  behavior: "allow",
+  destination: "session",
+};
+
+function ask(
+  broker: PermissionBroker,
+  toolUseID: string,
+  signal = new AbortController().signal,
+) {
+  return broker.ask({
+    toolUseID,
+    tool: "Bash",
+    input: { command: "ls" },
+    suggestions: [suggestion],
+    signal,
+  });
+}
+
+test("ask resolves allow, deny with default message, and always with the suggestions", async () => {
+  const broker = new PermissionBroker({ onChange() {} });
+  const allowed = ask(broker, "t1");
+  const denied = ask(broker, "t2");
+  const always = ask(broker, "t3");
+  const noSuggestions = broker.ask({
+    toolUseID: "t4",
+    tool: "Read",
+    input: {},
+    signal: new AbortController().signal,
+  });
+  expect(broker.answer("t1", { behavior: "allow" })).toBe(true);
+  expect(broker.answer("t2", { behavior: "deny" })).toBe(true);
+  expect(broker.answer("t3", { behavior: "always" })).toBe(true);
+  expect(broker.answer("t4", { behavior: "always" })).toBe(true);
+  await expect(allowed).resolves.toEqual({ behavior: "allow" });
+  await expect(denied).resolves.toEqual({
+    behavior: "deny",
+    message: "The user denied this action in Blueprint.",
+  });
+  await expect(always).resolves.toEqual({
+    behavior: "allow",
+    updatedPermissions: [suggestion],
+  });
+  await expect(noSuggestions).resolves.toEqual({
+    behavior: "allow",
+    updatedPermissions: [],
+  });
+});
+
+test("pending lists open asks, answer with an unknown id is false, cancelAll denies with the reason", async () => {
+  vi.useFakeTimers({ now: new Date("2026-11-02T10:00:00.000Z") });
+  const onChange = vi.fn();
+  const broker = new PermissionBroker({ onChange });
+  const first = ask(broker, "t1");
+  const second = broker.ask({
+    toolUseID: "t2",
+    tool: "Read",
+    input: { file_path: "a.md" },
+    signal: new AbortController().signal,
+  });
+  vi.useRealTimers();
+  const expected = [
+    {
+      id: "t1",
+      tool: "Bash",
+      summary: "running `ls`",
+      at: "2026-11-02T10:00:00.000Z",
+    },
+    {
+      id: "t2",
+      tool: "Read",
+      summary: "reading a.md",
+      at: "2026-11-02T10:00:00.000Z",
+    },
+  ];
+  expect(broker.pending()).toEqual(expected);
+  expect(onChange).toHaveBeenLastCalledWith(expected);
+  expect(broker.answer("nope", { behavior: "allow" })).toBe(false);
+  expect(
+    broker.answer("t2", { behavior: "deny", message: "not that file" }),
+  ).toBe(true);
+  expect(broker.answer("t2", { behavior: "allow" })).toBe(false);
+  await expect(second).resolves.toEqual({
+    behavior: "deny",
+    message: "not that file",
+  });
+  expect(onChange).toHaveBeenLastCalledWith([expected[0]]);
+  broker.cancelAll("session closed");
+  await expect(first).resolves.toEqual({
+    behavior: "deny",
+    message: "session closed",
+  });
+  expect(broker.pending()).toEqual([]);
+  expect(onChange).toHaveBeenLastCalledWith([]);
+});
+
+test("an aborted signal denies as interrupted and clears the entry", async () => {
+  const onChange = vi.fn();
+  const broker = new PermissionBroker({ onChange });
+  const controller = new AbortController();
+  const result = ask(broker, "t1", controller.signal);
+  expect(broker.pending()).toHaveLength(1);
+  controller.abort();
+  await expect(result).resolves.toEqual({
+    behavior: "deny",
+    message: "interrupted",
+  });
+  expect(broker.pending()).toEqual([]);
+  expect(onChange).toHaveBeenLastCalledWith([]);
+  expect(broker.answer("t1", { behavior: "allow" })).toBe(false);
+
+  const preAborted = new AbortController();
+  preAborted.abort();
+  await expect(ask(broker, "t2", preAborted.signal)).resolves.toEqual({
+    behavior: "deny",
+    message: "interrupted",
+  });
+  expect(broker.pending()).toEqual([]);
+});
