@@ -74,7 +74,7 @@ test("LaunchDialog launches a ready task without the override and shows a failed
   expect(screen.getByRole("button", { name: "Launch" })).toBeEnabled();
 });
 
-test("LaunchDialog closes on Cancel and on Escape, but not on Escape in the select", async () => {
+test("LaunchDialog closes on Cancel and on Escape, including from the select", async () => {
   const user = userEvent.setup();
   const onClose = vi.fn();
   render(
@@ -87,12 +87,15 @@ test("LaunchDialog closes on Cancel and on Escape, but not on Escape in the sele
     />,
   );
 
-  await user.click(screen.getByRole("button", { name: "Cancel" }));
+  // Escape from the select, where the focus starts, closes it. An open native
+  // select's popup takes its own Escape, so the dialog never hears that one.
+  expect(
+    screen.getByRole("combobox", { name: "Permission mode" }),
+  ).toHaveFocus();
+  await user.keyboard("{Escape}");
   expect(onClose).toHaveBeenCalledTimes(1);
-  await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("button", { name: "Cancel" }));
   expect(onClose).toHaveBeenCalledTimes(2);
-  // Escape in the select closes its list of options, not the dialog.
-  await user.click(screen.getByRole("combobox", { name: "Permission mode" }));
   await user.keyboard("{Escape}");
-  expect(onClose).toHaveBeenCalledTimes(2);
+  expect(onClose).toHaveBeenCalledTimes(3);
 });
