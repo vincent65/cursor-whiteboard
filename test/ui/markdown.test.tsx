@@ -34,6 +34,14 @@ test("headingBase sets the level a # heading takes, inside quotes too, up to h6"
   expect(screen.getByRole("heading", { name: "Deep", level: 6 })).toBeTruthy();
 });
 
+test("a heading inside a nested list keeps the heading level", () => {
+  const { unmount } = render(<Markdown text={"- a\n  - b\n  # H"} />);
+  expect(screen.getByRole("heading", { name: "H", level: 3 })).toBeTruthy();
+  unmount();
+  render(<Markdown text={"- a\n  - b\n  ## H"} headingBase={1} />);
+  expect(screen.getByRole("heading", { name: "H", level: 2 })).toBeTruthy();
+});
+
 test("strong, emphasis, and inline code", () => {
   const c = md("**bold** and *it* and __b2__ and _i2_ and `a *b* c`");
   expect([...c.querySelectorAll("strong")].map((e) => e.textContent)).toEqual([

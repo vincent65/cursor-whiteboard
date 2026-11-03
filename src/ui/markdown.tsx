@@ -147,13 +147,13 @@ function blocks(
     const first = ITEM.exec(line);
     if (first) {
       const isOrdered = ordered(first[1]);
-      const base = indent(line);
+      const indentBase = indent(line);
       // An item indented two or more past the first is nested in the one above.
       const sibling = (l: string | undefined) => {
         const m = l === undefined ? null : ITEM.exec(l);
         return (
           m !== null &&
-          indent(l as string) < base + 2 &&
+          indent(l as string) < indentBase + 2 &&
           ordered(m[1]) === isOrdered
         );
       };
@@ -164,7 +164,7 @@ function blocks(
         else if (!l.trim()) {
           // A blank line between items keeps the list going.
           if (!sibling(src[i + 1])) break;
-        } else if (indent(l) > base || !startsBlock(l))
+        } else if (indent(l) > indentBase || !startsBlock(l))
           items[items.length - 1].push(l);
         else break;
         i++;
