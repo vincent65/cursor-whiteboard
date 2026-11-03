@@ -71,3 +71,10 @@ test("isAncestor is false for a missing branch, true after merging it", async ()
   await git(repo, "merge", "-q", "--no-ff", "-m", "merge auth", branch);
   expect(await isAncestor(repo, branch)).toBe(true);
 });
+
+test("isAncestor re-throws a git failure that is not its no", async () => {
+  await git(repo, "branch", "blueprint/auth");
+  // An unborn HEAD makes merge-base fail with 128, not with its "no" of 1.
+  await git(repo, "checkout", "-q", "--orphan", "empty");
+  await expect(isAncestor(repo, "blueprint/auth")).rejects.toThrow(/HEAD/);
+});

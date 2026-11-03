@@ -1,9 +1,16 @@
+import { randomBytes } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FileStore, NotFoundError } from "../../../src/server/files.js";
 import { RunStore } from "../../../src/server/runs/store.js";
 import type { RunRecord } from "../../../src/shared/types.js";
+
+// Real random bytes unless a test scripts them.
+vi.mock("node:crypto", async (importOriginal) => {
+  const crypto = await importOriginal<typeof import("node:crypto")>();
+  return { ...crypto, randomBytes: vi.fn(crypto.randomBytes) };
+});
 
 let root: string;
 let files: FileStore;
@@ -107,4 +114,37 @@ test("a failed write leaves memory as it was on disk", async () => {
     "disk full",
   );
   expect(runs.runs()).toEqual([]);
+});
+
+test("newRunId draws again when the id is a stored run's", async () => {
+  await files.writeSessions({ plan: null, runs: [record("run_aaaaaa")] });
+  const runs = new RunStore(files);
+  await runs.load();
+  const bytes = vi.mocked(randomBytes as (n: number) => Buffer);
+  bytes.mockClear();
+  bytes
+    .mockReturnValueOnce(Buffer.from("aaaaaa", "hex"))
+    .mockReturnValueOnce(Buffer.from("bbbbbb", "hex"));
+  expect(runs.newRunId()).toBe("run_bbbbbb");
+  expect(bytes).toHaveBeenCalledTimes(2);
+});
+
+test("a write queued behind a failed one starts from the state on disk and lands", async () => {
+  let calls = 0;
+  let saved: unknown = null;
+  const runs = new RunStore({
+    readSessions: async () => ({ plan: null, runs: [] }),
+    writeSessions: async (s) => {
+      if (++calls === 1) throw new Error("disk full");
+      saved = s;
+    },
+  });
+  await runs.load();
+  const b = record("run_bbbbbb");
+  const failed = runs.upsertRun(record("run_aaaaaa"));
+  const next = runs.upsertRun(b);
+  await expect(failed).rejects.toThrow("disk full");
+  await next;
+  expect(saved).toEqual({ plan: null, runs: [b] });
+  expect(runs.runs()).toEqual([b]);
 });
