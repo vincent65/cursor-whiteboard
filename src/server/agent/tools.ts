@@ -37,6 +37,8 @@ export function selectionGraph(graph: BoardGraph, ids: string[]): BoardGraph {
 // "data:image/png;base64,AAAA" -> an MCP image block.
 function image(dataUrl: string): Content {
   const comma = dataUrl.indexOf(",");
+  if (!dataUrl.startsWith("data:") || comma < 0)
+    throw new Error("malformed PNG data URL");
   const mimeType = dataUrl.slice(5, comma).split(";")[0];
   return { type: "image", data: dataUrl.slice(comma + 1), mimeType };
 }
@@ -79,15 +81,18 @@ export function createBoardTools(deps: {
         kind: "selection.snapshot",
       });
       const board = hub.activeBoard;
-      if (snap.ids.length === 0 || board === null)
+      const graph =
+        board === null || snap.ids.length === 0
+          ? null
+          : selectionGraph(await graphOf(board), snap.ids);
+      // Ids outside the graph (e.g. only a shape's bound label text) select nothing.
+      if (!graph || (graph.nodes.length === 0 && graph.edges.length === 0))
         return {
           content: [
             { type: "text", text: "Nothing is selected on the board." },
           ],
         };
-      const text = boardGraphToMarkdown(
-        selectionGraph(await graphOf(board), snap.ids),
-      );
+      const text = boardGraphToMarkdown(graph);
       const content: Content[] = [{ type: "text", text }];
       if (snap.png) content.push(image(snap.png));
       return { content };

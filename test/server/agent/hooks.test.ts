@@ -5,18 +5,18 @@ import {
 } from "../../../src/server/agent/hooks.js";
 
 const cwd = "/repo";
-const pre = (tool_name: string, tool_input: unknown) =>
+const pre = (tool_name: string, tool_input: unknown, at = cwd) =>
   ({
     hook_event_name: "PreToolUse",
     session_id: "s",
     transcript_path: "/t",
-    cwd,
+    cwd: at,
     tool_name,
     tool_input,
     tool_use_id: "u",
   }) as HookInput;
 const run = (input: HookInput) =>
-  denyBoardWrites(input, "u", { signal: new AbortController().signal });
+  denyBoardWrites(cwd)(input, "u", { signal: new AbortController().signal });
 
 test("denyBoardWrites denies a Write under .blueprint/boards and allows src/x.ts", async () => {
   expect(
@@ -28,7 +28,7 @@ test("denyBoardWrites denies a Write under .blueprint/boards and allows src/x.ts
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
       permissionDecisionReason:
-        "Blueprint boards are edited only through proposals; use the propose tool in a later milestone, or ask the user to draw it.",
+        "Blueprint board files are read-only here. Describe the change in your reply, or ask the user to draw it.",
     },
   });
   expect(await run(pre("Write", { file_path: "src/x.ts" }))).toEqual({});
@@ -61,4 +61,29 @@ test("isProtectedPath covers boards and assets only, after resolving against cwd
   expect(isProtectedPath(cwd, ".blueprint/boards")).toBe(false);
   expect(isProtectedPath(cwd, ".blueprint/boards-old/a.json")).toBe(false);
   expect(isProtectedPath(cwd, "/other/.blueprint/boards/a.json")).toBe(false);
+});
+
+test("denyBoardWrites anchors on the repository root, not the agent's current directory", async () => {
+  const denied = { hookSpecificOutput: { permissionDecision: "deny" } };
+  // After a `cd src` in Bash, an absolute board path is still under the root.
+  expect(
+    await run(
+      pre(
+        "Write",
+        { file_path: "/repo/.blueprint/boards/x.excalidraw.json" },
+        "/repo/src",
+      ),
+    ),
+  ).toMatchObject(denied);
+  // A relative path resolves against the agent's current directory.
+  expect(
+    await run(
+      pre("Edit", { file_path: "../.blueprint/assets/x.png" }, "/repo/src"),
+    ),
+  ).toMatchObject(denied);
+  expect(
+    await run(
+      pre("Write", { file_path: ".blueprint/boards/x.json" }, "/repo/src"),
+    ),
+  ).toEqual({});
 });

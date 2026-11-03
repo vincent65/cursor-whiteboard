@@ -144,6 +144,24 @@ describe("hub requests", () => {
     await expect(left).rejects.toThrow("the browser tab disconnected");
   });
 
+  test("activeBoard follows selection.changed and clears when the active socket leaves", () => {
+    const a = { send: vi.fn() };
+    const b = { send: vi.fn() };
+    hub.add(a);
+    hub.add(b);
+    expect(hub.activeBoard).toBeNull();
+    const select = (board: string) =>
+      JSON.stringify({ type: "selection.changed", board, ids: [] });
+    hub.handle(a, select("main"));
+    expect(hub.activeBoard).toBe("main");
+    hub.handle(b, select("flow"));
+    expect(hub.activeBoard).toBe("flow");
+    hub.remove(a);
+    expect(hub.activeBoard).toBe("flow");
+    hub.remove(b);
+    expect(hub.activeBoard).toBeNull();
+  });
+
   test("onClient receives parsed messages and malformed JSON is ignored", () => {
     const a = { send: vi.fn() };
     hub.add(a);

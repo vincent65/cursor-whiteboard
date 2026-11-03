@@ -9,7 +9,7 @@ import {
   createBoardTools,
   selectionGraph,
 } from "../../../src/server/agent/tools.js";
-import type { FileStore } from "../../../src/server/files.js";
+import { type FileStore, NotFoundError } from "../../../src/server/files.js";
 
 const el = (o: Partial<ExcalidrawElement>): ExcalidrawElement => ({
   id: "",
@@ -61,7 +61,10 @@ const empty: BoardFile = { ...flow, elements: [] };
 const boards: Record<string, BoardFile> = { flow, zeta: empty };
 
 const store = {
-  readBoard: vi.fn(async (name: string) => boards[name]),
+  readBoard: vi.fn(async (name: string) => {
+    if (!boards[name]) throw new NotFoundError(`board ${name} not found`);
+    return boards[name];
+  }),
   listBoards: vi.fn(async () =>
     Object.keys(boards).map((name) => ({ name, updatedAt: "" })),
   ),
@@ -118,6 +121,30 @@ test("get_board returns markdown and the PNG from the browser, or a note when th
   expect(text).toMatch(/\(No PNG: no browser tab is connected\)$/);
 });
 
+test("get_board fails clearly when there are no boards or the board is unknown", async () => {
+  const { hub, call } = setup();
+  vi.mocked(store.listBoards).mockResolvedValueOnce([]);
+  await expect(call("get_board", {})).rejects.toThrow(
+    "there are no boards yet",
+  );
+  await expect(call("get_board", { board: "nope" })).rejects.toThrow(
+    "board nope not found",
+  );
+  expect(hub.request).not.toHaveBeenCalled();
+});
+
+test("get_board notes a malformed PNG data URL instead of sending a broken image", async () => {
+  const { hub, call } = setup();
+  hub.request.mockResolvedValueOnce({ png: "not a data url" });
+  const result = await call("get_board", { board: "flow" });
+  expect(result.content).toEqual([
+    {
+      type: "text",
+      text: expect.stringMatching(/\(No PNG: malformed PNG data URL\)$/),
+    },
+  ]);
+});
+
 test("get_selection returns nothing-selected text, or the filtered graph markdown with the crop", async () => {
   const { hub, call } = setup();
   hub.request.mockResolvedValueOnce({ ids: [], png: null });
@@ -137,6 +164,13 @@ test("get_selection returns nothing-selected text, or the filtered graph markdow
   expect(md).toContain("Login");
   expect(md).toContain("Home");
   expect(md).not.toContain("Notes");
+
+  // Only a shape's bound label text: nothing in the graph is selected.
+  hub.request.mockResolvedValueOnce({ ids: ["ta"], png: PNG });
+  const labelOnly = await call("get_selection", {});
+  expect(labelOnly.content).toEqual([
+    { type: "text", text: "Nothing is selected on the board." },
+  ]);
 
   hub.request.mockResolvedValueOnce({ ids: ["c"], png: null });
   const noCrop = await call("get_selection", {});
