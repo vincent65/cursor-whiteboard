@@ -436,6 +436,41 @@ test("restore seeds the transcript from the saved session and a failure starts f
   expect(failed.session.sessionId).toBe("new");
 });
 
+test("restore shows the CLI's interrupt marker as a stopped result, not a user message", async () => {
+  const saved = [
+    {
+      type: "user",
+      uuid: "u1",
+      session_id: "old",
+      parent_tool_use_id: null,
+      parent_agent_id: null,
+      message: { role: "user", content: "write an essay" },
+    },
+    {
+      type: "user",
+      uuid: "u2",
+      session_id: "old",
+      parent_tool_use_id: null,
+      parent_agent_id: null,
+      message: {
+        role: "user",
+        content: [{ type: "text", text: "[Request interrupted by user]" }],
+      },
+    },
+  ] as SessionMessage[];
+  const { session } = setup(() => turnsOf(), {
+    resumeId: "old",
+    getSessionMessages: vi.fn(async () => saved),
+  });
+
+  await session.restore();
+
+  expect(session.transcript()).toMatchObject([
+    { kind: "user", id: "u1", text: "write an essay" },
+    { kind: "result", id: "u2", subtype: "interrupted", costUsd: null },
+  ]);
+});
+
 test("interrupt calls query.interrupt and close ends the input stream", async () => {
   const { session, runs, statuses } = setup((_text, turn) =>
     turnsOf(...(turn === 0 ? [init("s")] : []), ...textTurn("m", "x", "r")),

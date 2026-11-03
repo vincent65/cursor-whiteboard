@@ -14,6 +14,8 @@ import { SdkEventMapper } from "./events.js";
 
 const TRANSCRIPT_LIMIT = 500;
 const RESTORE_FAILED = "previous session could not be loaded; starting fresh";
+// The CLI saves a Stop as a user message with this text (or "... for tool use]").
+const INTERRUPT_MARKER = "[Request interrupted by user";
 
 export type SessionDeps = {
   query: typeof query;
@@ -108,7 +110,16 @@ export class PlanSession {
         const mapper = new SdkEventMapper();
         for (const msg of saved) {
           const prompt = savedPrompt(msg);
-          if (prompt !== undefined) {
+          if (prompt?.startsWith(INTERRUPT_MARKER)) {
+            this.#remember({
+              kind: "result",
+              id: msg.uuid,
+              subtype: "interrupted",
+              costUsd: null,
+              durationMs: 0,
+              at: now(),
+            });
+          } else if (prompt !== undefined) {
             this.#remember({
               kind: "user",
               id: msg.uuid,
