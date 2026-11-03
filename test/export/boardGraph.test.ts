@@ -258,3 +258,85 @@ test("node order follows element order", () => {
     ["r1", "box"],
   ]);
 });
+
+test("add ghosts and their labels are not on the board yet", () => {
+  const ghost = { origin: "ai", proposalId: "p_1", ghost: "add" };
+  const g = excalidrawToBoardGraph(
+    board([
+      el({ id: "r1", type: "rectangle" }),
+      el({ id: "r2", type: "rectangle", customData: ghost }),
+      el({ id: "t2", type: "text", text: "Cache", containerId: "r2" }),
+      el({
+        id: "a1",
+        type: "arrow",
+        startBinding: { elementId: "r1" },
+        endBinding: { elementId: "r2" },
+        customData: ghost,
+      }),
+      el({ id: "t3", type: "text", text: "reads", containerId: "a1" }),
+    ]),
+    "main",
+  );
+  expect(g.nodes.map((n) => n.id)).toEqual(["r1"]);
+  expect(g.edges).toEqual([]);
+});
+
+test("update ghosts read with their labels from before the proposal", () => {
+  const update = (label: string) => ({
+    origin: "ai",
+    proposalId: "p_1",
+    ghost: "update",
+    before: { strokeStyle: "solid", label },
+  });
+  const g = excalidrawToBoardGraph(
+    board([
+      el({ id: "r1", type: "rectangle", customData: update("API") }),
+      el({ id: "t1", type: "text", text: "Gateway", containerId: "r1" }),
+      el({ id: "n1", type: "text", text: "new", customData: update("old") }),
+      el({ id: "r2", type: "rectangle" }),
+      el({
+        id: "a1",
+        type: "arrow",
+        startBinding: { elementId: "r1" },
+        endBinding: { elementId: "r2" },
+        customData: update("calls"),
+      }),
+      el({ id: "t2", type: "text", text: "streams", containerId: "a1" }),
+      el({
+        id: "r3",
+        type: "rectangle",
+        customData: {
+          origin: "ai",
+          proposalId: "p_1",
+          ghost: "update",
+          before: { strokeStyle: "solid", strokeColor: "#000" },
+        },
+      }),
+      el({ id: "t4", type: "text", text: "Kept", containerId: "r3" }),
+    ]),
+    "main",
+  );
+  expect(g.nodes.map((n) => [n.id, n.label])).toEqual([
+    ["r1", "API"],
+    ["n1", "old"],
+    ["r2", ""],
+    ["r3", "Kept"],
+  ]);
+  expect(g.edges).toEqual([
+    expect.objectContaining({ id: "a1", label: "calls" }),
+  ]);
+});
+
+test("delete ghosts stay on the board until accepted", () => {
+  const g = excalidrawToBoardGraph(
+    board([
+      el({
+        id: "r1",
+        type: "rectangle",
+        customData: { origin: "ai", proposalId: "p_1", ghost: "delete" },
+      }),
+    ]),
+    "main",
+  );
+  expect(g.nodes.map((n) => n.id)).toEqual(["r1"]);
+});

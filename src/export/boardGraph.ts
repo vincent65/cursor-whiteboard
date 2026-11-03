@@ -16,11 +16,31 @@ const NODE_KINDS: Partial<Record<string, BoardNode["kind"]>> = {
 
 const LOOSE_KINDS = { freedraw: "draw", line: "line" } as const;
 
+// An update ghost already shows its new label; the board reads the old one until it is accepted.
+function labelBefore(e: ExcalidrawElement): string | undefined {
+  const c = e.customData;
+  const before = c?.ghost === "update" ? c.before : undefined;
+  const label = (before as { label?: unknown } | undefined)?.label;
+  return typeof label === "string" ? label.trim() : undefined;
+}
+
 export function excalidrawToBoardGraph(
   board: BoardFile,
   boardName: string,
 ): BoardGraph {
-  const live = board.elements.filter((e) => !e.isDeleted);
+  // Pending proposals are not fact: add ghosts (with their labels) are left
+  // out, update ghosts read as before, and delete ghosts stay until accepted.
+  const added = new Set(
+    board.elements
+      .filter((e) => e.customData?.ghost === "add")
+      .map((e) => e.id),
+  );
+  const live = board.elements.filter(
+    (e) =>
+      !e.isDeleted &&
+      !added.has(e.id) &&
+      !(e.containerId && added.has(e.containerId)),
+  );
   const byId = new Map(live.map((e) => [e.id, e]));
   const graph: BoardGraph = {
     board: boardName,
@@ -53,7 +73,7 @@ export function excalidrawToBoardGraph(
         id: e.id,
         from: liveId(e.startBinding?.elementId),
         to: liveId(e.endBinding?.elementId),
-        label: boundText(e),
+        label: labelBefore(e) ?? boundText(e),
         arrowheads: {
           start: Boolean(e.startArrowhead),
           end: Boolean(e.endArrowhead),
@@ -74,11 +94,12 @@ export function excalidrawToBoardGraph(
       id: e.id,
       kind,
       label:
-        kind === "text"
+        labelBefore(e) ??
+        (kind === "text"
           ? (e.text?.trim() ?? "")
           : kind === "frame"
             ? (e.name ?? "")
-            : boundText(e),
+            : boundText(e)),
       frameId: e.frameId ?? null,
       bounds: { x: e.x, y: e.y, w: e.width, h: e.height },
       origin: e.customData?.origin === "ai" ? "ai" : "human",

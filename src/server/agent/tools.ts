@@ -5,7 +5,6 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import {
-  type BoardFile,
   type BoardGraph,
   boardGraphToMarkdown,
   excalidrawToBoardGraph,
@@ -53,12 +52,6 @@ function image(dataUrl: string): Content {
   return { type: "image", data: dataUrl.slice(comma + 1), mimeType };
 }
 
-// The board as it stands without pending additions; Claude learns of those from the pending line.
-function withoutAddGhosts(file: BoardFile): BoardFile {
-  const elements = file.elements.filter((e) => e.customData?.ghost !== "add");
-  return { ...file, elements };
-}
-
 export function createBoardTools(deps: {
   store: FileStore;
   hub: Pick<WsHub, "request" | "activeBoard">;
@@ -66,10 +59,7 @@ export function createBoardTools(deps: {
 }): McpSdkServerConfigWithInstance {
   const { store, hub, proposals } = deps;
   const graphOf = async (board: string) =>
-    excalidrawToBoardGraph(
-      withoutAddGhosts(await store.readBoard(board)),
-      board,
-    );
+    excalidrawToBoardGraph(await store.readBoard(board), board);
   const withPending = (text: string, board: string) => {
     const pending = proposals.pending().filter((p) => p.board === board);
     if (pending.length === 0) return text;
@@ -87,8 +77,8 @@ export function createBoardTools(deps: {
   // Add ghosts are not on the board yet, so ops cannot point at them (the reads hide them too).
   const checkIds = async (board: string, ops: Op[]) => {
     const live = new Set(
-      withoutAddGhosts(await store.readBoard(board))
-        .elements.filter((e) => !e.isDeleted)
+      (await store.readBoard(board)).elements
+        .filter((e) => !e.isDeleted && e.customData?.ghost !== "add")
         .map((e) => e.id),
     );
     const unknown = referencedIds(ops).find((id) => !live.has(id));
