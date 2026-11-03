@@ -188,6 +188,8 @@ test("RunCard's message box sends and the permission dialog answers with the run
   const dialog = screen.getByRole("alertdialog");
   expect(dialog).toHaveTextContent("Allow Bash: npm test");
   expect(screen.queryByText("src/a.ts")).toBeNull();
+  // The SDK suggested no rule for this ask, so only once or deny.
+  expect(screen.queryByRole("button", { name: /always|session/ })).toBeNull();
   await user.click(screen.getByRole("button", { name: "Allow once" }));
   expect(h.onPermission).toHaveBeenCalledWith("p1", { behavior: "allow" });
 

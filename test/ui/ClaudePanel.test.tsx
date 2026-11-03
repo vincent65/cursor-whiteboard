@@ -219,11 +219,12 @@ test("a pending permission renders the dialog and Allow always calls agentPermis
     behavior: "always",
   });
   expect(await screen.findByText(/editing x/)).toBeVisible();
-  // Without the SDK's suggestions the choice promises only this session.
-  expect(screen.queryByRole("button", { name: "Allow always" })).toBeNull();
+  // Without the SDK's suggestions there is no rule to keep, so no third choice.
   expect(
-    screen.getByRole("button", { name: "Allow for this session" }),
-  ).toBeVisible();
+    screen
+      .getAllByRole("button", { name: /^(Allow|Deny)/ })
+      .map((b) => b.textContent),
+  ).toEqual(["Allow once", "Deny"]);
 
   // Leaving needs_you means every ask was settled, here or in another tab.
   emit({ type: "agent.status", status: "working" });

@@ -65,21 +65,13 @@ export class PermissionBroker {
   answer(id: string, decision: PermissionDecision): boolean {
     const open = this.#open.get(id);
     if (!open) return false;
-    if (decision.behavior === "always") {
+    // Without suggestions there is no rule to keep, so always allows this once.
+    if (decision.behavior === "always" && open.entry.canAlways) {
       this.#settle(id, {
         behavior: "allow",
-        updatedPermissions: open.entry.canAlways
-          ? open.suggestions
-          : [
-              {
-                type: "addRules",
-                rules: [{ toolName: open.entry.tool }],
-                behavior: "allow",
-                destination: "session",
-              },
-            ],
+        updatedPermissions: open.suggestions,
       });
-    } else if (decision.behavior === "allow") {
+    } else if (decision.behavior !== "deny") {
       this.#settle(id, { behavior: "allow" });
     } else {
       this.#settle(id, {

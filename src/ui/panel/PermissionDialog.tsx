@@ -15,7 +15,8 @@ export function PermissionDialog({
       {(
         [
           ["Allow once", "allow"],
-          [ask.canAlways ? "Allow always" : "Allow for this session", "always"],
+          // Only with a rule the SDK suggested is there anything to keep.
+          ...(ask.canAlways ? [["Allow always", "always"] as const] : []),
           ["Deny", "deny"],
         ] as const
       ).map(([label, behavior]) => (

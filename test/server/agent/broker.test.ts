@@ -46,18 +46,8 @@ test("ask resolves allow, deny with default message, and always with the suggest
     behavior: "allow",
     updatedPermissions: [suggestion],
   });
-  // Without suggestions, always allows the tool for this session.
-  await expect(noSuggestions).resolves.toEqual({
-    behavior: "allow",
-    updatedPermissions: [
-      {
-        type: "addRules",
-        rules: [{ toolName: "Read" }],
-        behavior: "allow",
-        destination: "session",
-      },
-    ],
-  });
+  // Without suggestions there is no rule to keep, so always allows once.
+  await expect(noSuggestions).resolves.toEqual({ behavior: "allow" });
 });
 
 test("pending lists open asks, answer with an unknown id is false, cancelAll denies with the reason", async () => {
