@@ -1,0 +1,407 @@
+import type {
+  Options,
+  SDKMessage,
+  SDKUserMessage,
+  SessionMessage,
+} from "@anthropic-ai/claude-agent-sdk";
+import {
+  PlanSession,
+  type SessionDeps,
+} from "../../../src/server/agent/session.js";
+import type { PanelEvent } from "../../../src/shared/panel.js";
+
+const sdk = (msg: unknown) => msg as SDKMessage;
+
+const init = (sessionId: string) =>
+  sdk({ type: "system", subtype: "init", session_id: sessionId, uuid: "i" });
+
+// One text turn in the order the SDK emits it with partial messages on: the block's deltas,
+// then one assistant message for the finished block, then the block and message stops.
+function textTurn(msgId: string, text: string, resultId: string): SDKMessage[] {
+  const stream = (event: unknown) =>
+    sdk({ type: "stream_event", parent_tool_use_id: null, event });
+  return [
+    stream({ type: "message_start", message: { id: msgId } }),
+    stream({
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "text", text: "" },
+    }),
+    stream({
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "text_delta", text },
+    }),
+    sdk({
+      type: "assistant",
+      parent_tool_use_id: null,
+      message: { id: msgId, content: [{ type: "text", text }] },
+    }),
+    stream({ type: "content_block_stop", index: 0 }),
+    stream({ type: "message_stop" }),
+    sdk({
+      type: "result",
+      subtype: "success",
+      uuid: resultId,
+      total_cost_usd: 0.01,
+      duration_ms: 5,
+    }),
+  ];
+}
+
+type Script = (text: string, turn: number) => AsyncIterable<SDKMessage>;
+
+// A fake `query` that reads the prompt iterable in the background, like the SDK does, and
+// yields the scripted messages for each user message in order.
+function fakeQuery(script: Script) {
+  const runs: {
+    options: Options | undefined;
+    inputEnded: boolean;
+    interrupt: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
+  }[] = [];
+  const query = vi.fn(
+    (params: {
+      prompt: string | AsyncIterable<SDKUserMessage>;
+      options?: Options;
+    }) => {
+      const run = {
+        options: params.options,
+        inputEnded: false,
+        interrupt: vi.fn(async () => undefined),
+        close: vi.fn(),
+      };
+      runs.push(run);
+      const received: string[] = [];
+      let wake: (() => void) | undefined;
+      void (async () => {
+        for await (const m of params.prompt as AsyncIterable<SDKUserMessage>) {
+          received.push(m.message.content as string);
+          wake?.();
+        }
+        run.inputEnded = true;
+        wake?.();
+      })();
+      async function* messages() {
+        let turn = 0;
+        while (true) {
+          const text = received.shift();
+          if (text !== undefined) {
+            yield* script(text, turn++);
+          } else if (run.inputEnded) {
+            return;
+          } else {
+            await new Promise<void>((r) => {
+              wake = r;
+            });
+          }
+        }
+      }
+      return Object.assign(messages(), {
+        interrupt: run.interrupt,
+        close: run.close,
+      });
+    },
+  );
+  return { query, runs };
+}
+
+async function* turnsOf(...msgs: SDKMessage[]) {
+  yield* msgs;
+}
+
+function setup(
+  script: Script,
+  opts: {
+    resumeId?: string;
+    getSessionMessages?: SessionDeps["getSessionMessages"];
+  } = {},
+) {
+  const { query, runs } = fakeQuery(script);
+  const events: PanelEvent[] = [];
+  const statuses: [string, string | undefined][] = [];
+  const sessionIds: string[] = [];
+  const deps: SessionDeps = {
+    query: query as unknown as SessionDeps["query"],
+    getSessionMessages:
+      opts.getSessionMessages ?? vi.fn(async () => [] as SessionMessage[]),
+    cwd: "/proj",
+    options: { model: "claude-test" },
+    onEvent: (e) => events.push(e),
+    onStatus: (s, m) => statuses.push([s, m]),
+    onSessionId: (id) => sessionIds.push(id),
+  };
+  const session = new PlanSession(deps, opts.resumeId);
+  return { session, query, runs, events, statuses, sessionIds };
+}
+
+const kinds = (events: PanelEvent[]) =>
+  events.map((e) =>
+    e.kind === "assistant_text" ? `${e.kind}:${e.partial}` : e.kind,
+  );
+
+test("send starts the query, streams events, and goes idle on result", async () => {
+  const { session, query, runs, events, statuses, sessionIds } = setup(
+    (text, turn) =>
+      turnsOf(
+        ...(turn === 0 ? [init("sess-1")] : []),
+        ...textTurn("msg_1", `echo ${text}`, "r1"),
+      ),
+  );
+
+  const id = session.send("hello");
+
+  expect(events[0]).toMatchObject({ kind: "user", id, text: "hello" });
+  expect(session.status).toBe("starting");
+  await vi.waitFor(() => expect(session.status).toBe("idle"));
+
+  expect(query).toHaveBeenCalledTimes(1);
+  expect(runs[0].options).toMatchObject({
+    model: "claude-test",
+    cwd: "/proj",
+    includePartialMessages: true,
+  });
+  expect(runs[0].options?.resume).toBeUndefined();
+  expect(kinds(events)).toEqual([
+    "user",
+    "assistant_text:true",
+    "assistant_text:false",
+    "result",
+  ]);
+  expect(events[2]).toMatchObject({ id: "msg_1:0", text: "echo hello" });
+  expect(statuses.map(([s]) => s)).toEqual(["starting", "working", "idle"]);
+  expect(session.sessionId).toBe("sess-1");
+  expect(sessionIds).toEqual(["sess-1"]);
+  // Partial and final text share an id, so the transcript keeps only the final one.
+  expect(kinds(session.transcript())).toEqual([
+    "user",
+    "assistant_text:false",
+    "result",
+  ]);
+});
+
+test("a second send during a turn queues and is processed after the first result", async () => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const { session, query, events, statuses } = setup((text, turn) =>
+    (async function* () {
+      if (turn === 0) yield init("sess-1");
+      const [result, ...rest] = textTurn(
+        `msg_${turn}`,
+        `echo ${text}`,
+        `r${turn}`,
+      ).reverse();
+      yield* rest.reverse();
+      if (turn === 0) await gate;
+      yield result;
+    })(),
+  );
+
+  session.send("first");
+  await vi.waitFor(() => expect(session.status).toBe("working"));
+  const second = session.send("second");
+
+  expect(events.at(-1)).toMatchObject({
+    kind: "user",
+    id: second,
+    text: "second",
+  });
+  release();
+  await vi.waitFor(() =>
+    expect(events.filter((e) => e.kind === "result")).toHaveLength(2),
+  );
+
+  expect(query).toHaveBeenCalledTimes(1);
+  const order = events.flatMap((e) =>
+    e.kind === "user" || (e.kind === "assistant_text" && !e.partial)
+      ? [e.text]
+      : e.kind === "result"
+        ? [e.id]
+        : [],
+  );
+  expect(order).toEqual([
+    "first",
+    "echo first",
+    "second",
+    "r0",
+    "echo second",
+    "r1",
+  ]);
+  expect(events.at(-1)).toMatchObject({ kind: "result", id: "r1" });
+  expect(session.status).toBe("idle");
+  expect(statuses.at(-1)).toEqual(["idle", undefined]);
+});
+
+test("a thrown query becomes an error event and status error, and the next send starts a new query with resume", async () => {
+  const { session, query, runs, events, statuses } = setup((text, turn) =>
+    (async function* () {
+      if (text === "boom") {
+        yield init("sess-1");
+        throw new Error("process exited");
+      }
+      if (turn === 0) yield init("sess-1");
+      yield* textTurn("msg_2", "recovered", "r2");
+    })(),
+  );
+
+  session.send("boom");
+  await vi.waitFor(() => expect(session.status).toBe("error"));
+
+  expect(events.at(-1)).toMatchObject({
+    kind: "error",
+    message: "process exited",
+  });
+  expect(statuses.at(-1)).toEqual(["error", "process exited"]);
+
+  session.send("again");
+  await vi.waitFor(() => expect(session.status).toBe("idle"));
+
+  expect(query).toHaveBeenCalledTimes(2);
+  expect(runs[1].options).toMatchObject({
+    resume: "sess-1",
+    includePartialMessages: true,
+  });
+  expect(events.at(-1)).toMatchObject({ kind: "result", id: "r2" });
+});
+
+test("an error result sets status error and the next send starts a fresh query with resume", async () => {
+  const { session, query, runs, events, statuses } = setup((text) =>
+    turnsOf(
+      init("sess-1"),
+      text === "one"
+        ? sdk({
+            type: "result",
+            subtype: "error_max_turns",
+            uuid: "r-err",
+            errors: ["max turns reached"],
+          })
+        : sdk({
+            type: "result",
+            subtype: "success",
+            uuid: "r-ok",
+            total_cost_usd: 0,
+            duration_ms: 1,
+          }),
+    ),
+  );
+
+  session.send("one");
+  await vi.waitFor(() => expect(session.status).toBe("error"));
+  expect(statuses.at(-1)).toEqual(["error", "max turns reached"]);
+  expect(events.at(-1)).toMatchObject({ kind: "error", id: "r-err" });
+
+  session.send("two");
+  await vi.waitFor(() => expect(session.status).toBe("idle"));
+  expect(query).toHaveBeenCalledTimes(2);
+  expect(runs[0].close).toHaveBeenCalled();
+  expect(runs[0].inputEnded).toBe(true);
+  expect(runs[1].options?.resume).toBe("sess-1");
+});
+
+test("restore seeds the transcript from the saved session and a failure starts fresh with an error event", async () => {
+  const saved = [
+    {
+      type: "user",
+      uuid: "u1",
+      session_id: "old",
+      parent_tool_use_id: null,
+      parent_agent_id: null,
+      message: { role: "user", content: "plan the auth flow" },
+    },
+    {
+      type: "assistant",
+      uuid: "a1",
+      session_id: "old",
+      parent_tool_use_id: null,
+      parent_agent_id: null,
+      message: { id: "msg_old", content: [{ type: "text", text: "Sure." }] },
+    },
+  ] as SessionMessage[];
+  const getSessionMessages = vi.fn(async () => saved);
+  const restored = setup(
+    (_text, turn) =>
+      turnsOf(...(turn === 0 ? [init("old")] : []), ...textTurn("m", "x", "r")),
+    { resumeId: "old", getSessionMessages },
+  );
+
+  await restored.session.restore();
+
+  expect(getSessionMessages).toHaveBeenCalledWith("old", { dir: "/proj" });
+  expect(restored.query).not.toHaveBeenCalled();
+  expect(restored.session.status).toBe("idle");
+  expect(restored.session.sessionId).toBe("old");
+  expect(restored.session.transcript()).toMatchObject([
+    { kind: "user", id: "u1", text: "plan the auth flow" },
+    {
+      kind: "assistant_text",
+      id: "msg_old:0",
+      text: "Sure.",
+      partial: false,
+    },
+  ]);
+  restored.session.send("continue");
+  await vi.waitFor(() => expect(restored.session.status).toBe("idle"));
+  expect(restored.runs[0].options?.resume).toBe("old");
+
+  const failed = setup(
+    (_text, turn) =>
+      turnsOf(...(turn === 0 ? [init("new")] : []), ...textTurn("m", "x", "r")),
+    {
+      resumeId: "gone",
+      getSessionMessages: vi.fn(async () => {
+        throw new Error("ENOENT");
+      }),
+    },
+  );
+
+  await failed.session.restore();
+
+  expect(failed.events).toMatchObject([
+    {
+      kind: "error",
+      message: "previous session could not be loaded; starting fresh",
+    },
+  ]);
+  expect(failed.session.status).toBe("idle");
+  expect(failed.session.sessionId).toBeUndefined();
+  failed.session.send("hi");
+  await vi.waitFor(() => expect(failed.session.status).toBe("idle"));
+  expect(failed.runs[0].options?.resume).toBeUndefined();
+  expect(failed.session.sessionId).toBe("new");
+});
+
+test("interrupt calls query.interrupt and close ends the input stream", async () => {
+  const { session, runs, statuses } = setup((_text, turn) =>
+    turnsOf(...(turn === 0 ? [init("s")] : []), ...textTurn("m", "x", "r")),
+  );
+
+  await session.interrupt();
+  expect(runs).toHaveLength(0);
+
+  session.send("go");
+  await vi.waitFor(() => expect(session.status).toBe("idle"));
+  await session.interrupt();
+  expect(runs[0].interrupt).toHaveBeenCalledTimes(1);
+
+  await session.close();
+
+  expect(session.status).toBe("stopped");
+  expect(statuses.at(-1)).toEqual(["stopped", undefined]);
+  expect(runs[0].close).toHaveBeenCalled();
+  await vi.waitFor(() => expect(runs[0].inputEnded).toBe(true));
+});
+
+test("the transcript keeps the last 500 events", async () => {
+  const { session } = setup((_text, turn) =>
+    turnsOf(...(turn === 0 ? [init("s")] : [])),
+  );
+  for (let i = 0; i < 510; i++) session.send(`m${i}`);
+
+  const transcript = session.transcript();
+  expect(transcript).toHaveLength(500);
+  expect(transcript[0]).toMatchObject({ kind: "user", text: "m10" });
+  expect(transcript.at(-1)).toMatchObject({ kind: "user", text: "m509" });
+  await session.close();
+});
