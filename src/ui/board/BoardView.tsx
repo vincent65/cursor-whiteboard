@@ -101,6 +101,30 @@ function throughGhosts(
   });
 }
 
+// Centers targets in the part of the canvas Excalidraw's properties panel leaves
+// clear. It never zooms in: targets that fit are centered at the current zoom, and
+// only targets that do not fit are zoomed out to.
+function centerOn(
+  ex: ExcalidrawImperativeAPI,
+  targets: readonly ExcalidrawElement[],
+): void {
+  const { width, height, zoom, viewModeEnabled } = ex.getAppState();
+  const left = leftInset({ width, height }, viewModeEnabled);
+  const [x1, y1, x2, y2] = getCommonBounds(targets);
+  const box = { width: x2 - x1, height: y2 - y1 };
+  // Plain centering ignores canvasOffsets, so centering at the current zoom
+  // goes through the fit with the zoom pinned.
+  const fits = fitsInView(box, { width: width - left, height }, zoom.value);
+  ex.scrollToContent(targets, {
+    fitToViewport: true,
+    animate: true,
+    canvasOffsets: { left },
+    ...(fits
+      ? { minZoom: zoom.value, maxZoom: zoom.value }
+      : { viewportZoomFactor: 0.8 }),
+  });
+}
+
 // Draws a proposal as ghosts. Every conversion runs before the scene is read,
 // so a Mermaid error leaves the board untouched.
 async function applyProposalRequest(
@@ -140,11 +164,13 @@ async function applyProposalRequest(
     return result.elements;
   });
   ex.updateScene({ elements, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
-  const touched = getNonDeletedElements(elements).filter((e) =>
-    ids.includes(e.id),
-  );
-  if (touched.some((e) => !isElementInsideBBox(e, view)))
-    ex.scrollToContent(touched, { animate: true, fitToViewport: false });
+  const live = getNonDeletedElements(elements);
+  const touched = live.filter((e) => ids.includes(e.id));
+  // Out of view, the ghosts come into view beside the selection they answer.
+  if (touched.some((e) => !isElementInsideBBox(e, view))) {
+    const selected = selectedIds(appState, current);
+    centerOn(ex, [...touched, ...live.filter((e) => selected.includes(e.id))]);
+  }
   return { elementIds: ids };
 }
 
@@ -344,9 +370,7 @@ export function BoardView({
   }, [name]);
 
   // Selecting is not an undo step. Ids the board no longer has are skipped,
-  // so a stale citation opens the board with nothing selected. Focus never
-  // zooms in: targets that fit are centered at the current zoom, and only
-  // targets that do not fit are zoomed out to.
+  // so a stale citation opens the board with nothing selected.
   useEffect(() => {
     const ex = excalidraw.current;
     if (!loaded || !ex) return;
@@ -361,22 +385,10 @@ export function BoardView({
       },
       captureUpdate: CaptureUpdateAction.NEVER,
     });
-    const targets = elements.filter((e) => ids.includes(e.id));
-    const { width, height, zoom, viewModeEnabled } = ex.getAppState();
-    const left = leftInset({ width, height }, viewModeEnabled);
-    const [x1, y1, x2, y2] = getCommonBounds(targets);
-    const box = { width: x2 - x1, height: y2 - y1 };
-    // Plain centering ignores canvasOffsets, so centering at the current zoom
-    // goes through the fit with the zoom pinned.
-    const fits = fitsInView(box, { width: width - left, height }, zoom.value);
-    ex.scrollToContent(targets, {
-      fitToViewport: true,
-      animate: true,
-      canvasOffsets: { left },
-      ...(fits
-        ? { minZoom: zoom.value, maxZoom: zoom.value }
-        : { viewportZoomFactor: 0.8 }),
-    });
+    centerOn(
+      ex,
+      elements.filter((e) => ids.includes(e.id)),
+    );
   }, [loaded, focus]);
 
   const apply = useCallback((loaded: Scene) => {
