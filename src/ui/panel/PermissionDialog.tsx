@@ -14,8 +14,8 @@ export function PermissionDialog({
   onDecide(behavior: PermissionDecision["behavior"]): void;
 }) {
   return (
-    <div role="alertdialog" aria-labelledby={ask.id} className="notice">
-      <span id={ask.id} className="notice-text">
+    <div role="alertdialog" aria-labelledby={ask.id} className="ask">
+      <span id={ask.id} className="ask-text">
         Allow <strong>{ask.tool}</strong>: {ask.summary}
       </span>
       {CHOICES.map(([label, behavior]) => (

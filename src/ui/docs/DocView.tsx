@@ -16,6 +16,11 @@ export const theme = EditorView.theme({
     lineHeight: "var(--line-height)",
   },
   ".cm-content": { padding: "calc(var(--space) * 2) 0" },
+  ".cm-gutters": {
+    backgroundColor: "var(--surface)",
+    borderRight: "1px solid var(--border)",
+    color: "var(--muted)",
+  },
   ".cm-line": { padding: "0 calc(var(--space) * 2)" },
 });
 
@@ -32,27 +37,6 @@ export function replaceFromDisk(v: EditorView, text: string) {
     ],
   });
 }
-
-const bannerStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "var(--space)",
-  padding: "var(--space) calc(var(--space) * 2)",
-  background: "var(--surface)",
-  borderBottom: "1px solid var(--border)",
-};
-
-// ponytail: inline styles keep this task to its file list; move to
-// styles.css (with hover and focus states) when the UI gets a button class.
-const buttonStyle = {
-  padding: "calc(var(--space) / 2) var(--space)",
-  border: "1px solid var(--border)",
-  borderRadius: "6px",
-  background: "var(--bg)",
-  color: "var(--text)",
-  font: "inherit",
-  cursor: "pointer",
-};
 
 export function DocView({
   name,
@@ -178,16 +162,16 @@ export function DocView({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <div className="doc">
       {conflict !== null && (
-        <div role="alert" style={bannerStyle}>
-          <span style={{ flex: 1 }}>
+        <div role="alert" className="notice">
+          <span className="notice-text">
             This doc changed on disk while you had unsaved edits.
           </span>
-          <button type="button" style={buttonStyle} onClick={keepMine}>
+          <button type="button" className="button" onClick={keepMine}>
             Keep mine
           </button>
-          <button type="button" style={buttonStyle} onClick={takeTheirs}>
+          <button type="button" className="button" onClick={takeTheirs}>
             Take theirs
           </button>
         </div>
@@ -197,7 +181,7 @@ export function DocView({
           {error}
         </p>
       )}
-      <div ref={host} style={{ flex: 1, minHeight: 0 }} />
+      <div ref={host} className="doc-editor" />
     </div>
   );
 }

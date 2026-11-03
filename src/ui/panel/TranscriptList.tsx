@@ -1,3 +1,4 @@
+import { Markdown } from "../markdown";
 import type { TranscriptItem } from "./transcript";
 
 function Item({ item }: { item: TranscriptItem }) {
@@ -5,7 +6,11 @@ function Item({ item }: { item: TranscriptItem }) {
     case "user":
       return <div className="msg-user">{item.text}</div>;
     case "assistant_text":
-      return <p className="msg-assistant">{item.text}</p>;
+      return (
+        <div className="msg-assistant">
+          <Markdown text={item.text} />
+        </div>
+      );
     case "tool_use":
       return <div className="msg-tool">{item.summary}</div>;
     case "tool_result":

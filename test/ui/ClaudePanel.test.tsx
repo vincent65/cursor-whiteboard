@@ -124,9 +124,9 @@ test("panel renders restored transcript, sends on Enter with the current selecti
   expect(
     screen.getByText("no such board").closest(".msg-tool"),
   ).toHaveTextContent("✗");
-  expect(screen.getByText(/Two boxes\./)).toHaveTextContent(
-    "Two boxes.\nOne arrow.",
-    { normalizeWhitespace: false },
+  // Assistant text is Markdown; its line break survives as a <br>.
+  expect(screen.getByText(/Two boxes\./).innerHTML).toBe(
+    "Two boxes.<br>One arrow.",
   );
   // "Turn done", so a run's transcript does not read like its Done status.
   expect(screen.getByText("Turn done · $0.0123 total")).toHaveClass(
