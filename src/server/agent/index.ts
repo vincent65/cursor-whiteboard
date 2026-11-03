@@ -6,6 +6,7 @@ import type {
   PendingPermission,
   PermissionDecision,
 } from "../../shared/panel.js";
+import type { SessionsFile } from "../../shared/types.js";
 import type { FileStore } from "../files.js";
 import type { WsHub } from "../ws.js";
 import { PermissionBroker } from "./broker.js";
@@ -47,14 +48,21 @@ export async function createAgent(deps: {
 }): Promise<Agent> {
   const { store, hub, cwd } = deps;
   const sdk = deps.sdk ?? claudeSdk;
-  const saved = await store.readSessions();
+  // A corrupt index must not take the server down: start fresh and say so until the first send.
+  let loadError: string | undefined;
+  const saved = await store.readSessions().catch((err): SessionsFile => {
+    loadError = `sessions.json could not be read: ${(err as Error).message}. Fix or delete .blueprint/sessions.json.`;
+    return { plan: null, runs: [] };
+  });
   let message: string | undefined;
 
   // The session's own status, overridden while a permission ask waits on the user.
   const status = (): { status: AgentStatus; message?: string } =>
     broker.pending().length > 0
       ? { status: "needs_you" }
-      : { status: session.status, ...(message ? { message } : {}) };
+      : loadError
+        ? { status: "error", message: loadError }
+        : { status: session.status, ...(message ? { message } : {}) };
   const broadcastStatus = () =>
     hub.broadcast({ type: "agent.status", ...status() });
 
@@ -112,6 +120,8 @@ export async function createAgent(deps: {
       onSessionId: (sessionId) => {
         void store
           .readSessions()
+          // Unreadable (the corrupt file reported at startup): overwrite it from what loaded.
+          .catch(() => saved)
           .then((s) =>
             store.writeSessions({
               ...s,
@@ -141,7 +151,9 @@ export async function createAgent(deps: {
 
   return {
     async send(text, selection) {
-      return session.send(composeUserMessage(text, await header(selection)));
+      const composed = composeUserMessage(text, await header(selection));
+      loadError = undefined;
+      return session.send(composed);
     },
     async interrupt() {
       broker.cancelAll(INTERRUPTED);

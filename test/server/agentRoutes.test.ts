@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -321,5 +321,34 @@ test("createAgent resumes the saved plan session and composes the selection head
     '[Selection on board "main": r1 box ""]\n\ndescribe this',
   );
   expect(fake.options()?.resume).toBe("old");
+  await agent.close();
+});
+
+test("createAgent survives a corrupt sessions.json and reports it until the first send", async () => {
+  await writeFile(join(store.dir, "sessions.json"), "{not json");
+  const fake = fakeSdk();
+  const agent = await createAgent({
+    store,
+    hub: new WsHub(),
+    cwd: root,
+    sdk: fake.sdk,
+  });
+  const app = createApp(store, agent);
+
+  const res = await app.request("/api/agent/state");
+  expect(res.status).toBe(200);
+  const state = await res.json();
+  expect(state).toMatchObject({ status: "error", transcript: [] });
+  expect(state.message).toMatch(
+    /^sessions\.json could not be read: .+\. Fix or delete \.blueprint\/sessions\.json\.$/,
+  );
+
+  // The first send starts fresh and overwrites the file with the new session id.
+  await agent.send("hi");
+  expect(agent.state().status).not.toBe("error");
+  await vi.waitFor(async () =>
+    expect((await store.readSessions()).plan?.sessionId).toBe("s1"),
+  );
+  expect(fake.options()?.resume).toBeUndefined();
   await agent.close();
 });
