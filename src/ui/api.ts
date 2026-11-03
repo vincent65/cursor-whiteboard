@@ -1,5 +1,11 @@
 import type { BoardFile } from "../export/schema";
-import type { ClientMessage, ServerMessage } from "../shared/messages";
+import type {
+  AgentStatus,
+  ClientMessage,
+  PanelEvent,
+  ServerMessage,
+} from "../shared/messages";
+import type { PendingPermission, PermissionDecision } from "../shared/panel";
 import type { IncomingScene } from "../shared/types";
 
 export type Entry = { name: string; updatedAt: string };
@@ -66,9 +72,51 @@ export async function saveDoc(name: string, text: string): Promise<void> {
 // Board files store assets as "assets/<sha256>.<ext>", served under /api.
 export const assetUrl = (asset: string): string => `/api/${asset}`;
 
+export type AgentState = {
+  status: AgentStatus;
+  message?: string;
+  sessionId?: string;
+  transcript: PanelEvent[];
+  pending: PendingPermission[];
+};
+
+// The server composes the selection header from the stored board, so only
+// the board and ids travel. Returns the user event id.
+export const agentSend = async (
+  text: string,
+  selection?: { board: string; ids: string[] },
+): Promise<string> => {
+  const body = {
+    text,
+    ...(selection
+      ? { selection: { board: selection.board, ids: selection.ids } }
+      : {}),
+  };
+  const res = await request("/agent/send", { method: "POST", ...json(body) });
+  return ((await res.json()) as { id: string }).id;
+};
+
+export async function agentInterrupt(): Promise<void> {
+  await request("/agent/interrupt", { method: "POST" });
+}
+
+export async function agentPermission(
+  id: string,
+  decision: PermissionDecision,
+): Promise<void> {
+  await request("/agent/permission", {
+    method: "POST",
+    ...json({ id, ...decision }),
+  });
+}
+
+export const agentState = async (): Promise<AgentState> =>
+  (await request("/agent/state")).json();
+
 // Frames sent while the socket is not open wait for the next one to open.
 // By then the server that asked for queued responses is gone. The newest
-// selection goes out on every open, since a restarted server has forgotten it.
+// selection goes out on every open, since a restarted server has forgotten it;
+// an empty board name means the board closed, so there is nothing to resend.
 export function connectWs(onMessage: (m: ServerMessage) => void): {
   send(m: ClientMessage): void;
   close(): void;
@@ -103,14 +151,18 @@ export function connectWs(onMessage: (m: ServerMessage) => void): {
 
   return {
     send(m) {
-      if (m.type === "selection.changed") selection = m;
+      if (m.type === "selection.changed") selection = m.board ? m : null;
       if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(m));
       else queue.push(m);
     },
     close() {
       closed = true;
       clearTimeout(timer);
-      socket?.close();
+      // Closing a socket that is still connecting makes the browser warn
+      // (StrictMode does it on every dev mount), so wait for it to open.
+      const s = socket;
+      if (s?.readyState === WebSocket.CONNECTING) s.onopen = () => s.close();
+      else s?.close();
     },
   };
 }

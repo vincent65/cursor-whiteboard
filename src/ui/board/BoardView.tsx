@@ -19,6 +19,7 @@ import type { BoardFile } from "../../export/schema";
 import type { ServerMessage } from "../../shared/messages";
 import * as api from "../api";
 import { useDebounced } from "../hooks/useDebounced";
+import { selectionLabels, useSetSelection } from "../selection";
 import { useSendToServer, useServerEvent } from "../server-events";
 import {
   filesWithDataUrls,
@@ -98,8 +99,9 @@ export function BoardView({
   const lastSaved = useRef<SaveState>({ version: 0, appState: {} });
   // Null until the first report, so a fresh board announces itself even with
   // nothing selected.
-  const reportedIds = useRef<string[] | null>(null);
+  const reported = useRef<{ ids: string[]; labels: string[] } | null>(null);
   const send = useSendToServer();
+  const setSelection = useSetSelection();
   // Saves not yet answered, so the watcher echoing one is not a disk change.
   const inFlight = useRef(new Set<SaveState>());
   // Saves run one at a time so a slow write cannot land after a newer one.
@@ -155,10 +157,26 @@ export function BoardView({
     const s = latest.current;
     if (!s) return;
     const ids = selectedIds(s.appState, s.elements);
-    if (reportedIds.current && sameIds(ids, reportedIds.current)) return;
-    reportedIds.current = ids;
-    send({ type: "selection.changed", board: name, ids });
+    // Labels follow text edits on the selected shapes; only ids reach the server.
+    const labels = selectionLabels(s.elements, ids);
+    const prev = reported.current;
+    if (prev && sameIds(ids, prev.ids) && sameIds(labels, prev.labels)) return;
+    reported.current = { ids, labels };
+    setSelection({ board: name, ids, labels });
+    if (!prev || !sameIds(ids, prev.ids))
+      send({ type: "selection.changed", board: name, ids });
   }, 150);
+
+  // Declared after reportSelection, so a report still pending flushes first.
+  // An empty board name tells the server no board is open any more.
+  useEffect(
+    () => () => {
+      reported.current = null;
+      setSelection(null);
+      send({ type: "selection.changed", board: "", ids: [] });
+    },
+    [send, setSelection],
+  );
 
   const answer = async (
     m: Extract<ServerMessage, { type: "request" }>,

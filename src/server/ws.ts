@@ -22,7 +22,8 @@ export class WsHub {
   >();
   private readonly pending = new Map<string, Pending>();
   private active: Socket | null = null;
-  // The board named by the last selection.changed from the active tab.
+  // The board named by the last selection.changed from the active tab; an
+  // empty name means the tab closed its board.
   activeBoard: string | null = null;
 
   add(socket: Socket): void {
@@ -64,7 +65,7 @@ export class WsHub {
       else p.reject(new Error(msg.error));
     } else if (msg?.type === "selection.changed") {
       this.active = socket;
-      this.activeBoard = msg.board;
+      this.activeBoard = msg.board || null;
     } else {
       return;
     }

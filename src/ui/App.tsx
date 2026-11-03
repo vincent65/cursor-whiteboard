@@ -4,12 +4,16 @@ import { BoardView } from "./board/BoardView";
 import { DocView } from "./docs/DocView";
 import { useHashRoute } from "./hooks/useHashRoute";
 import { Sidebar } from "./nav/Sidebar";
+import { ClaudePanel } from "./panel/ClaudePanel";
+import { SelectionProvider } from "./selection";
 import { ServerEventsProvider, useServerEvent } from "./server-events";
 
 export function App() {
   return (
     <ServerEventsProvider>
-      <Shell />
+      <SelectionProvider>
+        <Shell />
+      </SelectionProvider>
     </ServerEventsProvider>
   );
 }
@@ -87,7 +91,7 @@ function Shell() {
         )}
       </main>
       <aside className="right-pane">
-        <p className="muted">The Claude panel arrives in milestone 1.</p>
+        <ClaudePanel />
       </aside>
     </div>
   );

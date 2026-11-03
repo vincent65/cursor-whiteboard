@@ -162,6 +162,16 @@ describe("hub requests", () => {
     expect(hub.activeBoard).toBeNull();
   });
 
+  test("an empty board name means the tab closed its board", () => {
+    const a = { send: vi.fn() };
+    hub.add(a);
+    const select = (board: string) =>
+      JSON.stringify({ type: "selection.changed", board, ids: [] });
+    hub.handle(a, select("main"));
+    hub.handle(a, select(""));
+    expect(hub.activeBoard).toBeNull();
+  });
+
   test("onClient receives parsed messages and malformed JSON is ignored", () => {
     const a = { send: vi.fn() };
     hub.add(a);

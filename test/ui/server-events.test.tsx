@@ -14,12 +14,14 @@ vi.mock("../../src/ui/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../src/ui/api")>()),
   listBoards: vi.fn(async () => []),
   listDocs: vi.fn(async () => []),
+  agentState: vi.fn(() => new Promise(() => {})),
 }));
 
 // Excalidraw does not load under vitest, and no board is opened here.
 vi.mock("../../src/ui/board/BoardView", () => ({ BoardView: () => null }));
 
 class FakeSocket {
+  static readonly CONNECTING = 0;
   static readonly OPEN = 1;
   static last: FakeSocket;
   readyState = 0;
@@ -146,6 +148,46 @@ test("every reconnect sends the last selection again", () => {
   expect(second).not.toBe(first);
   second.open();
   expect(second.sent).toEqual([JSON.stringify(selection)]);
+});
+
+test("an empty board clears the selection a reconnect would send", () => {
+  vi.useFakeTimers();
+  render(
+    <ServerEventsProvider>
+      <Probe onMessage={() => {}} />
+    </ServerEventsProvider>,
+  );
+  const first = FakeSocket.last;
+  first.open();
+  const cleared: ClientMessage = {
+    type: "selection.changed",
+    board: "",
+    ids: [],
+  };
+  send(cleared);
+  expect(first.sent).toEqual([
+    JSON.stringify(selection),
+    JSON.stringify(cleared),
+  ]);
+  first.drop();
+  act(() => vi.advanceTimersByTime(500));
+  FakeSocket.last.open();
+  expect(FakeSocket.last.sent).toEqual([]);
+});
+
+test("closing before the socket opens waits for it to open, then closes", () => {
+  const { unmount } = render(
+    <ServerEventsProvider>
+      <Probe onMessage={() => {}} />
+    </ServerEventsProvider>,
+  );
+  const socket = FakeSocket.last;
+  unmount();
+  // Closing a connecting socket makes the browser log a warning.
+  expect(socket.readyState).toBe(0);
+  socket.open();
+  expect(socket.readyState).toBe(2);
+  expect(socket.sent).toEqual([]);
 });
 
 test("a throwing subscriber does not starve the others", () => {
