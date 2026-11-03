@@ -32,6 +32,11 @@ export function agentRoutes(agent: Agent): Hono {
       return c.json({ id: await agent.send(text, selection, proposalId) }, 202);
     })
     .post("/compile", async (c) => c.json({ id: await agent.compile() }, 202))
+    .post("/split", async (c) => {
+      // No spec (404) and a split already running (409) map in the app's error handler.
+      await agent.split();
+      return c.body(null, 202);
+    })
     .post("/interrupt", async (c) => {
       await agent.interrupt();
       return c.body(null, 204);

@@ -8,7 +8,7 @@ import type {
 } from "../../shared/panel.js";
 import type { Decision, Proposal } from "../../shared/proposals.js";
 import type { SessionsFile } from "../../shared/types.js";
-import { type FileStore, NotFoundError } from "../files.js";
+import { ExistsError, type FileStore, NotFoundError } from "../files.js";
 import type { WsHub } from "../ws.js";
 import { PermissionBroker } from "./broker.js";
 import { denyBoardWrites } from "./hooks.js";
@@ -20,6 +20,7 @@ import {
 } from "./prompt.js";
 import { ProposalStore } from "./proposals.js";
 import { PlanSession } from "./session.js";
+import { splitSpec } from "./split.js";
 import { createBoardTools } from "./tools.js";
 
 export type Agent = {
@@ -33,6 +34,9 @@ export type Agent = {
   // Sends COMPILE_INSTRUCTION as a send; while that one is queued or running (until the
   // next result), returns its id without sending again.
   compile(): Promise<string>;
+  // Resolves once the split is running (NotFoundError without a spec, ExistsError while
+  // one runs); it goes on in the background, reported by split.status messages.
+  split(): Promise<void>;
   // Reconciled against each saved board by PUT /boards/:name.
   proposals: ProposalStore;
   pendingProposals(): Proposal[];
@@ -112,6 +116,8 @@ export async function createAgent(deps: {
   const riding = new Map<string, string[]>();
   // The compile queued or running, until the next result or the run ending without one.
   let compiling: Promise<string> | undefined;
+  // Set from the first split call until its task files are written or it fails.
+  let splitting = false;
 
   const session = new PlanSession(
     {
@@ -249,6 +255,42 @@ export async function createAgent(deps: {
         throw err;
       });
       return compiling;
+    },
+    async split() {
+      if (splitting) throw new ExistsError("a split is already running");
+      splitting = true;
+      let spec: string | null;
+      try {
+        spec = await store.readSpec();
+        if (spec === null) throw new NotFoundError("compile the plan first");
+      } catch (err) {
+        splitting = false;
+        throw err;
+      }
+      hub.broadcast({ type: "split.status", state: "running" });
+      void (async () => {
+        try {
+          const { tasks, costUsd } = await splitSpec(
+            { query: sdk.query, cwd },
+            spec,
+          );
+          // Throws on a duplicate, unknown dependency, or cycle before touching a file.
+          await store.replaceTasks(tasks);
+          hub.broadcast({
+            type: "split.status",
+            state: "done",
+            ...(costUsd === null ? {} : { costUsd }),
+          });
+        } catch (err) {
+          hub.broadcast({
+            type: "split.status",
+            state: "error",
+            message: (err as Error).message,
+          });
+        } finally {
+          splitting = false;
+        }
+      })();
     },
     proposals,
     pendingProposals: () => proposals.pending(),

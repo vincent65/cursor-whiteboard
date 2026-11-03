@@ -15,6 +15,12 @@ export type ServerMessage =
   | { type: "file-changed"; kind: "board" | "doc"; name: string }
   | { type: "agent.event"; event: PanelEvent }
   | { type: "agent.status"; status: AgentStatus; message?: string }
+  | {
+      type: "split.status";
+      state: "running" | "done" | "error";
+      message?: string;
+      costUsd?: number;
+    }
   | { type: "request"; id: string; kind: "board.png"; board: string }
   | { type: "request"; id: string; kind: "selection.snapshot" }
   // Draw the proposal as ghosts (replace: swap out its current ghosts first);

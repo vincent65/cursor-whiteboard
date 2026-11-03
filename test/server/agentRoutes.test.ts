@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -18,6 +18,7 @@ import { FileStore, NotFoundError } from "../../src/server/files.js";
 import { WsHub } from "../../src/server/ws.js";
 import type { ServerMessage } from "../../src/shared/messages.js";
 import type { Proposal } from "../../src/shared/proposals.js";
+import type { Task } from "../../src/shared/tasks.js";
 
 let root: string;
 let store: FileStore;
@@ -68,6 +69,7 @@ function fakeAgent() {
       throw new NotFoundError(`proposal ${id} is not pending`);
     }),
     compile: vi.fn(async () => "u2"),
+    split: vi.fn(async () => undefined),
     interrupt: vi.fn(async () => undefined),
     answerPermission: vi.fn((id: string) => id === "p1"),
     state: vi.fn(() => ({
@@ -830,4 +832,122 @@ test("a torn proposals.jsonl tail is skipped, and a proposal appended after it r
   for (const line of lines) expect(() => JSON.parse(line)).not.toThrow();
   await restarted.close();
   warn.mockRestore();
+});
+
+const task = (slug: string, dependsOn: string[] = []): Task => ({
+  slug,
+  title: `Build ${slug}`,
+  body: "Do it.",
+  dependsOn,
+  files: [],
+  acceptance: ["it works"],
+  sources: [],
+});
+
+// A fake SDK whose split query (a plain string prompt) waits for release(), then answers
+// with the next scripted task list; the plan session is never started here.
+function splitSdk(...answers: Task[][]) {
+  const prompts: string[] = [];
+  let release = () => {};
+  const query = vi.fn((params: { prompt: string }) => {
+    prompts.push(params.prompt);
+    const tasks = answers.shift();
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return (async function* (): AsyncGenerator<SDKMessage> {
+      await gate;
+      yield {
+        type: "result",
+        subtype: "success",
+        session_id: "split",
+        is_error: false,
+        result: "",
+        structured_output: { tasks },
+        total_cost_usd: 0.25,
+      } as SDKMessage;
+    })();
+  });
+  return {
+    sdk: {
+      query,
+      getSessionMessages: vi.fn(async () => []),
+    } as unknown as Parameters<typeof createAgent>[0]["sdk"],
+    prompts,
+    release: () => release(),
+  };
+}
+
+function statusHub() {
+  const hub = new WsHub();
+  const sent: ServerMessage[] = [];
+  hub.add({ send: (data) => sent.push(JSON.parse(data)) });
+  const splits = () => sent.filter((m) => m.type === "split.status");
+  return { hub, splits };
+}
+
+test("split broadcasts running then done and writes task files; a cycle leaves old files and broadcasts error", async () => {
+  await writeFile(join(store.dir, "spec.md"), "## Goals\nShip it.\n");
+  const fake = splitSdk(
+    [task("routes", ["schema"]), task("schema")],
+    [task("a", ["b"]), task("b", ["a"])],
+  );
+  const { hub, splits } = statusHub();
+  const agent = await createAgent({ store, hub, cwd: root, sdk: fake.sdk });
+  const tasksDir = join(store.dir, "tasks");
+
+  await agent.split();
+  expect(splits()).toEqual([{ type: "split.status", state: "running" }]);
+  expect(fake.prompts[0]).toContain("## Specification\n\n## Goals\nShip it.");
+  fake.release();
+  await vi.waitFor(() => expect(splits()).toHaveLength(2));
+  expect(splits()[1]).toEqual({
+    type: "split.status",
+    state: "done",
+    costUsd: 0.25,
+  });
+  expect((await readdir(tasksDir)).sort()).toEqual([
+    "01-schema.md",
+    "02-routes.md",
+  ]);
+
+  await agent.split();
+  fake.release();
+  await vi.waitFor(() => expect(splits()).toHaveLength(4));
+  expect(splits()[3]).toEqual({
+    type: "split.status",
+    state: "error",
+    message: "tasks a and b depend on each other",
+  });
+  expect((await readdir(tasksDir)).sort()).toEqual([
+    "01-schema.md",
+    "02-routes.md",
+  ]);
+  await agent.close();
+});
+
+test("POST /api/agent/split is 404 without a spec and 409 while running", async () => {
+  const fake = splitSdk([task("schema")]);
+  const { hub, splits } = statusHub();
+  const agent = await createAgent({ store, hub, cwd: root, sdk: fake.sdk });
+  const app = createApp(store, agent);
+  const split = () => app.request("/api/agent/split", post({}));
+
+  const missing = await split();
+  expect(missing.status).toBe(404);
+  expect(await missing.json()).toEqual({ error: "compile the plan first" });
+  expect(splits()).toEqual([]);
+
+  await writeFile(join(store.dir, "spec.md"), "## Goals\n");
+  expect((await split()).status).toBe(202);
+  const busy = await split();
+  expect(busy.status).toBe(409);
+  expect(await busy.json()).toEqual({ error: "a split is already running" });
+  expect(fake.prompts).toHaveLength(1);
+
+  fake.release();
+  await vi.waitFor(() =>
+    expect(splits().map((m) => m.state)).toEqual(["running", "done"]),
+  );
+  await agent.close();
 });
