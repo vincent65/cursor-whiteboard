@@ -66,12 +66,47 @@ test("runPrompt says nothing, unknown, and none listed when a task has no depend
   );
 });
 
-test("prUrlIn finds a PR URL on its own line and ignores inline mentions", () => {
+test("prUrlIn finds a PR URL on its own line before any inline mention", () => {
   expect(prUrlIn("Done.\nhttps://github.com/a/b/pull/12\nSummary")).toBe(
     "https://github.com/a/b/pull/12",
   );
-  expect(prUrlIn("see https://github.com/a/b/pull/12 for details")).toBeNull();
+  // A later inline mention does not beat the line.
+  expect(
+    prUrlIn(
+      "https://github.com/a/b/pull/12\nIt replaces https://github.com/a/b/pull/3 here.",
+    ),
+  ).toBe("https://github.com/a/b/pull/12");
   expect(prUrlIn("https://github.com/a/b/issues/3")).toBeNull();
+});
+
+const URL = "https://github.com/acme/my-app.js/pull/42";
+
+test.each([
+  ["angle brackets", `<${URL}>`],
+  ["a Markdown link", `[acme/my-app.js#42](${URL})`],
+  ["a Markdown link with the URL as its text", `[${URL}](${URL})`],
+  ["a PR: label", `PR: ${URL}`],
+  ["a Pull request: label", `Pull request: ${URL}`],
+  ["a bold label", `**PR:** ${URL}`],
+  ["a bold URL", `**${URL}**`],
+  ["trailing punctuation", `${URL}.`],
+  ["a label, a link, and punctuation", `Pull request: [#42](${URL}).`],
+])("prUrlIn accepts a line holding the URL in %s", (_form, line) => {
+  expect(prUrlIn(`Opened it.\n\n${line}\n\nSummary: added the route.`)).toBe(
+    URL,
+  );
+});
+
+test("prUrlIn falls back to the last PR URL anywhere when no line holds one", () => {
+  expect(prUrlIn("see https://github.com/a/b/pull/12 for details")).toBe(
+    "https://github.com/a/b/pull/12",
+  );
+  expect(
+    prUrlIn(
+      "Closed https://github.com/a/b/pull/3 and opened https://github.com/a/b/pull/4, done.",
+    ),
+  ).toBe("https://github.com/a/b/pull/4");
+  expect(prUrlIn("No PR: gh is not installed.")).toBeNull();
 });
 
 test("prUrlIn allows surrounding whitespace and takes the first URL line", () => {

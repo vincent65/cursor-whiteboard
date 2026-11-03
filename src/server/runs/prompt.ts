@@ -32,14 +32,27 @@ ${spec}
 5. Print the pull request URL on its own line, then summarize what you did and anything left open.`;
 }
 
-const PR_URL = /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+$/;
+const PR_URL = String.raw`https://github\.com/[\w.-]+/[\w.-]+/pull/\d+`;
+// A line holding only the URL: bare, in angle brackets, or as a Markdown link.
+const URL_LINE = new RegExp(
+  String.raw`^(?:<(${PR_URL})>|\[[^\]]*\]\((${PR_URL})\)|(${PR_URL}))$`,
+);
+// Not followed by more path, so a PR's /files page is not the PR.
+const URL_ANYWHERE = new RegExp(String.raw`${PR_URL}(?![\w/])`, "g");
 
-// The PR a run opened: a line holding only its URL, as the definition of done asks.
+// The PR a run opened: the first line holding only its URL, as the definition of done
+// asks, once bold markers, a short label such as "PR:", and trailing punctuation are
+// set aside. With no such line, the last PR URL anywhere in the text.
 export function prUrlIn(text: string): string | null {
-  return (
-    text
-      .split("\n")
-      .map((line) => line.trim())
-      .find((line) => PR_URL.test(line)) ?? null
-  );
+  for (const raw of text.split("\n")) {
+    const line = raw
+      .replaceAll("**", "")
+      .trim()
+      // The space after the colon keeps "https:" from reading as a label.
+      .replace(/^[A-Za-z][\w ]{0,24}:\s+/, "")
+      .replace(/[.,;:!]+$/, "");
+    const m = URL_LINE.exec(line);
+    if (m) return m[1] ?? m[2] ?? m[3];
+  }
+  return text.match(URL_ANYWHERE)?.at(-1) ?? null;
 }
