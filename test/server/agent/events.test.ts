@@ -645,6 +645,20 @@ test("Blueprint's own tool results read as sentences, and their failures keep th
   ]);
 });
 
+test("relativeTo drops the session directory only where a path starts", () => {
+  const rel = relativeTo("/repo");
+  expect(rel("/repo/a.ts")).toBe("a.ts");
+  expect(rel("cat /repo/a.ts\ttail /repo/b.ts\n/repo/c.ts")).toBe(
+    "cat a.ts\ttail b.ts\nc.ts",
+  );
+  expect(rel(`cp "/repo/a b.ts" '/repo/c.ts'`)).toBe(`cp "a b.ts" 'c.ts'`);
+  // Another repository whose path ends with the same name is left whole.
+  expect(rel("diff /other/repo/x.ts /repo/x.ts")).toBe(
+    "diff /other/repo/x.ts x.ts",
+  );
+  expect(rel("see a/repo/x.ts")).toBe("see a/repo/x.ts");
+});
+
 test("rows show paths relative to the session directory, under either spelling of it", async () => {
   const { mkdtemp, realpath, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");

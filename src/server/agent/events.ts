@@ -10,8 +10,13 @@ const SUMMARY_LIMIT = 120;
 
 type Relativize = (text: string) => string;
 
+const escapeRegExp = (text: string) =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // Strips the session directory from the paths in a row, so it reads `editing src/a.ts`.
 // Both spellings count: macOS reports a temp directory under /var as /private/var.
+// Only where a path starts (the text's start, or after whitespace or a quote), so
+// /other/repo/x.ts keeps its /repo/.
 export function relativeTo(cwd: string | undefined): Relativize {
   if (!cwd) return (text) => text;
   let real = cwd;
@@ -22,7 +27,11 @@ export function relativeTo(cwd: string | undefined): Relativize {
   const roots = [...new Set([cwd, real])]
     .map((root) => (root.endsWith(sep) ? root : root + sep))
     .sort((a, b) => b.length - a.length);
-  return (text) => roots.reduce((t, root) => t.replaceAll(root, ""), text);
+  const at = new RegExp(
+    `(^|[\\s"'])(?:${roots.map(escapeRegExp).join("|")})`,
+    "g",
+  );
+  return (text) => text.replace(at, "$1");
 }
 
 // full: the command verbatim, for an ask, which must show exactly what it would allow;
