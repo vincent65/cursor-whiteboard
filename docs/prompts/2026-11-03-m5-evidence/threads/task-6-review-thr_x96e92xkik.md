@@ -1,0 +1,14 @@
+- Status: DONE_WITH_CONCERNS
+- Commits:
+  - `5cbc8a9` fix(server): an ask shows the whole command it would allow
+  - `6c45328` fix(server): the compile lists the files to read and names the stack
+  - `91ca1ca` fix(ui): task and run cards render inline Markdown instead of backticks
+  - `901f9e1` fix(ui): a citation centers its shape in the compact board layout
+  - `59549c4` fix(ui): a proposed node leaves room around its label
+  - `a10d0f6` fix(server): an ask shows its command verbatim
+- Tests: `pnpm check` pristine with 417 tests, `pnpm build` warns only about chunk size, `pnpm e2e` passed 3 of 3 three times in a row (only outside the sandbox). The real loop ran end to end: draw, ask, refine, accept, compile, split, launch, Idle, Mark done, launch the dependent.
+- Concerns:
+  - The real spend was about $1.88. That includes one extra compile and split to re-check the compile fix: the spec now names JavaScript and the tasks use `npm test`.
+  - The C, D and F fixes are visual, beyond the brief's "no files expected". Each is its own commit and reverts cleanly.
+  - Not fixed, suggested for a final wave: proposed shapes can land on top of existing ones, citation chips show raw element IDs, and some panel rows are vague or show internal IDs.
+- Report: /Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-03-m5-evidence/task-6-report.md

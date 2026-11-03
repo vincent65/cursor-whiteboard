@@ -1,0 +1,7 @@
+- Node 22.1 or later; TypeScript strict; ESM; server code uses NodeNext resolution with explicit `.js` extensions on relative imports.
+- No API key anywhere. With `BLUEPRINT_FAKE_SDK` unset, behaviour is unchanged.
+- No "Claude Code" branding in UI copy; the README may name Claude Code as the thing Blueprint runs beside.
+- Every UI test file that renders components or hooks starts with `// @vitest-environment jsdom`.
+- Commit messages use conventional commits and carry no co-author trailer.
+- `pnpm check` stays pristine; `pnpm build` warns only about the pre-existing chunk size; `pnpm e2e` passes three times in a row.
+- Long Markdown files put each full sentence on its own line, and never use an em dash.

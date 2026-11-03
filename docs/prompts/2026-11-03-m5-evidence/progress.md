@@ -1,0 +1,50 @@
+# SDD ledger — plan: docs/superpowers/plans/2026-11-03-m5-evidence.md
+- Workspace created 2026-11-03; execution starts on branch m5-evidence after m4-runs merges.
+- Execution started on branch m5-evidence from main 083b649
+- Task 1: dispatched implementer thr_4b2btg2nbk; BASE = 083b649
+- Task 1: implementer DONE_WITH_CONCERNS (07dc67e, 367 tests; manual flow on the built app ended Done with a PR link).
+- Ruling: Task 2's compile flow seeds a board element with id "login" so the scenario's citation resolves; the "Logi / n" label wrap after Accept becomes item 0 of Task 4 (reproduce, root cause, fix, screenshots).
+- Task 1: dispatched review thr_i5tdzc9j6i
+- Task 1: review (thr_i5tdzc9j6i): Approved, 0 Important, 4 minor; seeded citation (Task 2) and label wrap (Task 4 item 0) already assigned; deferred: guard toolsOf with ?? {} so a renamed private field yields a tool error; the say step's message order; a duplicated return type.
+- Task 1: complete (commit 07dc67e, review clean)
+- Task 2: dispatched implementer thr_y5y2agjwsv; BASE = 07dc67e
+- Task 2: implementer DONE_WITH_CONCERNS (6692890 label measurement fix, 8ad61f5 e2e and demo; e2e 3 of 3 three times); Ruling: accepted the font fix, tsconfig/biome edits, Playwright outside the sandbox; pre-review fix round 0: an ask step in the run scenario so the launch flow shows Working, Needs you, Allow, Done and the demo re-records; Task 4 item 0 reduced to a visual confirmation.
+- Task 2: fix round 0 done (9fc1030); dispatched review thr_4z2z6uitmf
+- Controller look at the demo end frames: raw propose JSON in a tool-result row (Task 4 item 9); a narrow single-column sessions view on a full-width page (Task 3).
+- Task 2: review (thr_4z2z6uitmf): Approved, 0 Important, 7 minor; plan wording amended to "Needs you, then Done"; the ask-after-write story, the DEMO_NAMES error, the seed cleanup, relative paths in tool rows, and a final demo re-record move into Task 4; deferred: no unit test for the font wait (jsdom lacks document.fonts), blank white video openings.
+- Task 2: complete (commits 6692890..9fc1030, review clean)
+- Task 3: dispatched implementer thr_rcv4amkfwf; BASE = ba9bd0e
+- Task 3: implementer DONE_WITH_CONCERNS (010816a, 381 tests, e2e 3x green); controller looked at the after screenshots; pre-review fix round 0: the spec view renders as a Markdown document with citation chips (replacing the read-only CodeMirror), the doc editor loses the heading underline via @codemirror/language; Task 4 item 12: run transcripts show "Start task <slug>" instead of the full run prompt (resume thr_rcv4amkfwf)
+- Task 3: fix round 0 done (68613ef spec as a document with citation chips, a75c7fb doc heading style; 383 tests, e2e 3x green); accepted: @lezer/highlight direct dependency, task card sources as citation chips, Markdown spacing fix; Task 4 item 13: citation chips in panel and run transcripts; dispatched review thr_e2w7k5wa8q
+- Task 3: review (thr_e2w7k5wa8q): Needs fixes (1 Important: duplicate React keys in multi-line Markdown blocks, confirmed by the reviewer; 7 minor). Ruling: Fragment per line with a console.error test; one code-ratio token; parentheses in link URLs; CommonMark-like italics; one level of nested lists; tight inline code before punctuation; deferred: tables, chip kind label. Fix round 1 started (resume thr_rcv4amkfwf); FIX_BASE = a75c7fb
+- Task 3: fix round 1 done (a9c8a32); dispatched re-review thr_fe89qtpn3k
+- Task 3: re-review 1 (thr_fe89qtpn3k): all 6 addressed, no new breakage; the comment imprecision about blank lines in nested lists goes to Task 4 item 14.
+- Task 3: complete (commits 010816a..a9c8a32, review clean)
+- Task 4: dispatched implementer thr_fyirfucnz8; BASE = a9c8a32
+- Task 4: implementer DONE_WITH_CONCERNS (16 commits 8ba4e12..9db2263, 406 tests, e2e 3x green, demo re-recorded).
+- Ruling (safety): aad9ff3 granted a session-wide rule for the whole tool when the SDK sent no suggestions (one approved `git log` would allow every later Bash command). Revert: with no suggestions the dialog offers only Allow once and Deny, and the broker never invents a rule.
+- Ruling: BoardView announces its board immediately on mount (the debounced selection report left a ~1 s window where asking failed); Bash commands in tool rows render in code without literal backticks; the restored-transcript behaviour (user words after the run prompt) is accepted.
+- Task 4: fix round 1 started (resume thr_fyirfucnz8)
+- Task 4: fix round 1 done (e024279 no invented rules, 5281636 board announced on mount, 8007aef/1b00567 command chips, 4582cf2 demo re-recorded; 407 tests, e2e green); controller read the broker answer path (always without suggestions allows once, no rule); accepted: the command chip also in the permission dialog; dispatched review thr_2juz5hp4df
+- Task 4: review (thr_2juz5hp4df): Approved, 0 Important, 6 minor.
+- Task 4: minor (final-wave candidates): stale canAlways comment in src/shared/panel.ts (still describes the reverted session rule); other-session row race (bump latest.current on close); relativeTo replaces the cwd anywhere in the text (anchor it); the restored-failure-reason test cannot fail; RunCard Stop failure path untested; a console.warn spy restored outside finally.
+- Task 4: complete (commits 8ba4e12..4582cf2, review clean)
+- Task 5: dispatched implementer thr_9ej5ejnvad; BASE = 4582cf2
+- Task 5: implementer DONE_WITH_CONCERNS (ef4f836; README followed from a fresh clone end to end on the fake SDK). Controller verified pnpm dev outside the sandbox: server on the fake SDK and the Vite UI both up, /api proxied (200).
+- Final-wave candidates from Task 5: the README's loop does not mention Mark done (a run without gh ends Idle and its dependents stay gated); the fake scenario's citation to board:main#login is dropped on a hand-drawn board (resolve a placeholder such as {{board:main:first}} in write steps to the board's first node id, then drop the README caveat); the server fails requests if .blueprint/ is deleted while it runs (recreate the directories on demand or report it clearly).
+- Task 5: dispatched review thr_stjcpa7tid
+- Task 6: dispatched implementer thr_x96e92xkik in parallel with the read-only Task 5 review; BASE = ef4f836
+- Task 5: review (thr_stjcpa7tid): Approved, 0 Important, 3 minor (pnpm dev already verified by the controller; the scenario's final message claims a commit the fake does not make; .blueprint/ deleted while running) — final-wave candidates.
+- Task 5: complete (commit ef4f836, review clean)
+- Task 6: final acceptance passed on the real login (about $1.88 including one re-check): draw, ask, refine, accept, compile, split, launch, Idle, Mark done, launch the dependent. Fixes: 5cbc8a9 and a10d0f6 (asks show the whole command verbatim), 6c45328 (compile lists files to read and names the stack), 91ca1ca (inline Markdown on task and run cards), 901f9e1 (citation centers its shape in the compact layout), 59549c4 (proposed nodes leave room around labels); 417 tests, e2e 3x green.
+- Final-wave candidates from the run: proposed shapes can overlap existing ones; citation chips show raw element ids (show the cited shape's label); some panel rows are vague or show internal ids.
+- Task 6: complete
+- All tasks complete.
+- Final review: dispatched thr_ehwydx4rqw on claude-fable-5-1 (base 083b649, head a10d0f6)
+- Final review (thr_ehwydx4rqw): With fixes — 0 Critical, 3 Important (demo videos and screenshots predate six visible fixes; pnpm e2e/demo fail on a fresh clone without a Playwright browser install; at 1280x800 the board is in Excalidraw's phone layout), 6 Minor; no ruling looked wrong.
+- Ruling: one fix wave of 20 items: the review's items plus every final-wave candidate logged in this milestone (overlap-free placement, labelled citation chips, readable panel rows, the fake citation placeholder, a deleted .blueprint/ recovering, Mark done in the README, the anchored relativeTo, the other-session race, stale comments, test hygiene), with the evidence refresh last.
+- Final fix wave: dispatched implementer thr_z3u82iupre; FIX_BASE = a10d0f6
+- Final fix wave: done (22 commits 605a38a..2d054fe, 434 tests, e2e 3x, demo re-recorded); five follow-ups accepted as caused by the items; README says Mark done plus a merge unblocks dependents (correct: the gate needs the merge); panel-reply chips still show ids (deferred, post-MVP). Dispatched re-review thr_wa5g579s3g
+- Final re-review (thr_wa5g579s3g): all 20 addressed; 1 Important regression (heading level inside nested lists, a shadowed local), 2 minor (linear-element bounds in placement; the proposals bar over the properties panel at 1280), plus subdirectory recreation. Follow-up round 2 sent; controller verifies locally.
+- Final fix round 2 (2f252f6..998b7a5): verified by the controller (437 tests, build clean, re-shot proposal screenshot shows the bar clear of the properties panel).
+- Milestone 5 complete; MVP complete: fast-forward merge of m5-evidence into main, push, archive to docs/prompts/2026-11-03-m5-evidence/.

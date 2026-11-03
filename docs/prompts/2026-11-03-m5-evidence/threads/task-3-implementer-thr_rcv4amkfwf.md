@@ -1,0 +1,7 @@
+- **Status:** DONE
+- **Commits:**
+  - `27d8e64 fix(ui): Markdown keys each line, keeps parentheses in URLs, skips intraword asterisks, and nests lists`
+  - `a9c8a32 style(ui): one token for the code font ratio, and tight punctuation after inline code`
+- **Tests:** `pnpm check` is clean with 387 tests passing; one `pnpm e2e` run passed 3 of 3. Both outputs are pasted in the report.
+- **Concerns:** none. Trimming only the padding after inline code makes its background 2px narrower on the right than the left, as the ruling asks. It isn't visible at this size. The two deferred items stay deferred.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-03-m5-evidence/task-3-report.md`

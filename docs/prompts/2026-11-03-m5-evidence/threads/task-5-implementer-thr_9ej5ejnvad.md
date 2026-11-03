@@ -1,0 +1,8 @@
+- **Status:** DONE_WITH_CONCERNS
+- **Commit:** `ef4f836 docs: README with setup, the login caveat, and the walkthrough`
+- **Tests:** `pnpm check` is clean (407 tests in 54 files pass). I followed the README from a fresh clone in `/tmp`: install, build, start, `init`, `pnpm link --global`, and the full fake-SDK loop in a browser from board to a run marked Done with a PR link. Every step worked.
+- **Concerns:**
+  - **Citation:** the fake scenario's spec cites `board:main#login`, which a board you draw yourself doesn't have, so Blueprint drops that citation. The README now says so and points to the compile video, where the citation works.
+  - **`pnpm dev`:** only the UI half ran. The server half couldn't start here because the sandbox blocks the socket its file watcher needs. The server itself works when started from the built CLI.
+  - **Server with `.blueprint/` deleted:** if `.blueprint/` is deleted while the server is running, its requests fail until you restart it. I caused this during cleanup, not the walkthrough. It may be worth a follow-up.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-03-m5-evidence/task-5-report.md`

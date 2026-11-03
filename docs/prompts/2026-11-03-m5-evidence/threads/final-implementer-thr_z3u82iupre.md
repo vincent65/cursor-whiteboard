@@ -1,0 +1,10 @@
+- **Status:** DONE
+- **Commits:** 5 on `m5-evidence`, none with a co-author or generated-with trailer:
+  - `2f252f6` fix(ui): a heading inside a nested list keeps its level
+  - `f6e70cf` fix(ui): placement measures arrows and lines by their points
+  - `bc5a897` fix(ui): the proposals bar centers clear of the properties panel
+  - `363c1ea` fix(server): a write recreates any .blueprint/ subdirectory it needs
+  - `998b7a5` docs: re-shoot the proposal screenshots and re-record the demo with the bar clear of the panel
+- **Tests:** `pnpm check` passes with 437 tests; `pnpm e2e` passed 3 of 3 three times in a row; `pnpm demo` passed 3 of 3.
+- **Concerns:** none. I also re-shot `after-panel-markdown.png`, since it shows the same proposals bar.
+- **Report:** a "Fix round 2" section is appended to /Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-03-m5-evidence/final-fix-report.md

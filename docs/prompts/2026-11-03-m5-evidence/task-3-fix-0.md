@@ -1,0 +1,6 @@
+The restyle reads well. Two changes before review, in this thread, on branch `m5-evidence`:
+
+1. The spec view is read-only, so it should read as a document, not an editor (milestone 3 left this call to the design pass). Replace its CodeMirror editor with the `Markdown` renderer: headings, lists, and paragraphs styled per DESIGN.md, and each `[[board:…#…]]` or `[[doc:…#…]]` citation rendered as a small link chip that navigates with the existing `citationHash`. Extend `Markdown` with an optional `renderCitation` hook (or a `citations` prop) rather than special-casing the spec. Keep the dropped-citations line, Split, and live reload. Update the SpecView tests (click a citation chip → hash changes) and the e2e compile flow's locator if it targets the CodeMirror mark. Retake `after-spec.png`.
+2. The doc editor stays CodeMirror; remove the heading underline by adding `@codemirror/language` as a direct dependency at the version already installed and giving headings a `HighlightStyle` without underline, sized per DESIGN.md. Retake a doc screenshot.
+
+Run `pnpm check` once, `pnpm e2e` three times, commit with conventional messages and NO co-author trailer, append a "Fix round 0" section to your report, and end with the short status contract only.
