@@ -5,12 +5,21 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import {
+  type BoardFile,
   type BoardGraph,
   boardGraphToMarkdown,
   excalidrawToBoardGraph,
 } from "../../export/index.js";
-import type { FileStore } from "../files.js";
+import {
+  type Op,
+  type Proposal,
+  Propose,
+  Revise,
+  referencedIds,
+} from "../../shared/proposals.js";
+import { type FileStore, NotFoundError } from "../files.js";
 import type { WsHub } from "../ws.js";
+import type { ProposalStore } from "./proposals.js";
 
 type Content =
   | { type: "text"; text: string }
@@ -43,13 +52,58 @@ function image(dataUrl: string): Content {
   return { type: "image", data: dataUrl.slice(comma + 1), mimeType };
 }
 
+// The board as it stands without pending additions; Claude learns of those from the pending line.
+function withoutAddGhosts(file: BoardFile): BoardFile {
+  const elements = file.elements.filter((e) => e.customData?.ghost !== "add");
+  return { ...file, elements };
+}
+
 export function createBoardTools(deps: {
   store: FileStore;
   hub: Pick<WsHub, "request" | "activeBoard">;
+  proposals: ProposalStore;
 }): McpSdkServerConfigWithInstance {
-  const { store, hub } = deps;
+  const { store, hub, proposals } = deps;
   const graphOf = async (board: string) =>
-    excalidrawToBoardGraph(await store.readBoard(board), board);
+    excalidrawToBoardGraph(
+      withoutAddGhosts(await store.readBoard(board)),
+      board,
+    );
+  const withPending = (text: string) => {
+    const pending = proposals.pending();
+    if (pending.length === 0) return text;
+    const list = pending.map(
+      (p) => `${p.id} (${p.ops.length} op${p.ops.length === 1 ? "" : "s"})`,
+    );
+    return `${text}\n\nPending proposals: ${list.join(", ")}`;
+  };
+
+  const openBoard = (): string => {
+    if (hub.activeBoard === null)
+      throw new Error("open a board in the browser first");
+    return hub.activeBoard;
+  };
+  const checkIds = async (board: string, ops: Op[]) => {
+    const live = new Set(
+      (await store.readBoard(board)).elements
+        .filter((e) => !e.isDeleted)
+        .map((e) => e.id),
+    );
+    const unknown = referencedIds(ops).find((id) => !live.has(id));
+    if (unknown !== undefined) throw new Error(`unknown element id ${unknown}`);
+  };
+  // The browser draws the ghosts before anything is logged, so a proposal it
+  // cannot draw (say, a Mermaid parse error) fails the tool and leaves no trace.
+  const apply = (proposal: Proposal, replace: boolean) =>
+    hub.request<{ elementIds: string[] }>(
+      { kind: "proposal.apply", proposal, replace },
+      { timeoutMs: 30_000 },
+    );
+  const answer = (p: Proposal) => ({
+    content: [
+      { type: "text" as const, text: JSON.stringify({ proposalId: p.id }) },
+    ],
+  });
 
   const getBoard = tool(
     "get_board",
@@ -58,7 +112,7 @@ export function createBoardTools(deps: {
     async (args) => {
       const board = args.board ?? (await store.listBoards())[0]?.name;
       if (!board) throw new Error("there are no boards yet");
-      const text = boardGraphToMarkdown(await graphOf(board));
+      const text = withPending(boardGraphToMarkdown(await graphOf(board)));
       // Only a tab showing this board can render it; anything else would wait out the timeout.
       if (hub.activeBoard !== board) {
         const note = `(No PNG: board ${board} is not open)`;
@@ -84,7 +138,10 @@ export function createBoardTools(deps: {
     async () => {
       const nothing = {
         content: [
-          { type: "text" as const, text: "Nothing is selected on the board." },
+          {
+            type: "text" as const,
+            text: withPending("Nothing is selected on the board."),
+          },
         ],
       };
       // No board open (a doc or the sidebar only): nothing can be selected, so don't ask.
@@ -100,15 +157,61 @@ export function createBoardTools(deps: {
       // Ids outside the graph (e.g. only a shape's bound label text) select nothing.
       if (!graph || (graph.nodes.length === 0 && graph.edges.length === 0))
         return nothing;
-      const text = boardGraphToMarkdown(graph);
+      const text = withPending(boardGraphToMarkdown(graph));
       const content: Content[] = [{ type: "text", text }];
       if (snap.png) content.push(image(snap.png));
       return { content };
     },
   );
 
+  const propose = tool(
+    "propose",
+    "Propose changes to the open board. They appear as ghosts the user accepts or rejects; nothing is real until accepted. Returns the proposal id.",
+    Propose.shape,
+    async (args) => {
+      const board = openBoard();
+      await checkIds(board, args.ops);
+      const p: Proposal = {
+        id: proposals.newId(),
+        board,
+        title: args.title ?? null,
+        ops: args.ops,
+        at: new Date().toISOString(),
+      };
+      await apply(p, false);
+      await proposals.proposed(p);
+      return answer(p);
+    },
+  );
+
+  const revise = tool(
+    "revise",
+    "Replace every ghost of a pending proposal with a complete new op list. Returns the proposal id.",
+    Revise.shape,
+    async (args) => {
+      const board = openBoard();
+      const prev = proposals.get(args.proposalId);
+      if (!prev)
+        throw new NotFoundError(`proposal ${args.proposalId} is not pending`);
+      // Its ghosts live on its own board; a revision must never redraw them elsewhere.
+      if (prev.board !== board)
+        throw new Error(
+          `proposal ${prev.id} belongs to board ${prev.board}, which is not open`,
+        );
+      await checkIds(board, args.ops);
+      const p: Proposal = {
+        ...prev,
+        ops: args.ops,
+        at: new Date().toISOString(),
+      };
+      await apply(p, true);
+      await proposals.revised(p);
+      return answer(p);
+    },
+  );
+
   return createSdkMcpServer({
     name: "blueprint",
-    tools: [getBoard, getSelection],
+    tools: [getBoard, getSelection, propose, revise],
   });
 }

@@ -1,4 +1,5 @@
 import type { PanelEvent } from "./panel.js";
+import type { Proposal } from "./proposals.js";
 
 export type { PanelEvent } from "./panel.js";
 
@@ -15,7 +16,16 @@ export type ServerMessage =
   | { type: "agent.event"; event: PanelEvent }
   | { type: "agent.status"; status: AgentStatus; message?: string }
   | { type: "request"; id: string; kind: "board.png"; board: string }
-  | { type: "request"; id: string; kind: "selection.snapshot" };
+  | { type: "request"; id: string; kind: "selection.snapshot" }
+  // Draw the proposal as ghosts (replace: swap out its current ghosts first);
+  // the browser answers { elementIds: string[] } or an error string.
+  | {
+      type: "request";
+      id: string;
+      kind: "proposal.apply";
+      proposal: Proposal;
+      replace: boolean;
+    };
 
 export type ClientMessage =
   | { type: "response"; id: string; ok: true; payload: unknown }

@@ -16,6 +16,7 @@ import {
   SYSTEM_PROMPT_APPEND,
   selectionHeader,
 } from "./prompt.js";
+import { ProposalStore } from "./proposals.js";
 import { PlanSession } from "./session.js";
 import { createBoardTools } from "./tools.js";
 
@@ -92,7 +93,14 @@ export async function createAgent(deps: {
           append: SYSTEM_PROMPT_APPEND,
         },
         permissionMode: "default",
-        mcpServers: { blueprint: createBoardTools({ store, hub }) },
+        // ponytail: not loaded from the log yet; Task 4 loads it and adds the proposal routes.
+        mcpServers: {
+          blueprint: createBoardTools({
+            store,
+            hub,
+            proposals: new ProposalStore(store),
+          }),
+        },
         hooks: {
           PreToolUse: [
             {
@@ -101,8 +109,9 @@ export async function createAgent(deps: {
             },
           ],
         },
-        // Blueprint's own board tools only read, so they never need a dialog. Keyed on the
-        // server's source, not the tool name, which a configured server could imitate.
+        // Blueprint's own board tools only read or draw ghosts the user must accept, so they
+        // never need a dialog. Keyed on the server's source, not the tool name, which a
+        // configured server could imitate.
         canUseTool: (
           tool,
           input,

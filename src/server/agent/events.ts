@@ -26,6 +26,12 @@ export function summarizeTool(
       return "reading the board";
     case "mcp__blueprint__get_selection":
       return "reading the selection";
+    case "mcp__blueprint__propose": {
+      const n = Array.isArray(input.ops) ? input.ops.length : 0;
+      return `proposing ${n} change${n === 1 ? "" : "s"}`;
+    }
+    case "mcp__blueprint__revise":
+      return `revising ${input.proposalId}`;
     default:
       return name;
   }

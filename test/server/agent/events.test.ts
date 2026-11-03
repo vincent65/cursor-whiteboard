@@ -60,6 +60,21 @@ test("summarizeTool follows the table", () => {
   expect(summarizeTool("WebFetch", { url: "https://x" })).toBe("WebFetch");
 });
 
+test("summarizeTool names proposals", () => {
+  expect(summarizeTool("mcp__blueprint__propose", { ops: [1, 2, 3] })).toBe(
+    "proposing 3 changes",
+  );
+  expect(summarizeTool("mcp__blueprint__propose", { ops: [1] })).toBe(
+    "proposing 1 change",
+  );
+  expect(
+    summarizeTool("mcp__blueprint__revise", {
+      proposalId: "p_1a2b3c4d",
+      ops: [],
+    }),
+  ).toBe("revising p_1a2b3c4d");
+});
+
 test("mapper turns a scripted SDK stream into panel events in order", () => {
   const mapper = new SdkEventMapper();
   const stream: SDKMessage[] = [
