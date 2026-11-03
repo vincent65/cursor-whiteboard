@@ -65,7 +65,7 @@ function summarize(
       return `proposing ${n} change${n === 1 ? "" : "s"}`;
     }
     case "mcp__blueprint__revise":
-      return `revising ${input.proposalId}`;
+      return `revising ${proposalName(input)}`;
     default:
       return name;
   }
@@ -78,29 +78,65 @@ export function resultError(msg: SDKResultMessage): string | undefined {
   return msg.is_error ? msg.result : undefined;
 }
 
+type Part = { type?: string; text?: string; tool_name?: string };
+const parts = (content: unknown): Part[] =>
+  Array.isArray(content) ? content : [];
+
+// A result's text, or what came back when it has none.
 function resultText(content: unknown): string {
   if (typeof content === "string") return content;
-  const texts = Array.isArray(content)
-    ? content.flatMap((part: { type?: string; text?: string }) =>
-        part.type === "text" && typeof part.text === "string"
-          ? [part.text]
-          : [],
-      )
-    : [];
-  return texts.length ? texts.join("\n") : "done";
+  const texts = parts(content).flatMap((part) =>
+    part.type === "text" && typeof part.text === "string" ? [part.text] : [],
+  );
+  if (texts.length) return texts.join("\n");
+  return parts(content).some((part) => part.type === "image")
+    ? "returned an image"
+    : "finished with no output";
 }
 
-// Blueprint's own tools answer in a sentence rather than their raw output.
-function ownResult(tool: string | undefined, text: string): string | undefined {
-  switch (tool) {
+// A proposal by its title; its id means nothing to the user.
+const proposalName = (input: Record<string, unknown>): string =>
+  typeof input.title === "string" ? `"${input.title}"` : "the proposal";
+
+// An MCP tool by its own name, without the mcp__<server>__ prefix.
+const bareName = (tool: string): string => tool.replace(/^mcp__.+?__/, "");
+const and = new Intl.ListFormat("en", { type: "conjunction" });
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+type ToolUse = { name: string; input: Record<string, unknown> };
+
+// Results that read better as a sentence than as their raw output, from the whole
+// result: Blueprint's own tools, Read's numbered lines, and ToolSearch's tool list.
+function readableResult(
+  use: ToolUse | undefined,
+  content: unknown,
+  text: string,
+): string | undefined {
+  switch (use?.name) {
+    case "Read": {
+      const lines = text.match(/^ *\d+\t/gm)?.length ?? 0;
+      return lines > 0 ? `read ${plural(lines, "line")}` : undefined;
+    }
+    case "ToolSearch": {
+      const tools = parts(content).flatMap((part) =>
+        part.type === "tool_reference" && typeof part.tool_name === "string"
+          ? [bareName(part.tool_name)]
+          : [],
+      );
+      return tools.length > 0
+        ? `loaded the ${and.format(tools)} tool${tools.length === 1 ? "" : "s"}`
+        : undefined;
+    }
     case "mcp__blueprint__get_board":
       return "read the board";
     case "mcp__blueprint__get_selection":
       return "read the selection";
     case "mcp__blueprint__propose":
     case "mcp__blueprint__revise": {
-      const id = /"proposalId":"([^"]+)"/.exec(text)?.[1];
-      return id && `proposal ${id} is on the board`;
+      if (!/"proposalId":"[^"]+"/.test(text)) return undefined;
+      const drawn =
+        use.name === "mcp__blueprint__propose" ? "drawn" : "redrawn";
+      return `${proposalName(use.input)} is ${drawn} as ghosts for you to accept or reject`;
     }
   }
 }
@@ -112,8 +148,8 @@ export class SdkEventMapper {
   #streamed = new Map<number, string>();
   // Ids of streamed text blocks not yet delivered as a full assistant message, in order.
   #unfinished: string[] = [];
-  // Tool names by tool_use id, so a result can be read in its tool's terms.
-  #tools = new Map<string, string>();
+  // Tool names and inputs by tool_use id, so a result can be read in its tool's terms.
+  #tools = new Map<string, ToolUse>();
   #relativize: Relativize;
 
   // cwd: the session's directory, which rows leave out of the paths they show.
@@ -183,7 +219,7 @@ export class SdkEventMapper {
                 input,
                 this.#relativize,
               );
-              this.#tools.set(block.id, block.name);
+              this.#tools.set(block.id, { name: block.name, input });
               return [
                 {
                   kind: "tool_use",
@@ -206,18 +242,19 @@ export class SdkEventMapper {
         if (typeof content === "string") return [];
         return content.flatMap((block): PanelEvent[] => {
           if (block.type !== "tool_result") return [];
-          const text = this.#relativize(resultText(block.content)).slice(
-            0,
-            SUMMARY_LIMIT,
-          );
-          const tool = this.#tools.get(block.tool_use_id);
+          // Read whole, before the row cuts it short.
+          const text = resultText(block.content);
+          const use = this.#tools.get(block.tool_use_id);
+          const summary =
+            (!block.is_error && readableResult(use, block.content, text)) ||
+            this.#relativize(text).slice(0, SUMMARY_LIMIT);
           return [
             {
               kind: "tool_result",
               id: `${block.tool_use_id}:result`,
               toolUseId: block.tool_use_id,
               ok: !block.is_error,
-              summary: (!block.is_error && ownResult(tool, text)) || text,
+              summary,
               at,
             },
           ];

@@ -71,12 +71,20 @@ test("summarizeTool names proposals", () => {
   expect(summarizeTool("mcp__blueprint__propose", { ops: [1] })).toBe(
     "proposing 1 change",
   );
+  // A revise names its proposal by title, never by its id.
+  expect(
+    summarizeTool("mcp__blueprint__revise", {
+      proposalId: "p_1a2b3c4d",
+      title: "Sign-in flow",
+      ops: [],
+    }),
+  ).toBe('revising "Sign-in flow"');
   expect(
     summarizeTool("mcp__blueprint__revise", {
       proposalId: "p_1a2b3c4d",
       ops: [],
     }),
-  ).toBe("revising p_1a2b3c4d");
+  ).toBe("revising the proposal");
 });
 
 test("mapper turns a scripted SDK stream into panel events in order", () => {
@@ -196,8 +204,8 @@ test("mapper turns a scripted SDK stream into panel events in order", () => {
             type: "tool_result",
             tool_use_id: "toolu_1",
             content: [
-              { type: "text", text: "a".repeat(100) },
-              { type: "text", text: "b".repeat(100) },
+              { type: "text", text: "1\t# Plan" },
+              { type: "text", text: "2\tShip it." },
             ],
           },
           {
@@ -265,7 +273,7 @@ test("mapper turns a scripted SDK stream into panel events in order", () => {
       id: "toolu_1:result",
       toolUseId: "toolu_1",
       ok: true,
-      summary: `${"a".repeat(100)}\n${"b".repeat(19)}`,
+      summary: "read 2 lines",
       at: AT,
     },
     {
@@ -281,7 +289,7 @@ test("mapper turns a scripted SDK stream into panel events in order", () => {
       id: "toolu_3:result",
       toolUseId: "toolu_3",
       ok: true,
-      summary: "done",
+      summary: "returned an image",
       at: AT,
     },
     {
@@ -426,6 +434,137 @@ test("subagent messages are skipped and leave the main stream's state alone", ()
   ]);
 });
 
+// A mapper with helpers that feed it one tool use and one tool result.
+function toolRows() {
+  const mapper = new SdkEventMapper();
+  const use = (id: string, name: string, input: object = {}) =>
+    mapper.map(
+      sdk({
+        type: "assistant",
+        parent_tool_use_id: null,
+        message: {
+          id: `msg_${id}`,
+          content: [{ type: "tool_use", id, name, input }],
+        },
+      }),
+    );
+  const result = (id: string, content: unknown, isError = false) =>
+    mapper.map(
+      sdk({
+        type: "user",
+        parent_tool_use_id: null,
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: id,
+              content,
+              is_error: isError,
+            },
+          ],
+        },
+      }),
+    );
+  const summary = (events: ReturnType<typeof result>) =>
+    events.map((e) => (e.kind === "tool_result" ? e.summary : e.kind));
+  return { use, result, summary };
+}
+
+test("a proposal's result row names it by title and says it waits for the user, never its id", () => {
+  const { use, result, summary } = toolRows();
+  const json = [{ type: "text", text: '{"proposalId":"p_3f004e69"}' }];
+  use("t1", "mcp__blueprint__propose", { title: "Sign-in flow", ops: [] });
+  expect(summary(result("t1", json))).toEqual([
+    '"Sign-in flow" is drawn as ghosts for you to accept or reject',
+  ]);
+  use("t2", "mcp__blueprint__propose", { ops: [] });
+  expect(summary(result("t2", json))).toEqual([
+    "the proposal is drawn as ghosts for you to accept or reject",
+  ]);
+  use("t3", "mcp__blueprint__revise", {
+    proposalId: "p_3f004e69",
+    title: "Sign-in flow",
+    ops: [],
+  });
+  expect(summary(result("t3", json))).toEqual([
+    '"Sign-in flow" is redrawn as ghosts for you to accept or reject',
+  ]);
+  use("t4", "mcp__blueprint__revise", { proposalId: "p_3f004e69", ops: [] });
+  expect(summary(result("t4", json))).toEqual([
+    "the proposal is redrawn as ghosts for you to accept or reject",
+  ]);
+});
+
+test("a proposal id past the row's length still marks the result as a proposal", () => {
+  const { use, result, summary } = toolRows();
+  use("t1", "mcp__blueprint__propose", { title: "Flow", ops: [] });
+  const long = `${" ".repeat(200)}{"proposalId":"p_3f004e69"}`;
+  expect(summary(result("t1", [{ type: "text", text: long }]))).toEqual([
+    '"Flow" is drawn as ghosts for you to accept or reject',
+  ]);
+});
+
+test("a tool search's row names the tools it loaded", () => {
+  const { use, result, summary } = toolRows();
+  const ref = (tool_name: string) => ({ type: "tool_reference", tool_name });
+  use("t1", "ToolSearch", { query: "select:mcp__blueprint__revise" });
+  expect(summary(result("t1", [ref("mcp__blueprint__revise")]))).toEqual([
+    "loaded the revise tool",
+  ]);
+  use("t2", "ToolSearch", { query: "select:a,b,c" });
+  expect(
+    summary(
+      result("t2", [
+        ref("mcp__blueprint__get_selection"),
+        ref("mcp__blueprint__propose"),
+        ref("WebFetch"),
+      ]),
+    ),
+  ).toEqual(["loaded the get_selection, propose, and WebFetch tools"]);
+});
+
+test("a Read's row counts the lines it read instead of showing them", () => {
+  const { use, result, summary } = toolRows();
+  use("t1", "Read", { file_path: "notes.md" });
+  expect(
+    summary(result("t1", "1\t# Board: notes\n2\t\n3\t## Diagram\n")),
+  ).toEqual(["read 3 lines"]);
+  use("t2", "Read", { file_path: "one.md" });
+  expect(summary(result("t2", "1\tonly"))).toEqual(["read 1 line"]);
+  // A failure keeps its message.
+  use("t3", "Read", { file_path: "docs" });
+  expect(
+    summary(result("t3", "EISDIR: illegal operation on a directory", true)),
+  ).toEqual(["EISDIR: illegal operation on a directory"]);
+});
+
+test("another tool's result shows its text, cut short, and one with no text says what came back", () => {
+  const { use, result, summary } = toolRows();
+  use("t0", "Bash", { command: "cat log" });
+  expect(
+    summary(
+      result("t0", [
+        { type: "text", text: "a".repeat(100) },
+        { type: "text", text: "b".repeat(100) },
+      ]),
+    ),
+  ).toEqual([`${"a".repeat(100)}\n${"b".repeat(19)}`]);
+  use("t1", "Screenshot");
+  expect(
+    summary(
+      result("t1", [
+        {
+          type: "image",
+          source: { type: "base64", media_type: "image/png", data: "" },
+        },
+      ]),
+    ),
+  ).toEqual(["returned an image"]);
+  use("t2", "Noop");
+  expect(summary(result("t2", []))).toEqual(["finished with no output"]);
+});
+
 test("Blueprint's own tool results read as sentences, and their failures keep the message", () => {
   const mapper = new SdkEventMapper();
   const use = (id: string, name: string) =>
@@ -463,11 +602,11 @@ test("Blueprint's own tool results read as sentences, and their failures keep th
 
   use("t1", "mcp__blueprint__propose");
   expect(summary(result("t1", json))).toEqual([
-    "proposal p_3f004e69 is on the board",
+    "the proposal is drawn as ghosts for you to accept or reject",
   ]);
   use("t2", "mcp__blueprint__revise");
   expect(summary(result("t2", json))).toEqual([
-    "proposal p_3f004e69 is on the board",
+    "the proposal is redrawn as ghosts for you to accept or reject",
   ]);
   use("t3", "mcp__blueprint__get_board");
   expect(

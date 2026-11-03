@@ -204,8 +204,7 @@ export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
             {target && (
               <span className="chip chip-refine">
                 <span className="chip-label">
-                  Refining {target.id}
-                  {target.title ? ` · ${target.title}` : ""}
+                  Refining {target.title ?? "the proposal"}
                 </span>
                 <button
                   type="button"

@@ -341,7 +341,7 @@ test("a refine target shows a chip, sends the proposal id, and clears", async ()
   await waitFor(() => expect(input).toBeEnabled());
 
   await userEvent.click(screen.getByRole("button", { name: "Refine" }));
-  expect(screen.getByText("Refining p_1 · Login flow")).toBeVisible();
+  expect(screen.getByText("Refining Login flow")).toBeVisible();
   // The Refine click puts the cursor where the instruction goes.
   expect(input).toHaveFocus();
 
@@ -349,7 +349,7 @@ test("a refine target shows a chip, sends the proposal id, and clears", async ()
   vi.mocked(api.agentSend).mockRejectedValueOnce(new Error("offline"));
   await userEvent.type(input, "tighter{Enter}");
   expect(await screen.findByRole("alert")).toHaveTextContent("offline");
-  expect(screen.getByText("Refining p_1 · Login flow")).toBeVisible();
+  expect(screen.getByText("Refining Login flow")).toBeVisible();
 
   await userEvent.type(input, "{Enter}");
   expect(api.agentSend).toHaveBeenLastCalledWith("tighter", undefined, "p_1");
