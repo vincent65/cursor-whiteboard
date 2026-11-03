@@ -1,0 +1,10 @@
+- Node 22.1 or later; TypeScript strict; ESM; server code uses NodeNext resolution with explicit `.js` extensions on relative imports.
+- No API key anywhere: the SDK runs on the user's Claude Code login; Blueprint never reads, stores, or forwards credentials.
+- The plan session's working directory is the repository root and settingSources is left at its default.
+- Claude never edits board files directly: a PreToolUse hook denies Write, Edit, MultiEdit, NotebookEdit under .blueprint/boards/ and .blueprint/assets/.
+- All agent output reaches the browser as typed WebSocket messages; commands go through HTTP routes testable with app.request().
+- The panel is titled "Claude"; no "Claude Code" branding in UI copy.
+- UI test files that render components or hooks start with the jsdom pragma.
+- Commit messages use conventional commits and carry no co-author trailer.
+- The interfaces named in the brief's Interfaces block are contracts later tasks consume: names, parameters, and return types must match exactly.
+- pnpm check stays pristine; pnpm build warns only about the pre-existing chunk size.

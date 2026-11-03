@@ -1,0 +1,20 @@
+- **Status:** DONE_WITH_CONCERNS
+- **Commits** (12, no trailers):
+  - `46a6712` fix(agent): report a success result flagged is_error as an error
+  - `9c5d60e` fix(agent): skip the browser round trip when no tab shows the board
+  - `b8cf641` fix(agent): start fresh when the CLI refuses a saved session id
+  - `f537eaa` fix(agent): keep the server up when sessions.json is corrupt
+  - `786206e` fix(agent): log a failure in the session loop instead of crashing
+  - `c54c69f` fix(server): detect write echoes by content instead of a time window
+  - `6ac78bd` fix(agent): report queued messages a thrown run never sent
+  - `e058694` fix(ui): label the Done row's cost as the session total
+  - `3716b00` fix(agent): make Stop drop queued sends and work while starting (findings 9 and 10)
+  - `8ce23f1` fix(agent): keep subagent traffic out of the main transcript
+  - `d780135` fix(agent): give restored text blocks ids from their transcript line
+  - `6b1604e` docs(agent): note the ceiling of the unserialized session-id write
+- **Tests:** `pnpm check` passes with no warnings (27 test files, 136 tests). `pnpm build` passes; its large-chunk warning was already there before these fixes.
+- **Concerns:**
+  - The SDK takes queued messages as soon as the CLI has started, so the "Message not sent" rows from findings 7 and 9 mostly show up only before then. Whether the CLI still runs a message it already received after Stop can't be checked without a real turn.
+  - Only the Done row says "total". The Stopped row shows the same running total without the word, because the ruling named only Done.
+  - When the CLI refuses a saved session (finding 3), the panel shows only the restore-failed message. The CLI's reason goes to the server console.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m1-claude-panel/final-fix-report.md`

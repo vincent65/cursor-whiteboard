@@ -1,0 +1,5 @@
+- **Status:** DONE
+- **Commit:** `1646f79 fix(deps): use mermaid 11 so the Node 22.1 floor holds`
+- **Tests:** on mermaid 11.17.2 the mermaid test passes, and `pnpm check` passes cleanly (27 files, 121 tests). The test still fails when the quote escaping is removed, so it still catches bad blocks. The lockfile no longer has mermaid 12, chevrotain 13, commander 15 or @mermaid-js/parser 2.
+- **Concerns:** none. The test needed no changes because mermaid 11 has the same API. `pnpm add` again had to run outside the sandbox because it can't write to the global pnpm store.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m1-claude-panel/task-11-report.md` (Fix round 1 section appended)

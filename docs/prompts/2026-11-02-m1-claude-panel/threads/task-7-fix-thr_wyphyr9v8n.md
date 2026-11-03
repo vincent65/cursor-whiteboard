@@ -1,0 +1,5 @@
+- **Status:** DONE
+- **Commit:** `6661360 fix(agent): anchor the board-write guard on the repository root`
+- **Tests:** the three covering files pass (18 tests) and `pnpm check` passes with no warnings (22 files, 104 tests).
+- **Concerns:** Task 8 must now register the hook as `denyBoardWrites(cwd)`, passing the repository root, because it is a factory now.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m1-claude-panel/task-7-report.md`, with a new "Fix round 1" section.

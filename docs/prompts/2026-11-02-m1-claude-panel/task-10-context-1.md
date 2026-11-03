@@ -1,0 +1,3 @@
+Ruling on your question: take option 1. Add `"@codemirror/commands": "^6.11.1"` to `dependencies` in `package.json` with `pnpm add @codemirror/commands@^6.11.1` (the version already installed through `codemirror`, so nothing new ships). `package.json` and `pnpm-lock.yaml` are now in your file list; include them in your commit. Keep the brief's assertion that `undoDepth` stays 0 after a disk reload, and add the Ctrl+Z behaviour check only if it costs one line.
+
+Everything else in the brief and the dispatch stands. Continue with TDD from Step 1, run `pnpm check` once before committing, commit with a conventional message and no co-author trailer, write the report, and end with the short status contract.

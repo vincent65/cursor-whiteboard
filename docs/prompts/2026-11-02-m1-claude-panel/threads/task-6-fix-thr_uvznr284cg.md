@@ -1,0 +1,5 @@
+- **Status:** DONE
+- **Commit:** `b2c9f18 fix(agent): close the query on loop errors and recover when it ends on its own`
+- **Tests:** the session test file passes (9 of 9), and `pnpm check` passes cleanly (19 files, 92 tests). Both new tests failed against the old `session.ts` before the fix.
+- **Concerns:** none new. The four Task 12 checks from the first round still stand.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m1-claude-panel/task-6-report.md` (now has a "Fix round 1" section)

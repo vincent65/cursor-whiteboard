@@ -1,0 +1,6 @@
+- Status: DONE_WITH_CONCERNS
+- Commit: `85fe24d` fix(ui): settle saves before comparing disk changes and reload docs without undo steps
+- Tests: the new docReload test failed first, then passed; `pnpm check` is clean (26 files, 120 tests). Both hand checks in `pnpm dev` held.
+- Concern 1, data loss outside this task's files: the server's watcher (`src/server/watch.ts`) ignores a board or doc file for 1 s after it saves it. An outside edit in that second never reaches the editor, and the next save overwrites it. I reproduced this on a board.
+- Concern 2: while a doc is open, the Claude panel placeholder still reads "Ask Claude about this board".
+- Report: /Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m1-claude-panel/task-10-report.md

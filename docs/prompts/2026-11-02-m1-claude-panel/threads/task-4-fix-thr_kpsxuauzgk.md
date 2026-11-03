@@ -1,0 +1,5 @@
+- **Status:** DONE
+- **Commit:** `b9f1bd7` fix(ui): re-announce the board selection on every reconnect
+- **Tests:** `pnpm check` passes with clean output, 76 of 76 tests in 16 files. The new reconnect test failed against the old `api.ts` and passes now. In the browser, an empty board announced `ids: []` on mount, and the selection was sent again after a forced reconnect.
+- **Concerns:** none
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m1-claude-panel/task-4-report.md` (new "Fix round 1" section)

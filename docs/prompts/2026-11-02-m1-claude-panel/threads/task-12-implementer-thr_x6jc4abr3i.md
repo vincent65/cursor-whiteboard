@@ -1,0 +1,13 @@
+- **Status:** DONE_WITH_CONCERNS. Every acceptance step passed with the real login, using gstack browse because the Playwright browser was locked by another session.
+- **Commits:**
+  - `066d977` fix(agent): end an interrupted turn as idle instead of an error
+  - `09da5a4` fix(agent): restore a saved Stop as a stopped row, not a user message
+  - `a700acf` fix(ui): keep the transcript pinned to the bottom when a permission ask opens
+- **Tests:** `pnpm check` passes with 124/124 tests. `pnpm build` only gives the existing chunk-size warning.
+- **Timings:** first streamed text came 10.2 s after the first send. Stop went back to `Idle` 17 ms after the click.
+- **Concerns:**
+  - `List the files in this repository` never shows a permission dialog, because Claude Code approves read-only shell commands on its own. I tested the dialog with `touch` instead, and it works.
+  - The cost on each `Done` row is a running total for the session, not the cost of that turn.
+  - Claude's markdown shows as raw text.
+  - The `ToolSearch` and `(non-text result)` rows still appear on the first turn.
+- **Report:** `/Users/vincentyip/programming/cursor-whiteboard/.superpowers/sdd/2026-11-02-m1-claude-panel/task-12-report.md`
