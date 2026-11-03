@@ -238,6 +238,15 @@ test("launch creates a worktree, a working record, and sends the run prompt", as
   // A run whose task file is gone shows its slug.
   await store.replaceTasks([task("beta")]);
   expect((await view(manager, record.id))?.title).toBe("alpha");
+  // So does every run when a task file cannot be read, and the list still answers.
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(store, "listTasks").mockRejectedValueOnce(
+    new Error("02-beta.md: bad frontmatter"),
+  );
+  expect((await manager.list()).map((r) => r.title)).toEqual(["alpha"]);
+  expect(warn).toHaveBeenCalledTimes(1);
+  expect(String(warn.mock.calls[0])).toContain("02-beta.md: bad frontmatter");
+  warn.mockRestore();
   await manager.close();
 });
 

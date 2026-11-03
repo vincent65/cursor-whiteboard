@@ -156,8 +156,12 @@ export class RunManager {
       .map((r) => ({ ...(this.#live.get(r.id)?.record ?? r) }));
   }
 
+  // A task file that cannot be read leaves every title as its slug, not the list broken.
   async list(): Promise<RunView[]> {
-    const tasks = await this.#deps.store.listTasks();
+    const tasks = await this.#deps.store.listTasks().catch((err) => {
+      console.warn("could not read the task files for run titles", err);
+      return [];
+    });
     const titles = new Map(tasks.map(({ task }) => [task.slug, task.title]));
     return this.records().map((r) => {
       const live = this.#live.get(r.id);
