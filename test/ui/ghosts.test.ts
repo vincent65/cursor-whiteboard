@@ -334,6 +334,40 @@ test("accept makes additions real, keeps updates, deletes deletions with their l
   expect(byId(applied, "d").isDeleted).toBeFalsy();
 });
 
+test("accepting a delete unbinds the live arrows that end on it", () => {
+  const bind = (elementId: string) => ({ elementId, focus: 0, gap: 1 });
+  const arrows = [
+    el({
+      id: "ad",
+      type: "arrow",
+      startBinding: bind("a"),
+      endBinding: bind("d"),
+    }),
+    el({
+      id: "da",
+      type: "arrow",
+      startBinding: bind("d"),
+      endBinding: bind("a"),
+    }),
+    el({ id: "gone", type: "arrow", endBinding: bind("d"), isDeleted: true }),
+  ];
+  const applied = apply([...board(), ...arrows]);
+  const out = decideProposal(applied, "p_1", "accepted");
+  expect(byId(out, "ad")).toMatchObject({
+    startBinding: bind("a"),
+    endBinding: null,
+  });
+  expect(byId(out, "ad").isDeleted).toBeFalsy();
+  expect(byId(out, "da")).toMatchObject({
+    startBinding: null,
+    endBinding: bind("a"),
+  });
+  expect(out.find((e) => e.id === "gone")).toBe(arrows[2]);
+  // Rejecting keeps the element, so its arrows stay bound.
+  const kept = decideProposal(applied, "p_1", "rejected");
+  expect(byId(kept, "ad").endBinding).toEqual(bind("d"));
+});
+
 test("accepting an addition keeps its rendered stroke style", () => {
   const arrow = el({ id: "ar", type: "arrow", strokeStyle: "dotted" });
   const { elements } = applyProposal(

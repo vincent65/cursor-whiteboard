@@ -480,6 +480,17 @@ export function decideProposal(
       else {
         out[i] = { ...e, isDeleted: true };
         if (label && label !== e) patch(label, { isDeleted: true });
+        // As Excalidraw's own delete does; restore keeps bindings to deleted elements.
+        for (const a of out) {
+          if (a.type !== "arrow" || a.isDeleted) continue;
+          const start = a.startBinding?.elementId === e.id;
+          const end = a.endBinding?.elementId === e.id;
+          if (start || end)
+            patch(a, {
+              ...(start && { startBinding: null }),
+              ...(end && { endBinding: null }),
+            });
+        }
       }
     } else if (g.ghost === "add") {
       out[i] = { ...e, isDeleted: true };
