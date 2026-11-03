@@ -20,7 +20,7 @@ import { prUrlIn, runPrompt } from "./prompt.js";
 import type { RunStore } from "./store.js";
 
 const CONTINUE = "Continue the task where you left off.";
-const INTERRUPTED = "interrupted";
+const INTERRUPTED_REASON = "interrupted";
 const BOARD_READ_ONLY =
   "Blueprint board files are read-only in a run. Leave the board to the user.";
 
@@ -121,16 +121,21 @@ export class RunManager {
     return { ...record };
   }
 
-  // A run that ended (done, failed, interrupted) resumes its saved session.
+  // A run that ended (done, failed, interrupted) resumes its saved session; with none to
+  // resume, the text follows the run prompt so a fresh Claude knows its task.
   async message(runId: string, text: string): Promise<string> {
-    return this.#liveFor(this.#record(runId)).session.send(text);
+    const live = this.#liveFor(this.#record(runId));
+    const prompt = await this.#freshPrompt(live);
+    // Checked again: another send may have started the session during the await.
+    const fresh = prompt !== null && this.#fresh(live);
+    return live.session.send(fresh ? `${prompt}\n\n${text}` : text, text);
   }
 
   async stop(runId: string): Promise<void> {
     this.#record(runId);
     const live = this.#live.get(runId);
     if (!live) return;
-    live.broker.cancelAll(INTERRUPTED);
+    live.broker.cancelAll(INTERRUPTED_REASON);
     await live.session.interrupt();
   }
 
@@ -139,15 +144,10 @@ export class RunManager {
   async resume(runId: string): Promise<void> {
     const record = this.#interrupted(runId);
     const live = this.#liveFor(record);
-    const text = live.session.sessionId
-      ? CONTINUE
-      : runPrompt({
-          ...(await this.#promptInput(record.taskSlug)),
-          branch: record.branch,
-        });
+    const prompt = await this.#freshPrompt(live);
     // Checked again: another resume may have started the run during the await.
     this.#interrupted(runId);
-    live.session.send(text);
+    live.session.send(prompt ?? CONTINUE);
   }
 
   answerPermission(runId: string, id: string, d: PermissionDecision): boolean {
@@ -175,7 +175,7 @@ export class RunManager {
     this.#closing = true;
     await Promise.all(
       [...this.#live.values()].map((live) => {
-        live.broker.cancelAll(INTERRUPTED);
+        live.broker.cancelAll(INTERRUPTED_REASON);
         return live.session.close();
       }),
     );
@@ -188,6 +188,19 @@ export class RunManager {
         `run ${runId} is ${record.status}, not interrupted`,
       );
     return record;
+  }
+
+  // No session id to resume and no turn in flight (a launch's first turn has no id until
+  // the CLI reports one): the next send starts a Claude that knows nothing of the task.
+  #fresh(live: Live): boolean {
+    const { sessionId, status } = live.session;
+    return !sessionId && status !== "starting" && status !== "working";
+  }
+
+  async #freshPrompt(live: Live): Promise<string | null> {
+    if (!this.#fresh(live)) return null;
+    const { taskSlug, branch } = live.record;
+    return runPrompt({ ...(await this.#promptInput(taskSlug)), branch });
   }
 
   // What a run prompt is built from, besides the branch; NotFoundError for an unknown task.
@@ -245,7 +258,12 @@ export class RunManager {
             PreToolUse: [
               {
                 matcher: "Write|Edit|MultiEdit|NotebookEdit",
-                hooks: [denyBoardWrites(record.worktree, BOARD_READ_ONLY)],
+                hooks: [
+                  denyBoardWrites(
+                    [this.#deps.root, record.worktree],
+                    BOARD_READ_ONLY,
+                  ),
+                ],
               },
             ],
           },
@@ -253,14 +271,19 @@ export class RunManager {
             broker.ask({ toolUseID, tool, input, suggestions, signal }),
         },
         onEvent: (event) => {
+          if (this.#closing) return;
           if (event.kind === "assistant_text" && !event.partial)
             live.turnText = live.lastText = event.text;
           if (event.kind === "result") {
             live.endedText = live.turnText;
             live.turnText = null;
-            if (event.costUsd !== null)
-              this.#patch(live, { costUsd: live.costBase + event.costUsd });
           }
+          // An error result reports what its process spent, as a result does.
+          if (
+            (event.kind === "result" || event.kind === "error") &&
+            typeof event.costUsd === "number"
+          )
+            this.#patch(live, { costUsd: live.costBase + event.costUsd });
           hub.broadcast({ type: "run.event", runId, event });
         },
         onStatus: (status, message) => {

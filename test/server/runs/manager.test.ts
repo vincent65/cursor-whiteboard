@@ -181,7 +181,10 @@ test("launch creates a worktree, a working record, and sends the run prompt", as
         transcript_path: "/t",
         cwd: worktree,
         tool_name: "Write",
-        tool_input: { file_path: ".blueprint/boards/main.excalidraw.json" },
+        // The live board under the repository root, not the worktree's copy.
+        tool_input: {
+          file_path: join(root, ".blueprint", "boards", "main.excalidraw.json"),
+        },
         tool_use_id: "u",
       } as HookInput,
       "u",
@@ -309,8 +312,10 @@ test("an error result fails the run with the message", async () => {
     status: "failed",
     message: "the tool crashed",
   });
+  // What the failed process spent counts.
   expect(await saved(manager, run.id)).toMatchObject({
     status: "failed",
+    costUsd: 0.02,
     endedAt: expect.any(String),
   });
 
@@ -325,6 +330,7 @@ test("an error result fails the run with the message", async () => {
     prUrl: null,
     endedAt: null,
   });
+  expect(runs.run(run.id)?.costUsd).toBeCloseTo(0.03);
   await manager.close();
 });
 
@@ -621,8 +627,10 @@ test("resume with no usable session id sends the full run prompt instead", async
     manager.resume("run_aaaaaa"),
     manager.resume("run_aaaaaa"),
   ]);
-  expect(both.map((r) => r.status)).toEqual(["fulfilled", "rejected"]);
-  expect((both[1] as PromiseRejectedResult).reason).toBeInstanceOf(ExistsError);
+  // Either may finish reading first.
+  const refused = both.filter((r) => r.status === "rejected");
+  expect(refused).toHaveLength(1);
+  expect(refused[0].reason).toBeInstanceOf(ExistsError);
   await manager.resume("run_bbbbbb");
   expect(queries).toHaveLength(2);
   for (const q of queries) {
@@ -632,5 +640,155 @@ test("resume with no usable session id sends the full run prompt instead", async
   await vi.waitFor(() =>
     expect(runs.run("run_bbbbbb")?.sessionId).toBe("sess-new"),
   );
+  await manager.close();
+});
+
+test("a process's running total is the run's cost, not the sum of its results", async () => {
+  const { manager, queries } = setup((_text, turn) =>
+    turnsOf(
+      ...(turn === 0 ? [init("sess-c")] : []),
+      ...textTurn(
+        `m${turn}`,
+        `turn ${turn}`,
+        `r${turn}`,
+        turn === 0 ? 0.01 : 0.03,
+      ),
+    ),
+  );
+  const run = await manager.launch({
+    taskSlug: "alpha",
+    permissionMode: "acceptEdits",
+  });
+  await vi.waitFor(() => expect(view(manager, run.id)?.status).toBe("idle"));
+  await manager.message(run.id, "one more thing");
+  await vi.waitFor(() =>
+    expect(statusesOf(run.id)).toEqual(["idle", "working", "idle"]),
+  );
+  expect(queries).toHaveLength(1);
+  expect((await saved(manager, run.id)).costUsd).toBe(0.03);
+  await manager.close();
+});
+
+test("message with no usable session id sends the run prompt, then the text", async () => {
+  const record = (id: string, sessionId: string): RunRecord => ({
+    id,
+    taskSlug: "beta",
+    sessionId,
+    worktree: `/w/${id}`,
+    branch: "blueprint/beta",
+    status: "failed",
+    permissionMode: "acceptEdits",
+    prUrl: null,
+    costUsd: 0,
+    startedAt: "2026-11-02T00:00:00.000Z",
+    endedAt: "2026-11-02T00:01:00.000Z",
+  });
+  await store.writeSessions({
+    plan: null,
+    // Failed before the CLI reported an id; and one whose saved session is empty.
+    runs: [record("run_aaaaaa", ""), record("run_bbbbbb", "sess-lost")],
+  });
+  await runs.load();
+  const { manager, queries } = setup(() =>
+    turnsOf(init("sess-new"), ...textTurn("m", "on it", "r")),
+  );
+  await manager.start();
+
+  const prompt = runPrompt({
+    task: task("beta"),
+    taskFile: ".blueprint/tasks/02-beta.md",
+    spec: "# Spec\n\nThe spec.\n",
+    branch: "blueprint/beta",
+  });
+  await manager.message("run_aaaaaa", "use the new API");
+  // Two at once: only the first carries the prompt; the second waits behind it.
+  await Promise.all([
+    manager.message("run_bbbbbb", "use the new API"),
+    manager.message("run_bbbbbb", "and keep it short"),
+  ]);
+  expect(queries).toHaveLength(2);
+  for (const q of queries) expect(q.options?.resume).toBeUndefined();
+  await vi.waitFor(() =>
+    expect(queries[0].read).toEqual([`${prompt}\n\nuse the new API`]),
+  );
+  // Either may finish reading the task first; that one carries the prompt.
+  await vi.waitFor(() => expect(queries[1].read).toHaveLength(2));
+  const [first, second] = queries[1].read;
+  expect(first.startsWith(`${prompt}\n\n`)).toBe(true);
+  expect([first.slice(prompt.length + 2), second].sort()).toEqual([
+    "and keep it short",
+    "use the new API",
+  ]);
+  // The card shows what the user typed.
+  expect(manager.transcript("run_aaaaaa")[0]).toMatchObject({
+    kind: "user",
+    text: "use the new API",
+  });
+  // Once the session has an id, a message is just the text.
+  await vi.waitFor(() =>
+    expect(view(manager, "run_aaaaaa")?.status).toBe("idle"),
+  );
+  await manager.message("run_aaaaaa", "and the docs");
+  await vi.waitFor(() => expect(queries[0].read.at(-1)).toBe("and the docs"));
+  await manager.close();
+});
+
+test("events after close are not broadcast", async () => {
+  await store.writeSessions({
+    plan: null,
+    runs: [
+      {
+        id: "run_aaaaaa",
+        taskSlug: "alpha",
+        sessionId: "sess-a",
+        worktree: "/w/a",
+        branch: "blueprint/alpha",
+        status: "done",
+        permissionMode: "acceptEdits",
+        prUrl: PR,
+        costUsd: 0,
+        startedAt: "2026-11-02T00:00:00.000Z",
+        endedAt: "2026-11-02T00:01:00.000Z",
+      },
+    ],
+  });
+  await runs.load();
+  let load: (msgs: SessionMessage[]) => void = () => {};
+  const { manager, getSessionMessages } = setup(
+    () => turnsOf(),
+    () =>
+      new Promise<SessionMessage[]>((r) => {
+        load = r;
+      }),
+  );
+  const starting = manager.start();
+  await vi.waitFor(() => expect(getSessionMessages).toHaveBeenCalled());
+  await manager.close();
+  // The load fails after close: the session reports it, and nothing reaches the browser.
+  load([]);
+  await starting;
+  expect(manager.transcript("run_aaaaaa")).toMatchObject([{ kind: "error" }]);
+  expect(sent.filter((m) => m.type === "run.event")).toEqual([]);
+});
+
+test("a message during a launch's first turn, before the CLI reports an id, is just the text", async () => {
+  const { gate, release } = gated();
+  const { manager, queries } = setup((_text, turn) =>
+    (async function* () {
+      if (turn === 0) {
+        await gate;
+        yield init("sess-l");
+      }
+      yield* textTurn(`m${turn}`, "ok", `r${turn}`);
+    })(),
+  );
+  const run = await manager.launch({
+    taskSlug: "alpha",
+    permissionMode: "acceptEdits",
+  });
+  await manager.message(run.id, "hurry");
+  release();
+  await vi.waitFor(() => expect(queries[0].read).toHaveLength(2));
+  expect(queries[0].read[1]).toBe("hurry");
   await manager.close();
 });

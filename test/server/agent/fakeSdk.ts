@@ -33,6 +33,8 @@ export function textTurn(
   msgId: string,
   text: string,
   resultId: string,
+  // The query's running total, as the SDK reports it on each result.
+  costUsd = 0.01,
 ): SDKMessage[] {
   const stream = (event: unknown) =>
     sdk({ type: "stream_event", parent_tool_use_id: null, event });
@@ -63,7 +65,7 @@ export function textTurn(
       is_error: false,
       num_turns: 1,
       result: text,
-      total_cost_usd: 0.01,
+      total_cost_usd: costUsd,
       duration_ms: 5,
     } satisfies SuccessFixture),
   ];
