@@ -743,8 +743,8 @@ z.object({ op: z.literal("add_arrow"), from: z.string(), to: z.string(), label: 
 test("add_node and add_arrow parse, $ references resolve only to earlier add_node ops", ...);   // checkRefs ok for [$0 after add_node], throws for $1 naming a delete and for $5 out of range
 test("revise can retitle", ...);     // store.revised(p with new title) → pending title changes; tool passes title through
 test("add_node is placed beside the anchor and add_arrow binds both ends", () => {
-  // elements a (0,0,100,50) and b (300,0,100,50); ops: delete the arrow ab, add_node "Cache", add_arrow a→$1, add_arrow $1→b
-  // the node lands at x 180 (80px gap); both arrows have startBinding/endBinding elementIds matching, points span between border points, ghost style, group, tag; counts.added === 3
+  // elements a (0,0,100,50) and b (400,0,100,50); ops: delete the arrow ab, add_node "Cache", add_arrow a→$1, add_arrow $1→b
+  // the node is centered on the midpoint of a and b (250, 25); both arrows have startBinding/endBinding elementIds matching, points span between border points, ghost style, group, tag; counts.added === 3
 });
 test("a $ reference to a missing node throws before anything changes", ...);
 test("renderNode makes a shape with a bound label", ...);
