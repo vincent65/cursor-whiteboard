@@ -209,6 +209,29 @@ test("a pending permission renders the dialog and Allow always calls agentPermis
   expect(screen.queryByRole("button", { name: "Deny" })).toBeNull();
 });
 
+test("a permission ask keeps a transcript that was at the bottom pinned there", async () => {
+  vi.mocked(api.agentState).mockResolvedValue(
+    state({ transcript: [{ kind: "user", id: "u1", text: "go", at }] }),
+  );
+  const { container } = renderPanel();
+  await screen.findByText("go");
+  const el = container.querySelector(".transcript") as HTMLElement;
+  const scrolls: number[] = [];
+  Object.defineProperty(el, "scrollHeight", { value: 500 });
+  Object.defineProperty(el, "scrollTop", {
+    get: () => scrolls.at(-1) ?? 0,
+    set: (v: number) => scrolls.push(v),
+  });
+
+  // The dialog takes room from the transcript, so its last line would hide behind it.
+  emit({
+    type: "agent.event",
+    event: { kind: "permission", id: "p1", tool: "Bash", summary: "x", at },
+  });
+
+  expect(scrolls.at(-1)).toBe(500);
+});
+
 test("an error status shows the message", async () => {
   vi.mocked(api.agentState).mockResolvedValue(state({ status: "starting" }));
   renderPanel();

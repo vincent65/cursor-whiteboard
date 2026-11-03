@@ -130,11 +130,13 @@ export function ClaudePanel() {
     }
   });
 
-  // Follows new output only while the reader is already at the bottom.
+  // Follows new output only while the reader is already at the bottom; an ask's
+  // dialog takes room from the transcript, so it re-pins too.
   useLayoutEffect(() => {
     const el = transcript.current;
-    if (el && atBottom.current && items.length) el.scrollTop = el.scrollHeight;
-  }, [items]);
+    if (el && atBottom.current && items.length + pending.length)
+      el.scrollTop = el.scrollHeight;
+  }, [items, pending]);
 
   const onScroll = () => {
     const el = transcript.current;
