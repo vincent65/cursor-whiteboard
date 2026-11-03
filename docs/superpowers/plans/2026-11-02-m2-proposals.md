@@ -647,6 +647,7 @@ Added during execution: the Task 8 real-login check showed that connected arrows
 - `boardGraphToMarkdown` emits, right after the `<!-- ids: … -->` comment and only when there are connected arrows, a section `## Arrows` with one bullet per connected arrow in diagram order: `- <id>: "<from label>" (<fromId>) -> "<to label>" (<toId>)` plus ` label "<label>"` when the label is not blank (the same shape as the Unconnected arrows bullets). The golden `basic.md` gains that section.
 - `SYSTEM_PROMPT_APPEND`'s propose line ends with `Element ids come from the selection header or get_board: nodes in its ids comment, arrows in its Arrows list.`
 - `src/ui/api.ts` exports `class ApiError extends Error { status: number }`; `request()` throws it for every non-ok response; `BoardView` treats a decision failure as "the server lost the record" only when `err instanceof ApiError && err.status === 404`.
+- `BoardView` decides server-first: it calls `api.decideProposal` before touching the scene; on success or on a 404 (the server lost the record) it applies `decideProposal` locally (warning on the 404); on a 409 (Claude is revising it) it applies nothing and shows `Decision failed: <message>`; any other error applies nothing. It also deletes the proposal's entry from the `titles` map once decided.
 
 - [ ] **Step 1: Write the failing tests**
 
