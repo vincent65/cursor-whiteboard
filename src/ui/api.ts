@@ -6,6 +6,7 @@ import type {
   ServerMessage,
 } from "../shared/messages";
 import type { PendingPermission, PermissionDecision } from "../shared/panel";
+import type { Decision, Proposal } from "../shared/proposals";
 import type { IncomingScene } from "../shared/types";
 
 export type Entry = { name: string; updatedAt: string };
@@ -81,16 +82,19 @@ export type AgentState = {
 };
 
 // The server composes the selection header from the stored board, so only
-// the board and ids travel. Returns the user event id.
+// the board and ids travel. A proposalId asks Claude to refine that pending
+// proposal. Returns the user event id.
 export const agentSend = async (
   text: string,
   selection?: { board: string; ids: string[] },
+  proposalId?: string,
 ): Promise<string> => {
   const body = {
     text,
     ...(selection
       ? { selection: { board: selection.board, ids: selection.ids } }
       : {}),
+    ...(proposalId !== undefined ? { proposalId } : {}),
   };
   const res = await request("/agent/send", { method: "POST", ...json(body) });
   return ((await res.json()) as { id: string }).id;
@@ -107,6 +111,19 @@ export async function agentPermission(
   await request("/agent/permission", {
     method: "POST",
     ...json({ id, ...decision }),
+  });
+}
+
+export const listProposals = async (): Promise<Proposal[]> =>
+  (await request("/agent/proposals")).json();
+
+export async function decideProposal(
+  id: string,
+  decision: Decision,
+): Promise<void> {
+  await request(`/agent/proposals/${encodeURIComponent(id)}/decision`, {
+    method: "POST",
+    ...json({ decision }),
   });
 }
 

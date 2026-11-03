@@ -136,6 +136,7 @@ body {
 }
 
 .board {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -172,6 +173,17 @@ body {
 .button:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.button-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.button-primary:hover {
+  filter: brightness(0.92);
+  color: var(--bg);
 }
 
 .button:focus-visible {
@@ -349,6 +361,38 @@ body {
   background: var(--bg);
   font-size: 12px;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proposals-bar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space);
+  max-width: calc(100% - var(--space) * 4);
+  padding: var(--space) calc(var(--space) * 1.5);
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+}
+
+.proposals-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+}
+
+.proposals-text {
+  flex: 1;
+  min-width: 0;
+  margin-right: var(--space);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -5,6 +5,7 @@ import { DocView } from "./docs/DocView";
 import { useHashRoute } from "./hooks/useHashRoute";
 import { Sidebar } from "./nav/Sidebar";
 import { ClaudePanel } from "./panel/ClaudePanel";
+import { RefineProvider } from "./panel/refine";
 import { SelectionProvider } from "./selection";
 import { ServerEventsProvider, useServerEvent } from "./server-events";
 
@@ -12,7 +13,9 @@ export function App() {
   return (
     <ServerEventsProvider>
       <SelectionProvider>
-        <Shell />
+        <RefineProvider>
+          <Shell />
+        </RefineProvider>
       </SelectionProvider>
     </ServerEventsProvider>
   );
