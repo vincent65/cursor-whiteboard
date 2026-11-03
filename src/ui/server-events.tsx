@@ -40,7 +40,13 @@ export function ServerEventsProvider({ children }: { children: ReactNode }) {
       },
       connect() {
         const c = connectWs((m) => {
-          for (const h of handlers) h(m);
+          // One broken view must not stop the others hearing the server.
+          for (const h of handlers)
+            try {
+              h(m);
+            } catch (err) {
+              console.error(err);
+            }
         });
         conn = c;
         for (const m of pending) c.send(m);

@@ -16,9 +16,10 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BoardFile } from "../../export/schema";
+import type { ServerMessage } from "../../shared/messages";
 import * as api from "../api";
 import { useDebounced } from "../hooks/useDebounced";
-import { useServerEvent } from "../server-events";
+import { useSendToServer, useServerEvent } from "../server-events";
 import {
   filesWithDataUrls,
   type PersistedKey,
@@ -27,6 +28,7 @@ import {
   shouldSave,
   toSaveBody,
 } from "./scene";
+import { blobToDataUrl, sameIds, selectedIds } from "./snapshot";
 
 type Scene = {
   elements: readonly ExcalidrawElement[];
@@ -47,6 +49,20 @@ const fetchAsset = async (asset: string): Promise<Blob> => {
   if (!res.ok) throw new Error(`GET ${asset}: ${res.status}`);
   return res.blob();
 };
+
+const toPng = async (
+  elements: readonly ExcalidrawElement[],
+  s: Scene,
+): Promise<string> =>
+  blobToDataUrl(
+    await exportToBlob({
+      elements,
+      appState: s.appState,
+      files: s.files,
+      mimeType: "image/png",
+      exportPadding: 16,
+    }),
+  );
 
 // Board files hold Blueprint's loose schema; Excalidraw's types are stricter.
 // Restoring fills in Excalidraw's defaults, so the editor's first onChange
@@ -78,8 +94,10 @@ export function BoardView({
   const excalidraw = useRef<ExcalidrawImperativeAPI | null>(null);
   // The scene as of the last onChange; debounced work reads it when it fires.
   // Loading a disk scene clears it, so a save pending from before is dropped.
-  const latest = useRef<Scene | null>(null);
+  const latest = useRef<(Scene & { appState: AppState }) | null>(null);
   const lastSaved = useRef<SaveState>({ version: 0, appState: {} });
+  const reportedIds = useRef<string[]>([]);
+  const send = useSendToServer();
   // Saves not yet answered, so the watcher echoing one is not a disk change.
   const inFlight = useRef(new Set<SaveState>());
   // Saves run one at a time so a slow write cannot land after a newer one.
@@ -130,6 +148,45 @@ export function BoardView({
       .then((blob: Blob) => api.uploadBoardPng(name, blob))
       .catch((err: Error) => setError(`PNG export failed: ${err.message}`));
   }, 2000);
+
+  const reportSelection = useDebounced<void>(() => {
+    const s = latest.current;
+    if (!s) return;
+    const ids = selectedIds(s.appState, s.elements);
+    if (sameIds(ids, reportedIds.current)) return;
+    reportedIds.current = ids;
+    send({ type: "selection.changed", board: name, ids });
+  }, 150);
+
+  const answer = async (
+    m: Extract<ServerMessage, { type: "request" }>,
+  ): Promise<unknown> => {
+    const s = latest.current;
+    if (m.kind === "board.png") {
+      if (m.board !== name) throw new Error(`board ${m.board} is not open`);
+      if (!s) throw new Error(`board ${name} is still loading`);
+      return { png: await toPng(getNonDeletedElements(s.elements), s) };
+    }
+    const ids = s ? selectedIds(s.appState, s.elements) : [];
+    if (!s || ids.length === 0) return { ids, png: null };
+    // A selected shape's label is a separate text element bound to it.
+    const picked = new Set(ids);
+    const elements = getNonDeletedElements(s.elements).filter(
+      (e) =>
+        picked.has(e.id) ||
+        (e.type === "text" && e.containerId && picked.has(e.containerId)),
+    );
+    return { ids, png: await toPng(elements, s) };
+  };
+
+  useServerEvent((m) => {
+    if (m.type !== "request") return;
+    answer(m).then(
+      (payload) => send({ type: "response", id: m.id, ok: true, payload }),
+      (err: Error) =>
+        send({ type: "response", id: m.id, ok: false, error: err.message }),
+    );
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -208,6 +265,7 @@ export function BoardView({
     files: BinaryFiles,
   ) => {
     latest.current = { elements, appState, files };
+    reportSelection();
     // onChange also fires for selection, zoom and scrolling; only edits
     // schedule work.
     if (!shouldSave(lastSaved.current, saveState(elements, appState))) return;

@@ -63,7 +63,7 @@ export const shouldSave = (prev: SaveState, next: SaveState): boolean =>
   prev.version !== next.version ||
   SAVE_TRIGGERS.some((key) => prev.appState[key] !== next.appState[key]);
 
-function base64(bytes: Uint8Array): string {
+export function base64(bytes: Uint8Array): string {
   let binary = "";
   // Chunked so spreading a large image does not overflow the call stack.
   for (let i = 0; i < bytes.length; i += 0x8000)

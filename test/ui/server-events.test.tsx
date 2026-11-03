@@ -20,7 +20,9 @@ vi.mock("../../src/ui/api", async (importOriginal) => ({
 vi.mock("../../src/ui/board/BoardView", () => ({ BoardView: () => null }));
 
 class FakeSocket {
+  static readonly OPEN = 1;
   static last: FakeSocket;
+  readyState = 0;
   sent: string[] = [];
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
@@ -31,7 +33,17 @@ class FakeSocket {
   send(data: string) {
     this.sent.push(data);
   }
-  close() {}
+  close() {
+    this.readyState = 2;
+  }
+  open() {
+    this.readyState = 1;
+    act(() => this.onopen?.());
+  }
+  drop() {
+    this.readyState = 3;
+    act(() => this.onclose?.());
+  }
   receive(m: ServerMessage) {
     act(() => this.onmessage?.({ data: JSON.stringify(m) }));
   }
@@ -71,7 +83,7 @@ test("subscribers receive parsed messages and sends queue until open", () => {
   );
   const first = FakeSocket.last;
   expect(first.sent).toEqual([]);
-  act(() => first.onopen?.());
+  first.open();
   expect(first.sent).toEqual([JSON.stringify(selection)]);
 
   const changed: ServerMessage = {
@@ -83,15 +95,63 @@ test("subscribers receive parsed messages and sends queue until open", () => {
   expect(onMessage).toHaveBeenCalledWith(changed);
 
   // A send while reconnecting waits for the next socket to open.
-  act(() => first.onclose?.());
+  first.drop();
   send(selection);
   act(() => vi.advanceTimersByTime(500));
   const second = FakeSocket.last;
   expect(second).not.toBe(first);
   expect(second.sent).toEqual([]);
-  act(() => second.onopen?.());
+  second.open();
   expect(second.sent).toEqual([JSON.stringify(selection)]);
   expect(first.sent).toHaveLength(1);
+});
+
+test("a reconnect drops queued responses and keeps only the latest selection", () => {
+  vi.useFakeTimers();
+  render(
+    <ServerEventsProvider>
+      <Probe onMessage={() => {}} />
+    </ServerEventsProvider>,
+  );
+  const first = FakeSocket.last;
+  first.open();
+  // Frames sent while the socket is closing queue instead of vanishing.
+  first.readyState = 2;
+  send({ type: "response", id: "r1", ok: true, payload: null });
+  send({ ...selection, ids: ["b"] });
+  expect(first.sent).toEqual([JSON.stringify(selection)]);
+  first.drop();
+  send({ type: "response", id: "r2", ok: false, error: "late" });
+  send({ ...selection, ids: ["c"] });
+  act(() => vi.advanceTimersByTime(500));
+  FakeSocket.last.open();
+  expect(FakeSocket.last.sent).toEqual([
+    JSON.stringify({ ...selection, ids: ["c"] }),
+  ]);
+});
+
+test("a throwing subscriber does not starve the others", () => {
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  const after = vi.fn();
+  render(
+    <ServerEventsProvider>
+      <Probe
+        onMessage={() => {
+          throw new Error("boom");
+        }}
+      />
+      <Probe onMessage={after} />
+    </ServerEventsProvider>,
+  );
+  const changed: ServerMessage = {
+    type: "file-changed",
+    kind: "doc",
+    name: "notes",
+  };
+  FakeSocket.last.receive(changed);
+  expect(after).toHaveBeenCalledWith(changed);
+  expect(error).toHaveBeenCalled();
+  error.mockRestore();
 });
 
 test("a file-changed for an unknown doc refreshes the sidebar lists", async () => {
@@ -100,7 +160,7 @@ test("a file-changed for an unknown doc refreshes the sidebar lists", async () =
   listDocs.mockResolvedValue([{ name: "fresh", updatedAt: "" }]);
   render(<App />);
   await waitFor(() => expect(listDocs).toHaveBeenCalledTimes(1));
-  act(() => FakeSocket.last.onopen?.());
+  FakeSocket.last.open();
 
   FakeSocket.last.receive({ type: "file-changed", kind: "doc", name: "fresh" });
   expect(await screen.findByRole("link", { name: "fresh" })).toBeVisible();

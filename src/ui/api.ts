@@ -66,14 +66,15 @@ export async function saveDoc(name: string, text: string): Promise<void> {
 // Board files store assets as "assets/<sha256>.<ext>", served under /api.
 export const assetUrl = (asset: string): string => `/api/${asset}`;
 
-// Frames sent while the socket is connecting or reconnecting wait for it to open.
+// Frames sent while the socket is not open wait for the next one to open.
+// By then the server that asked for queued responses is gone, and only the
+// newest selection still matters.
 export function connectWs(onMessage: (m: ServerMessage) => void): {
   send(m: ClientMessage): void;
   close(): void;
 } {
   let socket: WebSocket | null = null;
-  let isOpen = false;
-  const queue: string[] = [];
+  let queue: ClientMessage[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let delay = 500;
   let closed = false;
@@ -84,12 +85,20 @@ export function connectWs(onMessage: (m: ServerMessage) => void): {
     socket = ws;
     ws.onopen = () => {
       delay = 500;
-      isOpen = true;
-      for (const frame of queue.splice(0)) ws.send(frame);
+      const selection = queue
+        .filter((m) => m.type === "selection.changed")
+        .at(-1);
+      for (const m of queue)
+        if (
+          m.type === "selection.changed"
+            ? m === selection
+            : m.type !== "response"
+        )
+          ws.send(JSON.stringify(m));
+      queue = [];
     };
     ws.onmessage = (ev) => onMessage(JSON.parse(String(ev.data)));
     ws.onclose = () => {
-      isOpen = false;
       if (closed) return;
       timer = setTimeout(open, delay);
       delay = Math.min(delay * 2, 10_000);
@@ -99,9 +108,8 @@ export function connectWs(onMessage: (m: ServerMessage) => void): {
 
   return {
     send(m) {
-      const frame = JSON.stringify(m);
-      if (isOpen) socket?.send(frame);
-      else queue.push(frame);
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(m));
+      else queue.push(m);
     },
     close() {
       closed = true;
