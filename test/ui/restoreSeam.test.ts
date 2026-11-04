@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+// Before Excalidraw, which needs a canvas as it loads.
+import "./canvasStub";
 import { restoreElements } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { Proposal } from "../../src/shared/proposals";
@@ -12,19 +14,6 @@ import { renderNode } from "../../src/ui/board/mermaid";
 // The seam BoardView's throughGhosts crosses: ghosts.ts output, then the real
 // restore. Two bugs came from it (a zero-size arrow label dropped as
 // invisibly small, arrows missing from their targets' boundElements).
-
-// The same canvas and FontFace stubs as mermaid.test.ts.
-beforeAll(() => {
-  globalThis.FontFace = class {} as never;
-  HTMLCanvasElement.prototype.getContext = (() => ({
-    font: "",
-    measureText: (t: string) => ({
-      width: t.length * 10,
-      actualBoundingBoxAscent: 16,
-      actualBoundingBoxDescent: 4,
-    }),
-  })) as never;
-});
 
 const box = (id: string, x: number): El => ({
   id,

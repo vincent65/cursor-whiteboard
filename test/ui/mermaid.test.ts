@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+// Before Excalidraw, which needs a canvas as it loads.
+import "./canvasStub";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
 import {
@@ -16,20 +18,6 @@ vi.mock("@excalidraw/mermaid-to-excalidraw", async (importOriginal) => {
     ...real,
     parseMermaidToExcalidraw: vi.fn(real.parseMermaidToExcalidraw),
   };
-});
-
-// The importer measures labels on a canvas; jsdom has none, so stub measureText by character count.
-// Excalidraw's font registry also constructs a FontFace per font, which jsdom lacks.
-beforeAll(() => {
-  globalThis.FontFace = class {} as never;
-  HTMLCanvasElement.prototype.getContext = (() => ({
-    font: "",
-    measureText: (t: string) => ({
-      width: t.length * 10,
-      actualBoundingBoxAscent: 16,
-      actualBoundingBoxDescent: 4,
-    }),
-  })) as never;
 });
 
 test("a flowchart becomes shapes, labels, and bound arrows with fresh ids", async () => {
