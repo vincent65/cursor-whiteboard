@@ -85,10 +85,15 @@ export function ClaudePanel({
     setSince(working ? Date.now() : null);
   }, [working]);
 
+  // A Refine click or a permission ask needs the panel, so a folded one opens.
+  useEffect(() => {
+    if (!open && (target || pending.length > 0)) onOpenChange?.(true);
+  }, [open, target, pending.length, onOpenChange]);
+
   // A Refine click on the board puts the cursor where the instruction goes.
   useEffect(() => {
-    if (target) input.current?.focus();
-  }, [target]);
+    if (target && open) input.current?.focus();
+  }, [target, open]);
 
   // Folding or unfolding by hand moves focus to the control that took the
   // pressed one's place: the composer when it opens, the Pip button when it folds.

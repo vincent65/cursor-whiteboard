@@ -484,3 +484,41 @@ test("the header names only the states that need a look", async () => {
   expect(status).not.toHaveClass("sr-only");
   expect(status).toHaveTextContent("Needs you");
 });
+
+test("a folded panel opens itself for a permission ask, and folds from its Hide button back to the Pip button", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.agentState).mockResolvedValue(state({ status: "idle" }));
+  const onOpenChange = vi.fn();
+  const { rerender } = render(
+    <SelectionProvider>
+      <ClaudePanel onBoard open={false} onOpenChange={onOpenChange} />
+    </SelectionProvider>,
+  );
+  const launcher = await screen.findByRole("button", {
+    name: "Show Claude panel",
+  });
+  expect(onOpenChange).not.toHaveBeenCalled();
+  emit({
+    type: "agent.event",
+    event: {
+      kind: "permission",
+      id: "p1",
+      tool: "Bash",
+      summary: "running ls",
+      canAlways: false,
+      at,
+    },
+  });
+  expect(onOpenChange).toHaveBeenLastCalledWith(true);
+
+  // Opened by hand, the composer takes focus; folded by hand, the Pip button does.
+  await user.click(launcher);
+  rerender(
+    <SelectionProvider>
+      <ClaudePanel onBoard open onOpenChange={onOpenChange} floating />
+    </SelectionProvider>,
+  );
+  expect(screen.getByRole("textbox", { name: "Message Claude" })).toHaveFocus();
+  await user.keyboard("{Escape}");
+  expect(onOpenChange).toHaveBeenLastCalledWith(false);
+});
