@@ -7,16 +7,22 @@ export const rebrand = (text: string): string =>
 const ATTRIBUTES = ["title", "aria-label", "placeholder"];
 // Excalidraw's own containers: the editor, its dialogs, and its tooltips.
 const SCOPE = ".excalidraw, .excalidraw-tooltip";
+// Places inside them that show what the user wrote: find results quote canvas
+// text, and the link popup shows a link's address.
+const USER_TEXT =
+  ".layer-ui__search-result-container, .excalidraw-hyperlinkContainer";
+const ours = (el: Element | null | undefined): boolean =>
+  !!el?.closest(SCOPE) && !el.closest(USER_TEXT);
 
 function rewrite(node: Node): void {
   if (node.nodeType === Node.TEXT_NODE) {
     const text = node.nodeValue ?? "";
-    if (text.includes("Excalidraw") && node.parentElement?.closest(SCOPE))
+    if (text.includes("Excalidraw") && ours(node.parentElement))
       node.nodeValue = rebrand(text);
     return;
   }
   if (!(node instanceof Element)) return;
-  if (node.closest(SCOPE))
+  if (ours(node))
     for (const name of ATTRIBUTES) {
       const value = node.getAttribute(name);
       if (value?.includes("Excalidraw"))

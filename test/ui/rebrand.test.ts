@@ -29,3 +29,13 @@ test("watchRebrand rewrites Excalidraw's own text and labels, now and later, and
   await Promise.resolve();
   expect(dialog.textContent).toBe("Excalidraw");
 });
+
+test("watchRebrand leaves what the user wrote alone: find results and link addresses", () => {
+  document.body.innerHTML =
+    '<div class="excalidraw"><div class="layer-ui__search-result-container"><span>Excalidraw notes</span></div><div class="excalidraw-hyperlinkContainer"><a class="excalidraw-hyperlinkContainer-link">https://x.dev/Excalidraw</a></div><span>Mermaid to Excalidraw</span></div>';
+  const stop = watchRebrand(document.body);
+  expect(document.body.textContent).toBe(
+    "Excalidraw noteshttps://x.dev/ExcalidrawMermaid to Blueprint",
+  );
+  stop();
+});
