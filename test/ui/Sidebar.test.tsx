@@ -3,8 +3,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Sidebar } from "../../src/ui/nav/Sidebar";
 
-test("lists boards and docs, marks the active one, and creates a board from a prompt", async () => {
-  vi.spyOn(window, "prompt").mockReturnValue("new-board");
+test("lists boards and docs, marks the active one, and creates a board from its name field", async () => {
+  const user = userEvent.setup();
   const onCreateBoard = vi.fn();
   render(
     <Sidebar
@@ -23,13 +23,16 @@ test("lists boards and docs, marks the active one, and creates a board from a pr
     "href",
     "#/docs/notes",
   );
-  await userEvent.click(screen.getByRole("button", { name: "New board" }));
+  await user.click(screen.getByRole("button", { name: "New board" }));
+  const field = screen.getByRole("textbox", { name: "New board name" });
+  expect(field).toHaveFocus();
+  await user.type(field, "new-board{Enter}");
   expect(onCreateBoard).toHaveBeenCalledWith("new-board");
+  expect(screen.queryByRole("textbox", { name: "New board name" })).toBeNull();
 });
 
-test("turns a typed name into a slug and alerts only when none remains", async () => {
-  const prompt = vi.spyOn(window, "prompt");
-  const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+test("turns a typed name into a slug, says so inline when none remains, and cancels on Escape", async () => {
+  const user = userEvent.setup();
   const onCreateDoc = vi.fn();
   render(
     <Sidebar
@@ -40,22 +43,28 @@ test("turns a typed name into a slug and alerts only when none remains", async (
       onCreateDoc={onCreateDoc}
     />,
   );
-  const create = () =>
-    userEvent.click(screen.getByRole("button", { name: "New doc" }));
-  prompt.mockReturnValue("My Board");
-  await create();
+  expect(screen.getByText("No docs yet")).toBeInTheDocument();
+  const create = async (typed: string) => {
+    await user.click(screen.getByRole("button", { name: "New doc" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "New doc name" }),
+      typed,
+    );
+  };
+  await create("My Board{Enter}");
   expect(onCreateDoc).toHaveBeenLastCalledWith("my-board");
-  prompt.mockReturnValue("  --Q3   Plan: v2!! ");
-  await create();
+  await create("  --Q3   Plan: v2!! {Enter}");
   expect(onCreateDoc).toHaveBeenLastCalledWith("q3-plan-v2");
-  expect(alert).not.toHaveBeenCalled();
-  prompt.mockReturnValue("!!!");
-  await create();
-  expect(alert).toHaveBeenCalledOnce();
-  prompt.mockReturnValue(null);
-  await create();
+
+  await create("!!!{Enter}");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Use at least one letter or digit.",
+  );
+  const field = screen.getByRole("textbox", { name: "New doc name" });
+  expect(field).toHaveAttribute("aria-invalid", "true");
+  await user.keyboard("{Escape}");
+  expect(screen.queryByRole("textbox", { name: "New doc name" })).toBeNull();
   expect(onCreateDoc).toHaveBeenCalledTimes(2);
-  expect(alert).toHaveBeenCalledOnce();
 });
 
 test("the sidebar shows Spec, Tasks, and Sessions links", () => {

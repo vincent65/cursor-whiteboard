@@ -64,8 +64,9 @@ const boardElements = (root: string, name: string): Element[] =>
 test("plan, ask, and accept", async ({ page, start }) => {
   const app = await start();
   await page.goto(app.url);
-  page.once("dialog", (d) => d.accept("sign-in"));
   await page.getByRole("button", { name: "New board" }).click();
+  await page.getByRole("textbox", { name: "New board name" }).fill("sign-in");
+  await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/#\/boards\/sign-in$/);
 
   // Right of the properties panel, which covers the board's left 232 px while a tool is

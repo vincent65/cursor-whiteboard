@@ -120,77 +120,181 @@ pre {
   height: 100%;
 }
 
+/* Icon-only controls, such as the sidebar's + buttons. */
+.icon-button {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background-color 120ms var(--ease),
+    color 120ms var(--ease);
+}
+
+.icon-button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.icon-button[aria-current="page"] {
+  background: var(--selected);
+  color: var(--text);
+}
+
+.icon-button:focus-visible {
+  outline-offset: -2px;
+}
+
 .sidebar {
   overflow-y: auto;
-  padding: calc(var(--space) * 2);
+  padding: calc(var(--space) * 1.5) var(--space);
   background: var(--surface);
   border-right: 1px solid var(--border);
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  height: 32px;
+  margin-bottom: calc(var(--space) * 1.5);
+  padding: 0 calc(var(--space) / 2) 0 var(--space);
+}
+
+.brand-mark {
+  flex: none;
+  color: var(--accent);
+}
+
+.brand-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
 .nav-section + .nav-section {
-  margin-top: calc(var(--space) * 3);
+  margin-top: calc(var(--space) * 2.5);
+}
+
+.nav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  margin-bottom: 2px;
 }
 
 .nav-title {
-  margin: 0 0 calc(var(--space) / 2);
+  margin: 0;
   padding: 0 var(--space);
-  font-size: var(--fs-sm);
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 28px;
   color: var(--muted);
 }
 
+.nav-add {
+  width: 24px;
+  height: 24px;
+  margin-right: 2px;
+}
+
 .nav-list {
-  margin: 0 0 calc(var(--space) / 2);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .nav-link {
-  display: block;
-  padding: calc(var(--space) / 2) var(--space);
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  min-height: 30px;
+  padding: 0 var(--space);
   border-radius: var(--radius);
   color: var(--text);
+  font-weight: 500;
   text-decoration: none;
+  transition: background-color 120ms var(--ease);
+}
+
+.nav-icon {
+  flex: none;
+  color: var(--muted);
+}
+
+.nav-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .nav-link:hover {
-  background: var(--border);
+  background: var(--hover);
 }
 
 .nav-link[aria-current="page"] {
-  background: var(--accent-tint);
-  color: var(--accent);
+  background: var(--selected);
   font-weight: 600;
 }
 
-.nav-create {
-  width: 100%;
-  padding: calc(var(--space) / 2) var(--space);
-  border: 0;
-  border-radius: var(--radius);
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.nav-create::before {
-  content: "+ ";
-}
-
-.nav-create:hover {
-  background: var(--border);
+.nav-link[aria-current="page"] .nav-icon {
   color: var(--text);
 }
 
-.nav-link:focus-visible,
-.nav-create:focus-visible {
-  outline: 2px solid var(--accent);
+.nav-link:focus-visible {
   outline-offset: -2px;
+}
+
+/* The name field a + opens: a nav row with an input in it. */
+.nav-input-wrap {
+  background: var(--bg);
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-input-wrap:focus-within {
+  box-shadow:
+    0 0 0 2px var(--accent-tint),
+    0 0 0 1px var(--accent) inset;
+}
+
+.nav-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+}
+
+.nav-input::placeholder {
+  color: var(--faint);
+}
+
+.nav-error {
+  margin: calc(var(--space) / 2) var(--space) 0;
+  font-size: var(--fs-xs);
+  color: var(--danger);
+}
+
+.nav-none {
+  padding: calc(var(--space) / 2) var(--space);
+  font-size: var(--fs-sm);
+  color: var(--faint);
 }
 
 .main {
