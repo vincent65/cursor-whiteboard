@@ -5,6 +5,7 @@ import { BoardView } from "./board/BoardView";
 import { DocView } from "./docs/DocView";
 import { EmptyState } from "./EmptyState";
 import { useHashRoute } from "./hooks/useHashRoute";
+import { usePaneOpen } from "./hooks/usePaneOpen";
 import { Sidebar } from "./nav/Sidebar";
 import { ClaudePanel } from "./panel/ClaudePanel";
 import { RefineProvider } from "./panel/refine";
@@ -38,6 +39,10 @@ function Shell() {
   const [docs, setDocs] = useState<string[]>([]);
   // The sidebar list whose name field is open, so the welcome page can open it.
   const [creating, setCreating] = useState<"board" | "doc" | null>(null);
+  // Narrow windows start with the rail and the panel folded, so Excalidraw's
+  // toolbar has room on the board.
+  const [railOpen, setRailOpen] = usePaneOpen("(min-width: 1100px)");
+  const [panelOpen, setPanelOpen] = usePaneOpen("(min-width: 860px)");
 
   const refresh = useCallback(async () => {
     const [b, d] = await Promise.all([api.listBoards(), api.listDocs()]);
@@ -78,9 +83,17 @@ function Shell() {
   // The sessions view takes the panel's room too; the panel stays mounted, so
   // a half-typed message survives the visit.
   const wide = route?.kind === "sessions";
+  const shell = [
+    "shell",
+    wide && "shell-wide",
+    !railOpen && "shell-rail-closed",
+    !panelOpen && "shell-panel-closed",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div className={wide ? "shell shell-wide" : "shell"}>
+    <div className={shell}>
       <Sidebar
         boards={boards ?? []}
         docs={docs}
@@ -89,6 +102,8 @@ function Shell() {
         onCreateDoc={create("doc")}
         creating={creating}
         onCreatingChange={setCreating}
+        collapsed={!railOpen}
+        onCollapsedChange={(c) => setRailOpen(!c)}
       />
       <main className="main">
         {route?.kind === "board" && (
@@ -118,7 +133,10 @@ function Shell() {
               <button
                 type="button"
                 className="button button-primary"
-                onClick={() => setCreating("board")}
+                onClick={() => {
+                  setRailOpen(true);
+                  setCreating("board");
+                }}
               >
                 Create your first board
               </button>
@@ -143,7 +161,11 @@ function Shell() {
         )}
       </main>
       <aside className="right-pane" hidden={wide}>
-        <ClaudePanel onBoard={route?.kind === "board"} />
+        <ClaudePanel
+          onBoard={route?.kind === "board"}
+          open={panelOpen}
+          onOpenChange={setPanelOpen}
+        />
       </aside>
     </div>
   );

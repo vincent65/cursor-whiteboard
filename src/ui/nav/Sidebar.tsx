@@ -4,6 +4,8 @@ import {
   FileText,
   ListChecks,
   type LucideIcon,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   ScrollText,
   Shapes,
@@ -159,6 +161,8 @@ export function Sidebar({
   onCreateDoc,
   creating = null,
   onCreatingChange,
+  collapsed = false,
+  onCollapsedChange,
 }: {
   boards: string[];
   docs: string[];
@@ -168,17 +172,76 @@ export function Sidebar({
   // The list whose name field is open; owned by the caller so a page can open it.
   creating?: Kind | null;
   onCreatingChange?(kind: Kind | null): void;
+  collapsed?: boolean;
+  onCollapsedChange?(collapsed: boolean): void;
 }) {
   // Uncontrolled when the caller does not own the name field.
   const [ownCreating, setOwnCreating] = useState<Kind | null>(null);
   const open = onCreatingChange ? creating : ownCreating;
   const setOpen = onCreatingChange ?? setOwnCreating;
 
+  if (collapsed)
+    return (
+      <nav className="sidebar sidebar-collapsed" aria-label="Plan files">
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Expand sidebar"
+          title="Expand sidebar"
+          onClick={() => onCollapsedChange?.(false)}
+        >
+          <PanelLeftOpen size={18} aria-hidden="true" />
+        </button>
+        <span className="rail-rule" />
+        {PLAN.map(([kind, label, Icon]) => (
+          <a
+            key={kind}
+            className="icon-button"
+            href={`#/${kind}`}
+            aria-label={label}
+            title={label}
+            aria-current={active?.kind === kind ? "page" : undefined}
+          >
+            <Icon size={18} aria-hidden="true" />
+          </a>
+        ))}
+        <span className="rail-rule" />
+        {(["board", "doc"] as const).map((kind) => {
+          const Icon = ICON[kind];
+          const label = kind === "board" ? "Boards" : "Docs";
+          return (
+            <button
+              key={kind}
+              type="button"
+              className="icon-button"
+              aria-label={label}
+              title={label}
+              aria-current={active?.kind === kind ? "page" : undefined}
+              onClick={() => onCollapsedChange?.(false)}
+            >
+              <Icon size={18} aria-hidden="true" />
+            </button>
+          );
+        })}
+      </nav>
+    );
+
   return (
     <nav className="sidebar" aria-label="Plan files">
       <div className="brand">
         <DraftingCompass className="brand-mark" size={18} aria-hidden="true" />
         <span className="brand-name">Blueprint</span>
+        {onCollapsedChange && (
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+            onClick={() => onCollapsedChange(true)}
+          >
+            <PanelLeftClose size={16} aria-hidden="true" />
+          </button>
+        )}
       </div>
       <section className="nav-section">
         <h2 className="nav-title">Plan</h2>

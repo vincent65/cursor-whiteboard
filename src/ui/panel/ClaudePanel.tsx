@@ -1,4 +1,9 @@
-import { ArrowUp, Sparkles } from "lucide-react";
+import {
+  ArrowUp,
+  PanelRightClose,
+  PanelRightOpen,
+  Sparkles,
+} from "lucide-react";
 import {
   type KeyboardEvent,
   useEffect,
@@ -42,7 +47,17 @@ const SUGGESTIONS = [
 ];
 
 // onBoard: a board is the open route, so "this board" means something.
-export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
+// open: false folds the panel to a strip; it stays mounted, so a half-typed
+// message and the transcript survive.
+export function ClaudePanel({
+  onBoard,
+  open = true,
+  onOpenChange,
+}: {
+  onBoard: boolean;
+  open?: boolean;
+  onOpenChange?(open: boolean): void;
+}) {
   const [items, setItems] = useState<TranscriptItem[]>([]);
   const [status, setStatus] = useState<Status>({ status: "starting" });
   const [pending, setPending] = useState<PendingPermission[]>([]);
@@ -176,133 +191,164 @@ export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
   };
 
   return (
-    <section className="panel" aria-label="Claude">
-      <header className="panel-header">
-        <h2 className="panel-title">Claude</h2>
-        <span
-          role="status"
-          className="status"
-          data-status={status.status}
-          title={statusText(status)}
-        >
-          {statusText(status)}
-        </span>
-        <button
-          type="button"
-          className="button"
-          disabled={status.status === "starting"}
-          onClick={compile}
-        >
-          Compile
-        </button>
-        <button
-          type="button"
-          className="button button-quiet"
-          disabled={!busy || stopping}
-          onClick={stop}
-        >
-          {stopping ? "Stopping…" : "Stop"}
-        </button>
-      </header>
-      <div className="transcript" ref={transcript} onScroll={onScroll}>
-        {empty ? (
-          <div className="panel-empty">
-            <span className="empty-icon" aria-hidden="true">
-              <Sparkles size={20} strokeWidth={1.75} />
-            </span>
-            <h3 className="empty-title">Ask Claude about your plan</h3>
-            <p className="empty-body">
-              {onBoard
-                ? "Select shapes to ask about them. Anything Claude draws arrives as dashed shapes you accept, reject, or refine."
-                : "Claude reads your boards and docs. Open a board to ask about the shapes you select."}
-            </p>
-            <ul className="suggestions" aria-label="Suggestions">
-              {(onBoard ? BOARD_SUGGESTIONS : SUGGESTIONS).map((prompt) => (
-                <li key={prompt}>
-                  <button
-                    type="button"
-                    className="suggestion"
-                    disabled={status.status === "starting"}
-                    onClick={() => suggest(prompt)}
-                  >
-                    {prompt}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <TranscriptList items={items} />
-        )}
-      </div>
-      {ask && (
-        <PermissionDialog key={ask.id} ask={ask} onDecide={decide(ask.id)} />
-      )}
-      {failure && (
-        <p role="alert" className="panel-failure">
-          {failure}
-        </p>
-      )}
-      <div className="composer">
-        {(target || (selection && selection.ids.length > 0)) && (
-          <div className="chips">
-            {target && (
-              <span className="chip chip-refine">
-                <span className="chip-label">
-                  Refining {target.title ?? "the proposal"}
-                </span>
-                <button
-                  type="button"
-                  className="chip-clear"
-                  aria-label="Clear refine"
-                  onClick={() => {
-                    setTarget(null);
-                    input.current?.focus();
-                  }}
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            {selection && selection.ids.length > 0 && (
-              <span className="chip">
-                {selection.ids.length} selected: {selection.labels.join(", ")}
-              </span>
-            )}
-          </div>
-        )}
-        <div className="composer-box">
-          <textarea
-            ref={input}
-            aria-label="Message Claude"
-            placeholder={
-              onBoard
-                ? "Ask Claude anything about this board"
-                : "Ask Claude anything"
-            }
-            rows={2}
-            value={text}
-            disabled={status.status === "starting"}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={onKeyDown}
+    <>
+      {!open && (
+        <div className="panel-strip">
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Show Claude panel"
+            title="Show Claude panel"
+            onClick={() => onOpenChange?.(true)}
+          >
+            <PanelRightOpen size={18} aria-hidden="true" />
+          </button>
+          <span
+            className="status status-dot"
+            data-status={status.status}
+            title={statusText(status)}
           />
-          <div className="composer-foot">
-            <span className="composer-hint">
-              Enter to send, Shift+Enter for a new line
-            </span>
+        </div>
+      )}
+      <section className="panel" aria-label="Claude" hidden={!open}>
+        <header className="panel-header">
+          <h2 className="panel-title">Claude</h2>
+          <span
+            role="status"
+            className="status"
+            data-status={status.status}
+            title={statusText(status)}
+          >
+            {statusText(status)}
+          </span>
+          <button
+            type="button"
+            className="button"
+            disabled={status.status === "starting"}
+            onClick={compile}
+          >
+            Compile
+          </button>
+          <button
+            type="button"
+            className="button button-quiet"
+            disabled={!busy || stopping}
+            onClick={stop}
+          >
+            {stopping ? "Stopping…" : "Stop"}
+          </button>
+          {onOpenChange && (
             <button
               type="button"
-              className="send-button"
-              aria-label="Send"
-              title="Send"
-              disabled={!text.trim() || status.status === "starting"}
-              onClick={() => void send()}
+              className="icon-button"
+              aria-label="Hide Claude panel"
+              title="Hide Claude panel"
+              onClick={() => onOpenChange(false)}
             >
-              <ArrowUp size={16} strokeWidth={2.25} aria-hidden="true" />
+              <PanelRightClose size={16} aria-hidden="true" />
             </button>
+          )}
+        </header>
+        <div className="transcript" ref={transcript} onScroll={onScroll}>
+          {empty ? (
+            <div className="panel-empty">
+              <span className="empty-icon" aria-hidden="true">
+                <Sparkles size={20} strokeWidth={1.75} />
+              </span>
+              <h3 className="empty-title">Ask Claude about your plan</h3>
+              <p className="empty-body">
+                {onBoard
+                  ? "Select shapes to ask about them. Anything Claude draws arrives as dashed shapes you accept, reject, or refine."
+                  : "Claude reads your boards and docs. Open a board to ask about the shapes you select."}
+              </p>
+              <ul className="suggestions" aria-label="Suggestions">
+                {(onBoard ? BOARD_SUGGESTIONS : SUGGESTIONS).map((prompt) => (
+                  <li key={prompt}>
+                    <button
+                      type="button"
+                      className="suggestion"
+                      disabled={status.status === "starting"}
+                      onClick={() => suggest(prompt)}
+                    >
+                      {prompt}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <TranscriptList items={items} />
+          )}
+        </div>
+        {ask && (
+          <PermissionDialog key={ask.id} ask={ask} onDecide={decide(ask.id)} />
+        )}
+        {failure && (
+          <p role="alert" className="panel-failure">
+            {failure}
+          </p>
+        )}
+        <div className="composer">
+          {(target || (selection && selection.ids.length > 0)) && (
+            <div className="chips">
+              {target && (
+                <span className="chip chip-refine">
+                  <span className="chip-label">
+                    Refining {target.title ?? "the proposal"}
+                  </span>
+                  <button
+                    type="button"
+                    className="chip-clear"
+                    aria-label="Clear refine"
+                    onClick={() => {
+                      setTarget(null);
+                      input.current?.focus();
+                    }}
+                  >
+                    ×
+                  </button>
+                </span>
+              )}
+              {selection && selection.ids.length > 0 && (
+                <span className="chip">
+                  {selection.ids.length} selected: {selection.labels.join(", ")}
+                </span>
+              )}
+            </div>
+          )}
+          <div className="composer-box">
+            <textarea
+              ref={input}
+              aria-label="Message Claude"
+              placeholder={
+                onBoard
+                  ? "Ask Claude anything about this board"
+                  : "Ask Claude anything"
+              }
+              rows={2}
+              value={text}
+              disabled={status.status === "starting"}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={onKeyDown}
+            />
+            <div className="composer-foot">
+              <span className="composer-hint">
+                Enter to send, Shift+Enter for a new line
+              </span>
+              <button
+                type="button"
+                className="send-button"
+                aria-label="Send"
+                title="Send"
+                disabled={!text.trim() || status.status === "starting"}
+                onClick={() => void send()}
+              >
+                <ArrowUp size={16} strokeWidth={2.25} aria-hidden="true" />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </>
   );
 }

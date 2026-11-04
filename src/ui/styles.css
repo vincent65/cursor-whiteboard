@@ -68,10 +68,11 @@
 
   --rail-width: 240px;
   --pane-width: 360px;
+  --strip-width: 48px;
 }
 
-/* Below 1360 px the rail and panel narrow so the board stays at least 730 px
-   wide, where Excalidraw keeps its desktop layout: 760 px at 1280. */
+/* Below 1360 px the rail and panel narrow; below 1100 and 860 they fold to
+   strips (App), so the board keeps room for Excalidraw's toolbar. */
 @media (max-width: 1359px) {
   :root {
     --rail-width: 200px;
@@ -120,7 +121,15 @@ pre {
   height: 100%;
 }
 
-/* Icon-only controls, such as the sidebar's + buttons. */
+.shell-rail-closed {
+  --rail-width: var(--strip-width);
+}
+
+.shell-panel-closed {
+  --pane-width: var(--strip-width);
+}
+
+/* Icon-only controls: the sidebar's + and fold buttons, the panel's fold. */
 .icon-button {
   display: inline-grid;
   flex: none;
@@ -159,6 +168,22 @@ pre {
   border-right: 1px solid var(--border);
 }
 
+.sidebar-collapsed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--space) / 2);
+  padding: calc(var(--space) * 1.5) 0;
+  overflow: hidden;
+}
+
+.rail-rule {
+  width: 20px;
+  height: 1px;
+  margin: calc(var(--space) / 2) 0;
+  background: var(--border-strong);
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -178,6 +203,15 @@ pre {
   min-width: 0;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+.brand .icon-button {
+  opacity: 0;
+}
+
+.sidebar:hover .brand .icon-button,
+.brand .icon-button:focus-visible {
+  opacity: 1;
 }
 
 .nav-section + .nav-section {
@@ -418,6 +452,10 @@ pre {
   height: 100%;
 }
 
+.panel[hidden] {
+  display: none;
+}
+
 .panel-header {
   display: flex;
   align-items: center;
@@ -427,10 +465,25 @@ pre {
   border-bottom: 1px solid var(--border);
 }
 
+.panel-header > .icon-button:last-child {
+  margin-left: calc(var(--space) / 2);
+}
+
 .panel-title {
   margin: 0;
   font-size: var(--fs-md);
   font-weight: 600;
+}
+
+/* The folded panel: a strip with the reopen button and the session's dot. */
+.panel-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space);
+  height: 100%;
+  padding: calc(var(--space) * 1.5) 0;
+  background: var(--surface);
 }
 
 /* The status strip: a dot and a word, the dot's color from the status tokens. */
@@ -455,6 +508,16 @@ pre {
   height: 7px;
   border-radius: var(--radius-pill);
   background: var(--border-strong);
+}
+
+.status-dot {
+  flex: none;
+  margin: 0;
+  line-height: 0;
+}
+
+.status-dot::before {
+  margin: 0;
 }
 
 .panel-header .button {
@@ -1504,4 +1567,9 @@ pre {
 
 .launch-dialog .plan-error {
   padding: 0;
+}
+
+/* Excalidraw's phone footer stands taller, so the bar clears it. */
+.board:has(.excalidraw--mobile) .proposals-bar {
+  bottom: 76px;
 }

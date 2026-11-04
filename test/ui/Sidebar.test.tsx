@@ -82,6 +82,28 @@ test("a name field the caller opens shows in its list", () => {
   expect(screen.getByRole("textbox", { name: "New board name" })).toHaveFocus();
 });
 
+test("folded, the sidebar keeps icon links to the plan pages and can expand", async () => {
+  const onCollapsedChange = vi.fn();
+  render(
+    <Sidebar
+      boards={["main"]}
+      docs={[]}
+      active={{ kind: "spec" }}
+      onCreateBoard={() => {}}
+      onCreateDoc={() => {}}
+      collapsed
+      onCollapsedChange={onCollapsedChange}
+    />,
+  );
+  expect(screen.getByRole("link", { name: "Spec" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(screen.queryByRole("link", { name: "main" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Boards" }));
+  expect(onCollapsedChange).toHaveBeenCalledWith(false);
+});
+
 test("the sidebar shows Spec, Tasks, and Sessions links", () => {
   render(
     <Sidebar
