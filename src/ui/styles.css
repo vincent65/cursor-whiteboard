@@ -756,34 +756,45 @@ pre {
   max-width: 280px;
 }
 
+/* Starting prompts: small grey pills, quieter than the text above them, that
+   wrap and centre under a faint "Try" label. */
 .suggestions {
   display: flex;
-  flex-direction: column;
-  gap: calc(var(--space) / 2);
-  width: 100%;
-  margin: calc(var(--space) * 1.5) 0 0;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(var(--space) * 0.75);
+  margin: calc(var(--space) * 2) 0 0;
   padding: 0;
   list-style: none;
 }
 
+.suggestions-label {
+  margin: calc(var(--space) * 2) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--faint);
+}
+
+.suggestions-label + .suggestions {
+  margin-top: 0;
+}
+
 .suggestion {
-  width: 100%;
-  padding: calc(var(--space) * 0.75) calc(var(--space) * 1.5);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--bg);
-  color: var(--text);
+  padding: calc(var(--space) / 2) calc(var(--space) * 1.25);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
   font: inherit;
-  text-align: left;
+  font-size: var(--fs-sm);
   cursor: pointer;
   transition:
     background-color 120ms var(--ease),
-    border-color 120ms var(--ease);
+    color 120ms var(--ease);
 }
 
 .suggestion:hover {
-  border-color: var(--border-strong);
-  background: var(--surface);
+  background: var(--selected);
+  color: var(--text);
 }
 
 .suggestion:disabled {

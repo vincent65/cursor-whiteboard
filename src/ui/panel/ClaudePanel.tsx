@@ -253,6 +253,9 @@ export function ClaudePanel({
                   ? "Select shapes to ask about them. Anything Claude draws arrives as dashed shapes you accept, reject, or refine."
                   : "Claude reads your boards and docs. Open a board to ask about the shapes you select."}
               </p>
+              <p className="suggestions-label" aria-hidden="true">
+                Try
+              </p>
               <ul className="suggestions" aria-label="Suggestions">
                 {(onBoard ? BOARD_SUGGESTIONS : SUGGESTIONS).map((prompt) => (
                   <li key={prompt}>
