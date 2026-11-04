@@ -38,6 +38,7 @@ import {
 } from "./ghosts";
 import { renderMermaid, renderNode, renderNote } from "./mermaid";
 import { ProposalsBar } from "./ProposalsBar";
+import { watchRebrand } from "./rebrand";
 import {
   filesWithDataUrls,
   type PersistedKey,
@@ -229,6 +230,8 @@ export function BoardView({
   const reported = useRef<{ ids: string[]; labels: string[] } | null>(null);
   const send = useSendToServer();
   const setSelection = useSetSelection();
+  // Excalidraw's own strings that name it say Blueprint, here and in its dialogs.
+  useEffect(() => watchRebrand(document.body), []);
   // Saves not yet answered, so the watcher echoing one is not a disk change.
   const inFlight = useRef(new Set<SaveState>());
   // Saves run one at a time so a slow write cannot land after a newer one.
