@@ -137,6 +137,16 @@ pre {
   --pane-width: 0px;
 }
 
+/* What covers the board's right edge: the Pip button while the panel is
+   folded, the panel while it floats. The proposals bar centers clear of it. */
+.shell-panel-closed {
+  --bar-right: 72px;
+}
+
+.shell-panel-overlay {
+  --bar-right: 360px;
+}
+
 /* Icon-only controls: the sidebar's + and fold buttons, the panel's fold. */
 .icon-button {
   display: inline-grid;
@@ -1236,14 +1246,24 @@ pre {
   position: absolute;
   /* Above Excalidraw's footer (zoom, undo, help), which spans 16px to 52px. */
   bottom: 64px;
-  /* Centered in the board right of the properties panel, which --bar-inset covers. */
-  left: calc(50% + var(--bar-inset, 0px) / 2);
+  /* Centered between the properties panel (--bar-inset) and whatever covers
+     the board's right edge (--bar-right). */
+  left: calc(50% + (var(--bar-inset, 0px) - var(--bar-right, 0px)) / 2);
   z-index: 10;
   display: flex;
   flex-direction: column;
   gap: var(--space);
-  max-width: calc(100% - var(--bar-inset, 0px) - var(--space) * 2);
+  max-width: calc(
+    100% -
+    var(--bar-inset, 0px) -
+    var(--bar-right, 0px) -
+    var(--space) *
+    2
+  );
   padding: var(--space) var(--space) var(--space) calc(var(--space) * 2);
+  /* Sized to its content: from left: 50% it would otherwise shrink to the
+     board's right half and cut its summary short. */
+  width: max-content;
   transform: translateX(-50%);
   background: var(--bg);
   border: 1.5px dashed var(--ghost);

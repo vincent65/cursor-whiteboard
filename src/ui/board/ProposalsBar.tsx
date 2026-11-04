@@ -29,11 +29,11 @@ export function ProposalsBar(props: {
     >
       {props.items.map(({ id, title, counts, busy }) => (
         <div className="proposals-row" key={id}>
-          <span className="proposals-text">
-            {[`Claude proposed ${title ?? "changes"}`, summary(counts)]
+          <ProposalText
+            text={[`Claude proposed ${title ?? "changes"}`, summary(counts)]
               .filter(Boolean)
               .join(" · ")}
-          </span>
+          />
           <button
             type="button"
             disabled={busy}
@@ -61,5 +61,15 @@ export function ProposalsBar(props: {
         </div>
       ))}
     </div>
+  );
+}
+
+// Squeezed beside the properties panel the summary can be cut short, so its
+// tooltip holds the whole of it.
+function ProposalText({ text }: { text: string }) {
+  return (
+    <span className="proposals-text" title={text}>
+      {text}
+    </span>
   );
 }
