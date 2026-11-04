@@ -82,35 +82,64 @@ Hover and press changes ease over 120ms with `--ease`.
 
 The layout is built for a window at least 1280 by 800.
 From 1360 px wide the rail is 240px and the Claude panel 360px; below that they narrow to 200px and 320px, so at 1280 the board is 760px wide.
-Excalidraw keeps its desktop toolbar only while the board is at least 730px wide, and its phone toolbar needs about 480px, so narrower windows fold the side columns into 48px strips: the rail below 1100px and the panel below 860px.
+Excalidraw keeps its desktop toolbar only while the board is at least 730px wide, so narrower windows fold the side columns into 48px strips: the rail below 1250px and the panel below 1100px.
+When the board still drops under 730px, in a window under about 830px or with a column opened by hand, Excalidraw's phone layout puts its undo and redo in a bar across the bottom; Blueprint stacks them in a small column at the board's left edge instead, under the tools, and the proposals bar moves down to the board's foot.
 Either side can also be folded or opened by hand, from the button in its header or strip; that choice holds until the window crosses its breakpoint again.
-The folded panel stays mounted, so a half-typed message and the transcript survive, and its strip shows the session's status dot.
+The folded rail is an icon strip; the folded panel takes no column at all and is a round 56px Pip button floating over the board's bottom-right corner, where Pip hops while Claude works.
+A side opened by hand in a narrow window floats over the board's edge, sliding in over 180ms, instead of taking a column, so the board and Excalidraw's toolbar never move under the pointer.
+The folded panel stays mounted, so a half-typed message and the transcript survive.
 
 ## Components
 
 ### Sidebar
 
-The rail opens with the Blueprint mark and name; its fold button appears when the pointer is over the rail.
+The rail opens with Pip and the Blueprint name, with its fold button always at the right.
 Each row is a Lucide icon at 16px in `--muted` and a label, 30px tall, on `--hover` under the pointer and `--selected` with a 600 weight when it is the open page.
-Spec, Tasks, and Sessions sit under Plan, then Boards and Docs, each section name with a `+` icon button on its right.
+Spec, Tasks, and Sessions sit under Plan, then Boards and Documents, each section name with a `+` icon button on its right.
 The `+` opens a name field at the top of its list instead of a browser prompt: Enter creates, Escape or leaving it empty cancels, and a name with no letter or digit says so in `--danger` under the field.
-An empty list reads "No boards yet" or "No docs yet" in `--faint`.
-Folded, the rail is a strip of the same icons, with Boards and Docs opening the rail.
+An empty list reads "No boards yet" or "No documents yet" in `--faint`.
+The interface always says "document" in full; routes and files keep the short `doc`.
+Folded, the rail is a strip of the same icons, with Boards and Documents opening the rail.
 
 ### Empty states
 
-Every page that can be empty uses one component, [`src/ui/EmptyState.tsx`](src/ui/EmptyState.tsx): a 40px icon tile, a title in `--fs-lg`, a short description in `--muted` that says what the page is for, and the one step that fills it.
+Every page that can be empty uses one component, [`src/ui/EmptyState.tsx`](src/ui/EmptyState.tsx): a title in `--fs-lg`, a short description in `--muted` that says what the page is for, and the one step that fills it, with no icon.
 It sits centred in the page, a little above the middle, so the welcome page, the spec, the tasks, and the sessions read the same.
 The first run gets a welcome page with three numbered steps and Create your first board, which opens the sidebar's name field.
-The Claude panel's own empty state names what Claude can do here and offers two or three starting prompts; a click puts one in the composer rather than sending it.
+The Claude panel's own empty state names what Claude can do here and offers two or three starting prompts as small grey pills under a faint Try label, quieter than the text above them; a click puts one in the composer rather than sending it.
 
 ### Composer and transcript
 
-The composer is a white card with a `--radius-xl` corner, a 2-line field, and a footer with the Enter hint and a round Send button, which is `--accent` when there is something to send.
+The composer is a white card with a `--radius-xl` corner, a 2-line field, and a round Send button at its foot, which is `--accent` when there is something to send; Enter sends and Shift+Enter starts a new line, without a hint to say so.
+While Claude works the button becomes Stop, in ink with a square; Enter still queues a message.
 On focus the card's edge turns `--accent` with an `--accent-tint` halo.
 The placeholder is "Ask Claude anything", or "Ask Claude anything about this board" on a board, in `--faint`.
 Your messages are `--bubble` grey with ink text, Claude's are plain text, and tool activity is a run of small `--muted` rows set close together, each led by a 14px icon: a dot for a call, a check for a result, and a red cross for a failure.
 A turn ends with its cost in `--faint` followed by a hairline, so turns read as sections.
+While a turn runs, a live row sits at its foot: Pip hopping, a label that shimmers from `--muted` to `--ai`, and the turn's running time in `--faint`, as 9s, 4m 30s, or 1h 5m.
+The label is the tool that is running, such as "Reading the board…", or a drafting verb that changes every four seconds, such as "Sketching…" or "Squaring the corners…".
+With reduced motion set, Pip and the label hold still.
+
+### Pip
+
+Pip is Blueprint's mascot and mark: a little sheet of blueprint paper in `--ghost` with a folded corner, a faint white grid, dark `--accent` dot eyes, pink cheeks, and a small smile, drawn by [`src/ui/Pip.tsx`](src/ui/Pip.tsx).
+It is the sidebar's logo and the favicon, blinks every few seconds, and hops while Claude works: a crouch, a leap of about a quarter of its height, and a squash on landing.
+With reduced motion set it neither blinks nor hops.
+
+### Excalidraw's chrome
+
+Excalidraw's toolbar, properties panel, menus, dialogs, zoom, and undo take Blueprint's type and colors through Excalidraw's own CSS variables, set at the end of `styles.css`: Inter, warm greys for its lavender surfaces, and Prussian blue for its violet, with `--accent-tint` behind the selected tool and option.
+Its icons, in the toolbar, the More tools menu, and the zoom and undo buttons, are drawn over with Lucide icons at 20px by [`src/ui/board/icons.css`](src/ui/board/icons.css), which `scripts/board-icons.mjs` generates; Excalidraw keeps the buttons and their behavior.
+More tools lists the frame and laser pointer first, then Web Embed, then Generate with its Mermaid import; menu icons are 16px.
+The properties panel has a lighter lift (`0 2px 6px` at 5 percent), no scrollbar, and no Sloppiness section.
+Its color presets are Blueprint's own, through a pnpm patch to Excalidraw (`patches/`): ink `#1e1e1e`, Prussian `#1d4f8c`, green `#448361`, orange `#d9730d`, and red `#d44c47` for strokes, and transparent with soft blue, green, yellow, and red tints for fills.
+The same patch steps opacity by 1 percent; the slider fills in Prussian blue with a 14px ring thumb and its value as a percentage at its right end.
+The selection outline is `#3b7ddd`, a brighter blue than the ink, so it reads as interface rather than drawing.
+Moving a shape snaps it to line up with its neighbors, and a rotation of one shape that ends within 5 degrees of a quarter turn lands on it ([`src/ui/board/snap.ts`](src/ui/board/snap.ts)).
+Where Excalidraw's own strings name it, as in "Mermaid to Excalidraw", [`src/ui/board/rebrand.ts`](src/ui/board/rebrand.ts) rewrites them to say Blueprint, in the editor and in its dialogs and tooltips; nothing outside Excalidraw's containers is touched.
+The tools drop their number badges, since each tooltip still names its shortcut.
+Blueprint keeps boards itself and is not Excalidraw, so Excalidraw's main menu, its Library of excalidraw.com shapes, and its Help button are hidden, and its file actions (open, save to a file, reset) and theme switch are turned off; find (Cmd+F) and image export (Cmd+Shift+E) still work.
+The help dialog that `?` still opens leaves out its links to Excalidraw's docs and socials and is at most 760px wide, with its keys set as grey keycaps in Cascadia Code.
 
 ### Ghost styling and the proposals bar
 
@@ -136,9 +165,9 @@ The same component appears in the panel, inset from its edges, and in a run card
 
 ### Status strip
 
-The panel header pairs the title with a dot and a word.
-Idle is `--ok`, Working is `--ai` and pulses gently unless reduced motion is set, Needs you is `--warn` in bold, and Error is `--danger`.
-Starting and Stopped have a neutral dot.
+The panel header pairs the title with a dot and a word, but only for the states that need a look: Needs you is `--warn` in bold, Error is `--danger`, and Starting and Stopped have a neutral dot.
+Idle goes without saying and Working has the transcript's live row, so for those the word is kept for screen readers only.
+The folded panel's Pip button names the state in its tooltip and hops while Claude works.
 
 ### Run cards
 

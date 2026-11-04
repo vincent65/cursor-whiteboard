@@ -1,7 +1,7 @@
 # Blueprint
 
 Blueprint is a local planning whiteboard that runs beside Claude Code in one of your repositories and opens in your browser.
-You plan on Excalidraw boards and in Markdown docs, ask Claude from a panel beside the board, and accept, reject, or refine the shapes it proposes before they become part of the board.
+You plan on whiteboards and in Markdown documents, ask Claude from a panel beside the board, and accept, reject, or refine the shapes it proposes before they become part of the board.
 When the plan is ready, Blueprint compiles it into a spec and tasks that cite the board, launches one Claude Code session per task in its own git worktree, and shows those sessions on one page where you can watch, message, and stop them.
 
 ![A board with Claude's proposed sign-in flow drawn as dashed ghost shapes beside the Login box, the Accept, Reject, and Refine bar below it, and the Claude panel on the right](docs/design/after-board-proposal.png)
@@ -148,3 +148,7 @@ pnpm demo    # the same flows, recorded into docs/demo/
 
 `pnpm dev` serves the repository you run it in, which is the clone itself.
 The design notes behind the MVP are in [docs/build-plan.md](docs/build-plan.md), and the UI's design system is in [DESIGN.md](DESIGN.md).
+
+## Acknowledgments
+
+Boards are drawn with [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT), and the interface icons are [Lucide](https://lucide.dev) (ISC).
