@@ -1833,38 +1833,6 @@ body .excalidraw .help-icon {
   display: none;
 }
 
-/* More tools lists Web Embed below the drawing tools, not between them: frame,
-   laser pointer, Web Embed, then Generate and its Mermaid import. Web Embed is
-   the menu's second item, and the Mermaid import shares its test id. */
-body .excalidraw .App-toolbar__extra-tools-dropdown .dropdown-menu-container {
-  display: flex;
-  flex-direction: column;
-}
-
-body
-  .excalidraw
-  .App-toolbar__extra-tools-dropdown
-  .dropdown-menu-container
-  > * {
-  order: 2;
-}
-
-body
-  .excalidraw
-  .App-toolbar__extra-tools-dropdown
-  .dropdown-menu-container
-  > :is([data-testid="toolbar-frame"], [data-testid="toolbar-laser"]) {
-  order: 0;
-}
-
-body
-  .excalidraw
-  .App-toolbar__extra-tools-dropdown
-  .dropdown-menu-container
-  > :nth-child(2) {
-  order: 1;
-}
-
 /* The properties panel: a lighter lift, no scrollbar, and no Sloppiness,
    which only changes how rough a shape's lines look. */
 body .excalidraw .App-menu__left {
