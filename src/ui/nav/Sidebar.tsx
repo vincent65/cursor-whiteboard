@@ -1,6 +1,5 @@
 import {
   Bot,
-  DraftingCompass,
   FileText,
   ListChecks,
   type LucideIcon,
@@ -13,6 +12,7 @@ import {
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { slugify } from "../../shared/slug";
 import type { Route } from "../hooks/useHashRoute";
+import { Pip } from "../Pip";
 
 type Kind = "board" | "doc";
 
@@ -231,7 +231,7 @@ export function Sidebar({
   return (
     <nav className="sidebar" aria-label="Plan files">
       <div className="brand">
-        <DraftingCompass className="brand-mark" size={18} aria-hidden="true" />
+        <Pip size={18} />
         <span className="brand-name">Blueprint</span>
         {onCollapsedChange && (
           <button

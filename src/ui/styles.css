@@ -193,11 +193,6 @@ pre {
   padding: 0 calc(var(--space) / 2) 0 var(--space);
 }
 
-.brand-mark {
-  flex: none;
-  color: var(--accent);
-}
-
 .brand-name {
   flex: 1;
   min-width: 0;
@@ -1605,4 +1600,97 @@ pre {
 /* With the phone footer moved, the proposals bar can sit low on the board. */
 .board:has(.excalidraw--mobile) .proposals-bar {
   bottom: calc(var(--space) * 2);
+}
+
+/* Pip: a sheet of blueprint paper in non-photo blue, with a folded corner, a
+   faint grid, and a face in Prussian blue. */
+.pip {
+  flex: none;
+  overflow: visible;
+}
+
+.brand .pip {
+  margin: -2px 0;
+}
+
+.pip-sheet {
+  fill: var(--ghost);
+}
+
+.pip-grid {
+  fill: none;
+  stroke: #ffffff;
+  stroke-opacity: 0.25;
+  stroke-width: 1.25;
+}
+
+.pip-fold {
+  fill: #b9dcf0;
+}
+
+.pip-eye {
+  fill: var(--accent);
+}
+
+.pip-cheek {
+  fill: #f4a3b4;
+}
+
+.pip-smile {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.pip-figure {
+  transform-box: view-box;
+  transform-origin: 32px 56px;
+}
+
+.pip-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Now and then Pip blinks. */
+  .pip-eyes {
+    animation: pip-blink 6s ease-in-out infinite;
+  }
+
+  /* While Claude works Pip hops: a crouch, a leap, and a squash on landing. */
+  .pip-hopping .pip-figure {
+    animation: pip-hop 0.9s cubic-bezier(0.3, 0, 0.2, 1) infinite;
+  }
+}
+
+@keyframes pip-blink {
+  0%,
+  94%,
+  100% {
+    transform: scaleY(1);
+  }
+  97% {
+    transform: scaleY(0.1);
+  }
+}
+
+@keyframes pip-hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  15% {
+    transform: translateY(0) scale(1.08, 0.92);
+  }
+  45% {
+    transform: translateY(-12px) scale(0.95, 1.06);
+  }
+  75% {
+    transform: translateY(0) scale(1.06, 0.94);
+  }
+  88% {
+    transform: translateY(0) scale(1, 1);
+  }
 }
