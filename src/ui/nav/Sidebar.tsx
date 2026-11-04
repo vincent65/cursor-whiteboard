@@ -99,9 +99,18 @@ function NavSection(props: {
   creating: boolean;
   onCreatingChange(creating: boolean): void;
   onCreate(name: string): void;
+  onNavigate?(): void;
 }) {
-  const { title, kind, names, active, creating, onCreatingChange, onCreate } =
-    props;
+  const {
+    title,
+    kind,
+    names,
+    active,
+    creating,
+    onCreatingChange,
+    onCreate,
+    onNavigate,
+  } = props;
   const Icon = ICON[kind];
   return (
     <section className="nav-section">
@@ -132,6 +141,7 @@ function NavSection(props: {
           <li key={name}>
             <a
               className="nav-link"
+              onClick={onNavigate}
               href={`#/${kind}s/${name}`}
               aria-current={
                 active &&
@@ -165,6 +175,7 @@ export function Sidebar({
   onCreatingChange,
   collapsed = false,
   onCollapsedChange,
+  onNavigate,
 }: {
   boards: string[];
   docs: string[];
@@ -176,6 +187,8 @@ export function Sidebar({
   onCreatingChange?(kind: Kind | null): void;
   collapsed?: boolean;
   onCollapsedChange?(collapsed: boolean): void;
+  // A page link was followed, including one to the page already open.
+  onNavigate?(): void;
 }) {
   // Uncontrolled when the caller does not own the name field.
   const [ownCreating, setOwnCreating] = useState<Kind | null>(null);
@@ -252,6 +265,7 @@ export function Sidebar({
             <li key={kind}>
               <a
                 className="nav-link"
+                onClick={onNavigate}
                 href={`#/${kind}`}
                 aria-current={active?.kind === kind ? "page" : undefined}
               >
@@ -270,6 +284,7 @@ export function Sidebar({
         creating={open === "board"}
         onCreatingChange={(on) => setOpen(on ? "board" : null)}
         onCreate={onCreateBoard}
+        onNavigate={onNavigate}
       />
       <NavSection
         title="Documents"
@@ -279,6 +294,7 @@ export function Sidebar({
         creating={open === "doc"}
         onCreatingChange={(on) => setOpen(on ? "doc" : null)}
         onCreate={onCreateDoc}
+        onNavigate={onNavigate}
       />
     </nav>
   );

@@ -170,6 +170,9 @@ pre {
 }
 
 .sidebar {
+  /* A fixed column, so a side floating over the board leaves the board in place. */
+  grid-column: 1;
+  grid-row: 1;
   overflow-y: auto;
   padding: calc(var(--space) * 1.5) var(--space);
   background: var(--surface);
@@ -326,12 +329,18 @@ pre {
 }
 
 .main {
+  /* A fixed column, so a side floating over the board leaves the board in place. */
+  grid-column: 2;
+  grid-row: 1;
   position: relative;
   min-width: 0;
   overflow: auto;
 }
 
 .right-pane {
+  /* A fixed column, so a side floating over the board leaves the board in place. */
+  grid-column: 3;
+  grid-row: 1;
   min-width: 0;
   min-height: 0;
   background: var(--bg);
