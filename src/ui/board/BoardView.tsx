@@ -189,6 +189,19 @@ async function load(board: BoardFile): Promise<Scene> {
   };
 }
 
+// Blueprint saves boards itself, so Excalidraw's own file actions (open, save
+// to a file, reset) and its theme switch stay off; image export stays.
+const UI_OPTIONS = {
+  canvasActions: {
+    loadScene: false,
+    export: false as const,
+    saveToActiveFile: false,
+    clearCanvas: false,
+    changeViewBackgroundColor: false,
+    toggleTheme: null,
+  },
+};
+
 export function BoardView({
   name,
   focus,
@@ -545,6 +558,7 @@ export function BoardView({
             excalidrawAPI={(ex) => {
               excalidraw.current = ex;
             }}
+            UIOptions={UI_OPTIONS}
           />
         </div>
       )}

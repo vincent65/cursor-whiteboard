@@ -1794,6 +1794,16 @@ body .excalidraw {
   --modal-shadow: var(--shadow-float);
 }
 
+/* Blueprint keeps boards itself and is not Excalidraw, so Excalidraw's main
+   menu (open, save, export, reset), its Library of excalidraw.com shapes, and
+   its Help with links to Excalidraw's docs and socials stay hidden. Their
+   keyboard shortcuts, such as Cmd+F to find, still work. */
+body .excalidraw .main-menu-trigger,
+body .excalidraw .default-sidebar-trigger,
+body .excalidraw .help-icon {
+  display: none;
+}
+
 /* The properties panel: a lighter lift, no scrollbar, and no Sloppiness,
    which only changes how rough a shape's lines look. */
 body .excalidraw .App-menu__left {
