@@ -1735,6 +1735,174 @@ pre {
   bottom: calc(var(--space) * 2);
 }
 
+/* Excalidraw's own chrome (toolbar, properties panel, menus, dialogs, zoom and
+   undo) in Blueprint's type and colors: Inter, warm greys in place of its
+   lavender, and Prussian blue in place of its violet. Its variables live on
+   .excalidraw; body .excalidraw outranks them without touching its rules. */
+body .excalidraw,
+.excalidraw-tooltip {
+  --ui-font: var(--font);
+}
+
+body .excalidraw {
+  --color-primary: var(--accent);
+  --color-primary-darker: var(--accent-hover);
+  --color-primary-darkest: #102f55;
+  --color-primary-hover: var(--accent-hover);
+  --color-primary-light: var(--accent-tint);
+  --color-primary-light-darker: #d6e2f1;
+  --color-brand-hover: var(--accent-hover);
+  --color-brand-active: #102f55;
+  --color-on-primary-container: #102f55;
+  --color-surface-primary-container: var(--accent-tint);
+  /* A brighter blue than the ink, so the selection reads as UI, not drawing. */
+  --color-selection: #3b7ddd;
+  --color-logo-icon: var(--accent);
+
+  --color-surface-high: #f1f1ef;
+  --color-surface-mid: var(--surface);
+  --color-surface-low: #f1f1ef;
+  --color-surface-lowest: var(--bg);
+  --color-on-surface: var(--text);
+  --color-border-outline: var(--faint);
+  --color-border-outline-variant: var(--border-strong);
+  --text-primary-color: var(--text);
+  --icon-fill-color: var(--text);
+  --keybinding-color: var(--faint);
+  --input-label-color: var(--muted);
+
+  --button-gray-1: #f1f1ef;
+  --button-gray-2: var(--border-strong);
+  --button-gray-3: #b4b2a9;
+  --button-hover-bg: #ebeae6;
+  --default-border-color: var(--border);
+  --dialog-border-color: var(--border);
+  --input-border-color: var(--border-strong);
+  --input-hover-bg-color: var(--surface);
+  --popup-secondary-bg-color: var(--surface);
+  --link-color: var(--accent);
+  --select-highlight-color: var(--accent);
+  --focus-highlight-color: #c9d9ee;
+  --color-slider-track: var(--accent);
+  --color-slider-thumb: var(--text);
+  --overlay-bg-color: rgb(15 15 15 / 0.2);
+
+  --border-radius-md: var(--radius);
+  --border-radius-lg: var(--radius-lg);
+  --shadow-island:
+    0 0 0 1px rgb(15 15 15 / 0.05), 0 2px 6px rgb(15 15 15 / 0.05);
+  --modal-shadow: var(--shadow-float);
+}
+
+/* The properties panel: a lighter lift, no scrollbar, and no Sloppiness,
+   which only changes how rough a shape's lines look. */
+body .excalidraw .App-menu__left {
+  scrollbar-width: none;
+}
+
+body .excalidraw .App-menu__left::-webkit-scrollbar {
+  display: none;
+}
+
+body .excalidraw .panelColumn > fieldset:has(label[title="Architect"]) {
+  display: none;
+}
+
+/* Opacity: the slider fills in Prussian blue and its value sits at its right
+   end, in place of a 0 under its start and a bubble that rides the thumb. */
+body .excalidraw .range-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  padding: calc(var(--space) / 2) 0 0;
+}
+
+body .excalidraw .range-input {
+  flex: 1;
+  margin: 0;
+}
+
+body .excalidraw .range-input::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--accent);
+  background: var(--bg);
+  box-shadow: none;
+}
+
+body .excalidraw .range-input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--accent);
+  background: var(--bg);
+}
+
+body .excalidraw .zero-label {
+  display: none;
+}
+
+body .excalidraw .value-bubble {
+  position: static;
+  min-width: 3ch;
+  padding: 0;
+  transform: none;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+body .excalidraw .value-bubble::after {
+  content: "%";
+}
+
+/* Section names in the properties panel and menus, as quiet as the sidebar's. */
+body .excalidraw .panelColumn h3,
+body .excalidraw .dropdown-menu-group-title {
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+body .excalidraw .dropdown-menu-item {
+  font-size: var(--fs-md);
+}
+
+/* The help dialog: Blueprint's links are not Excalidraw's, so its link row
+   goes; the shortcuts read as a sheet at a comfortable width. */
+/* Excalidraw sets the dialog's width inline, so the cap goes on max-width. */
+body .excalidraw .HelpDialog .Modal__content {
+  max-width: min(760px, 100%);
+}
+
+body .excalidraw .HelpDialog__header {
+  display: none;
+}
+
+body .excalidraw .HelpDialog h2,
+body .excalidraw .HelpDialog h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+body .excalidraw .HelpDialog__island {
+  border-color: var(--border);
+  border-radius: var(--radius-lg);
+}
+
+body .excalidraw .HelpDialog__shortcut {
+  border-color: var(--border);
+  font-size: var(--fs-md);
+}
+
+body .excalidraw .HelpDialog__key {
+  background: #f1f1ef;
+  box-shadow: inset 0 -1px 0 var(--border-strong);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
 /* Pip: a sheet of blueprint paper in non-photo blue, with a folded corner, a
    faint grid, and a face in Prussian blue. */
 .pip {
