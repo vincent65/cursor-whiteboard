@@ -48,6 +48,7 @@ import {
   shouldSave,
   toSaveBody,
 } from "./scene";
+import { snapAngle } from "./snap";
 import { blobToDataUrl, sameIds, selectedIds } from "./snapshot";
 
 type Scene = {
@@ -204,6 +205,29 @@ const UI_OPTIONS = {
   },
 };
 
+// When a rotation of one shape ends near a quarter turn, the shape and its
+// label land on it. Rotating several shapes at once turns them about their
+// shared center, so they are left as they are.
+function snapRotation(ex: ExcalidrawImperativeAPI): void {
+  const selected = ex.getAppState().selectedElementIds;
+  const elements = ex.getSceneElements();
+  const shapes = elements.filter(
+    (e) => selected[e.id] && !(e.type === "text" && e.containerId),
+  );
+  if (shapes.length !== 1) return;
+  const [shape] = shapes;
+  const angle = snapAngle(shape.angle);
+  if (angle === shape.angle) return;
+  ex.updateScene({
+    elements: elements.map((e) =>
+      e.id === shape.id || (e.type === "text" && e.containerId === shape.id)
+        ? bumpVersion({ ...e, angle: angle as typeof e.angle })
+        : e,
+    ),
+    captureUpdate: CaptureUpdateAction.NEVER,
+  });
+}
+
 export function BoardView({
   name,
   focus,
@@ -233,6 +257,8 @@ export function BoardView({
   const setSelection = useSetSelection();
   // Excalidraw's own strings that name it say Blueprint, here and in its dialogs.
   useEffect(() => watchRebrand(document.body), []);
+  const stopSnapping = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopSnapping.current?.(), []);
   // Saves not yet answered, so the watcher echoing one is not a disk change.
   const inFlight = useRef(new Set<SaveState>());
   // Saves run one at a time so a slow write cannot land after a newer one.
@@ -561,8 +587,14 @@ export function BoardView({
             onChange={onChange}
             excalidrawAPI={(ex) => {
               excalidraw.current = ex;
+              stopSnapping.current?.();
+              stopSnapping.current = ex.onPointerUp((_tool, down) => {
+                if (down.resize.handleType === "rotation") snapRotation(ex);
+              });
             }}
             UIOptions={UI_OPTIONS}
+            // Moving a shape snaps it to line up with its neighbors.
+            objectsSnapModeEnabled
           />
         </div>
       )}
