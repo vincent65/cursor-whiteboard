@@ -1,4 +1,4 @@
-import { ArrowUp, PanelRightClose, PanelRightOpen, Square } from "lucide-react";
+import { ArrowUp, PanelRightClose, Square } from "lucide-react";
 import {
   type KeyboardEvent,
   useEffect,
@@ -9,6 +9,7 @@ import {
 import type { AgentStatus } from "../../shared/messages";
 import type { PendingPermission, PermissionDecision } from "../../shared/panel";
 import * as api from "../api";
+import { Pip } from "../Pip";
 import { useSelection } from "../selection";
 import { useServerEvent } from "../server-events";
 import { PermissionDialog } from "./PermissionDialog";
@@ -201,22 +202,17 @@ export function ClaudePanel({
   return (
     <>
       {!open && (
-        <div className="panel-strip">
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="Show Claude panel"
-            title="Show Claude panel"
-            onClick={() => onOpenChange?.(true)}
-          >
-            <PanelRightOpen size={18} aria-hidden="true" />
-          </button>
-          <span
-            className="status status-dot"
-            data-status={status.status}
-            title={statusText(status)}
-          />
-        </div>
+        // Folded, the panel is one round Pip button over the board's corner;
+        // Pip hops on it while Claude works.
+        <button
+          type="button"
+          className="panel-launcher"
+          aria-label="Show Claude panel"
+          title={`Ask Claude · ${statusText(status)}`}
+          onClick={() => onOpenChange?.(true)}
+        >
+          <Pip size={30} hopping={working} />
+        </button>
       )}
       <section className="panel" aria-label="Claude" hidden={!open}>
         <header className="panel-header">

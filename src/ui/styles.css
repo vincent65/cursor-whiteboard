@@ -126,7 +126,7 @@ pre {
 }
 
 .shell-panel-closed {
-  --pane-width: var(--strip-width);
+  --pane-width: 0px;
 }
 
 /* Icon-only controls: the sidebar's + and fold buttons, the panel's fold. */
@@ -330,6 +330,10 @@ pre {
   border-left: 1px solid var(--border);
 }
 
+.shell-panel-closed .right-pane {
+  border-left: 0;
+}
+
 .muted {
   margin: 0;
   color: var(--muted);
@@ -461,15 +465,34 @@ pre {
   font-weight: 600;
 }
 
-/* The folded panel: a strip with the reopen button and the session's dot. */
-.panel-strip {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space);
-  height: 100%;
-  padding: calc(var(--space) * 1.5) 0;
-  background: var(--surface);
+/* The folded panel: a round Pip button floating over the board's bottom
+   right corner, where Excalidraw leaves room. */
+.panel-launcher {
+  position: fixed;
+  right: calc(var(--space) * 2);
+  bottom: calc(var(--space) * 2);
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+  box-shadow:
+    0 1px 2px rgb(15 15 15 / 0.05),
+    0 3px 10px rgb(15 15 15 / 0.06);
+  cursor: pointer;
+  transition: transform 120ms var(--ease);
+}
+
+.panel-launcher:hover {
+  transform: translateY(-1px);
+}
+
+.panel-launcher:active {
+  transform: translateY(0);
 }
 
 /* The status strip: a dot and a word, the dot's color from the status tokens. */
@@ -494,16 +517,6 @@ pre {
   height: 7px;
   border-radius: var(--radius-pill);
   background: var(--border-strong);
-}
-
-.status-dot {
-  flex: none;
-  margin: 0;
-  line-height: 0;
-}
-
-.status-dot::before {
-  margin: 0;
 }
 
 /* Compile sits right, whether or not the status beside the title is showing. */
