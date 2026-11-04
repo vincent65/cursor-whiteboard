@@ -6,6 +6,7 @@
       "!!**/dist",
       "!!test/export/fixtures",
       "!!src/ui/board/icons.css",
+      "!!.blueprint",
       "!!docs",
       "!!.superpowers",
       "!!test-results",
