@@ -218,7 +218,7 @@ test("a resumed run that throws before init drops the saved id and the next send
   );
   warn.mockRestore();
   const restoreFailed =
-    "The previous session could not be loaded (No conversation found with session ID: old); starting fresh.";
+    "Couldn't load your last conversation with Claude (No conversation found with session ID: old), so this is a new one.";
   expect(events.at(-1)).toMatchObject({
     kind: "error",
     message: restoreFailed,
@@ -498,7 +498,8 @@ test("restore seeds the transcript from the saved session and a failure starts f
   expect(failed.events).toMatchObject([
     {
       kind: "error",
-      message: "previous session could not be loaded; starting fresh",
+      message:
+        "Couldn't load your last conversation with Claude, so this is a new one.",
     },
   ]);
   expect(failed.session.status).toBe("idle");

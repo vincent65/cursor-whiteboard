@@ -137,7 +137,7 @@ test("the split cost shows even when the split finished on another route", async
   await emit({ type: "split.status", state: "done", costUsd: 0.4213 });
 
   rerender(<Shell open />);
-  expect(await screen.findByText("Split cost $0.4213")).toBeInTheDocument();
+  expect(await screen.findByText("Splitting cost $0.42")).toBeInTheDocument();
 });
 
 test("TasksView reloads when a task file changes on disk", async () => {

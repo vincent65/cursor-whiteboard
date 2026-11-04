@@ -64,7 +64,7 @@ test("RunCard shows status, cost, PR link, and the right buttons per status", as
   expect(screen.getByRole("heading", { name: "Auth API" })).toBeInTheDocument();
   expect(screen.getByText("auth-api")).toBeInTheDocument();
   expect(screen.getByText("blueprint/auth-api")).toBeInTheDocument();
-  expect(screen.getByText("$0.5000 total")).toBeInTheDocument();
+  expect(screen.getByText("$0.50 spent")).toBeInTheDocument();
   expect(screen.getByText("Wrote the login handler.")).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "PR" })).toBeNull();
 
@@ -150,8 +150,8 @@ test("RunCard shows status, cost, PR link, and the right buttons per status", as
   expect(h.onExpand).toHaveBeenCalledOnce();
   expect(screen.getByText("Build the auth API")).toBeInTheDocument();
   expect(screen.getByText("Starting on the routes.")).toBeInTheDocument();
-  // A turn's end, not to be confused with the run's Done status.
-  expect(screen.getByText("Turn done · $0.2500 total")).toBeInTheDocument();
+  // A turn's end shows what the run has spent, not a status.
+  expect(screen.getByText("$0.25 spent so far")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Hide transcript" }));
   expect(screen.queryByText("Build the auth API")).toBeNull();
 });

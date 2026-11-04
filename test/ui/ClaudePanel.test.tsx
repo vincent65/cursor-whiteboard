@@ -143,11 +143,11 @@ test("panel renders restored transcript, sends on Enter with the current selecti
   expect(screen.getByText(/Two boxes\./).innerHTML).toBe(
     "Two boxes.<br>One arrow.",
   );
-  // "Turn done", so a run's transcript does not read like its Done status.
-  expect(screen.getByText("Turn done · $0.0123 total")).toHaveClass(
+  // A turn's end shows the session's spend; a stopped one says so.
+  expect(screen.getByText("$0.01 spent so far")).toHaveClass("msg-result");
+  expect(screen.getByText("Stopped · $0.02 spent so far")).toHaveClass(
     "msg-result",
   );
-  expect(screen.getByText("Stopped · $0.0200 total")).toHaveClass("msg-result");
   expect(screen.getByRole("status")).toHaveTextContent("Idle");
   expect(screen.getByText("2 selected: Auth, DB")).toBeVisible();
 

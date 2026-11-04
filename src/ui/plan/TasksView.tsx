@@ -4,6 +4,7 @@ import type { GateResult } from "../../shared/runs";
 import type { TaskFile } from "../../shared/tasks";
 import type { RunPermissionMode } from "../../shared/types";
 import * as api from "../api";
+import { formatCost } from "../cost";
 import { EmptyState } from "../EmptyState";
 import { routeHash } from "../hooks/useHashRoute";
 import { Inline } from "../markdown";
@@ -129,7 +130,9 @@ export function TasksView({ cost }: { cost: number | null }) {
 
   return (
     <div className="plan-page">
-      {cost !== null && <p className="muted">Split cost ${cost.toFixed(4)}</p>}
+      {cost !== null && (
+        <p className="muted">Splitting cost {formatCost(cost)}</p>
+      )}
       {error && (
         <p role="alert" className="plan-error">
           {error}

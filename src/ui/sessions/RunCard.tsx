@@ -8,6 +8,7 @@ import {
 import type { PanelEvent, PermissionDecision } from "../../shared/panel";
 import type { RunView } from "../../shared/runs";
 import type { RunStatus } from "../../shared/types";
+import { formatCost } from "../cost";
 import { Inline } from "../markdown";
 import { PermissionDialog } from "../panel/PermissionDialog";
 import { TranscriptList } from "../panel/TranscriptList";
@@ -151,7 +152,7 @@ export function RunCard({
         <code className="run-branch" title={run.branch}>
           {run.branch}
         </code>
-        <span>${run.costUsd.toFixed(4)} total</span>
+        <span>{formatCost(run.costUsd)} spent</span>
         {run.prUrl && (
           <a href={run.prUrl} target="_blank" rel="noreferrer">
             PR

@@ -15,9 +15,10 @@ import { COMPILE_INSTRUCTION, COMPILE_LABEL } from "./prompt.js";
 
 // The most events a transcript holds, live or read back from a saved session.
 export const TRANSCRIPT_LIMIT = 500;
-const RESTORE_FAILED = "previous session could not be loaded; starting fresh";
+const RESTORE_FAILED =
+  "Couldn't load your last conversation with Claude, so this is a new one.";
 const resumeFailed = (cause: string) =>
-  `The previous session could not be loaded (${cause}); starting fresh.`;
+  `Couldn't load your last conversation with Claude (${cause}), so this is a new one.`;
 const NOT_SENT_ENDED = "Message not sent: Claude session ended before it ran";
 const NOT_SENT_STOPPED = "Message not sent: stopped";
 // The CLI saves a Stop as a user message with this text (or "... for tool use]").

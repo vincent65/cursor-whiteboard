@@ -1,5 +1,6 @@
 import { Check, CircleAlert, Dot, X } from "lucide-react";
 import type { Citation } from "../../export/citations";
+import { formatCost } from "../cost";
 import { Markdown } from "../markdown";
 import { CitationLink } from "../plan/citations";
 import type { TranscriptItem } from "./transcript";
@@ -53,15 +54,15 @@ function Item({ item }: { item: TranscriptItem }) {
         </div>
       );
     case "result": {
-      // The SDK's cost is the session's running total, not this turn's.
-      const cost =
-        item.costUsd === null ? "" : ` · $${item.costUsd.toFixed(4)} total`;
-      return (
-        <div className="msg-result">
-          {item.subtype === "interrupted" ? "Stopped" : "Turn done"}
-          {cost}
-        </div>
-      );
+      // A hairline ends the turn. The SDK's cost is the session's running total, not
+      // this turn's, so it reads as spent so far.
+      const text = [
+        item.subtype === "interrupted" && "Stopped",
+        item.costUsd !== null && `${formatCost(item.costUsd)} spent so far`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return <div className="msg-result">{text}</div>;
     }
     case "error":
       return (

@@ -89,7 +89,7 @@ Text meets 4.5:1 contrast on its surface. `--faint` is the exception and is used
 - The composer is a white card with a round Send button. Enter sends; Shift+Enter adds a line. While Claude works, Send becomes Stop.
 - Placeholder: "Ask Claude anything" (or "…about this board" on a board).
 - Your messages are grey bubbles; Claude's are plain text. Tool activity is small grey rows with a dot (call), check (result), or red cross (failure).
-- Each turn ends with its cost and a hairline.
+- Each turn ends with a hairline and what the session has spent so far, to the cent ("$0.01 spent so far"). A stopped turn starts with "Stopped".
 - While a turn runs, a live row shows Pip hopping, a shimmering label (the running tool, or a drafting verb such as "Sketching…"), and elapsed time (9s, 4m 30s, 1h 5m).
 - The header shows status only when it needs attention: Needs you, Error, Starting, Stopped. Idle and Working are announced to screen readers only.
 
@@ -132,7 +132,3 @@ CodeMirror with Blueprint's own highlighting: `--fs-doc` text at a 72-character 
 ### Claude's Markdown
 
 [`src/ui/markdown.tsx`](src/ui/markdown.tsx) renders Claude's text as React elements, so HTML shows as text. It supports paragraphs, headings (from `h3`), emphasis, code, lists (including nested), links (`http`, `https`, `mailto` only, opening in a new tab), and quotes. A single newline is a line break. Code blocks scroll sideways.
-
-## Screenshots
-
-The images in [`docs/design/`](docs/design/) predate the current look; retake them before relying on them.
