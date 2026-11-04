@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Sidebar } from "../../src/ui/nav/Sidebar";
 
@@ -134,4 +134,42 @@ test("the sidebar shows Spec, Tasks, and Sessions links", () => {
     "Boards",
     "Documents",
   ]);
+});
+
+test("a taken name or a refused create says why under the field and keeps it open", async () => {
+  const user = userEvent.setup();
+  const onCreateBoard = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("board already exists: plan"));
+  render(
+    <Sidebar
+      boards={["main"]}
+      docs={[]}
+      active={null}
+      onCreateBoard={onCreateBoard}
+      onCreateDoc={() => {}}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: "New board" }));
+  const field = screen.getByRole("textbox", { name: "New board name" });
+  await user.type(field, "Main{Enter}");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "There is already a board named main.",
+  );
+  expect(onCreateBoard).not.toHaveBeenCalled();
+
+  await user.clear(field);
+  await user.type(field, "plan{Enter}");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "board already exists: plan",
+  );
+  expect(field).toBeInTheDocument();
+
+  onCreateBoard.mockResolvedValueOnce(undefined);
+  await user.type(field, "{Enter}");
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("textbox", { name: "New board name" }),
+    ).toBeNull(),
+  );
 });

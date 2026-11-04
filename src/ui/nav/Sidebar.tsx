@@ -26,15 +26,18 @@ const PLAN: [kind: "spec" | "tasks" | "sessions", label: string, LucideIcon][] =
     ["sessions", "Sessions", Bot],
   ];
 
-// The name field a New board or New doc opens at the top of its list: Enter
-// creates, Escape or leaving it empty cancels.
+// The name field a New board or New document opens at the top of its list:
+// Enter creates, Escape or leaving it empty cancels. A name already taken, or a
+// create the server refuses, says why under the field and keeps it open.
 function CreateRow({
   kind,
+  names,
   onCreate,
   onCancel,
 }: {
   kind: Kind;
-  onCreate(name: string): void;
+  names: string[];
+  onCreate(name: string): Promise<void> | void;
   onCancel(): void;
 }) {
   const [text, setText] = useState("");
@@ -43,19 +46,27 @@ function CreateRow({
   useEffect(() => input.current?.focus(), []);
   const Icon = ICON[kind];
 
-  const commit = () => {
+  const commit = async () => {
     if (!text.trim()) return onCancel();
     const name = slugify(text);
     if (!name) {
       setError("Use at least one letter or digit.");
       return;
     }
-    onCreate(name);
+    if (names.includes(name)) {
+      setError(`There is already a ${NOUN[kind]} named ${name}.`);
+      return;
+    }
+    try {
+      await onCreate(name);
+    } catch (err) {
+      setError((err as Error).message);
+    }
   };
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.nativeEvent.isComposing) {
       e.preventDefault();
-      commit();
+      void commit();
     } else if (e.key === "Escape") {
       e.preventDefault();
       onCancel();
@@ -98,7 +109,7 @@ function NavSection(props: {
   active: Route;
   creating: boolean;
   onCreatingChange(creating: boolean): void;
-  onCreate(name: string): void;
+  onCreate(name: string): Promise<void> | void;
   onNavigate?(): void;
 }) {
   const {
@@ -130,9 +141,10 @@ function NavSection(props: {
         {creating && (
           <CreateRow
             kind={kind}
-            onCreate={(name) => {
+            names={names}
+            onCreate={async (name) => {
+              await onCreate(name);
               onCreatingChange(false);
-              onCreate(name);
             }}
             onCancel={() => onCreatingChange(false)}
           />
@@ -181,8 +193,9 @@ export function Sidebar({
   boards: string[];
   docs: string[];
   active: Route;
-  onCreateBoard(name: string): void;
-  onCreateDoc(name: string): void;
+  // A rejection keeps the name field open with the error under it.
+  onCreateBoard(name: string): Promise<void> | void;
+  onCreateDoc(name: string): Promise<void> | void;
   // The list whose name field is open; owned by the caller so a page can open it.
   creating?: Kind | null;
   onCreatingChange?(kind: Kind | null): void;

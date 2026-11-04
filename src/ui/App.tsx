@@ -71,14 +71,11 @@ function Shell() {
     if (!route && boards?.length) location.replace(`#/boards/${boards[0]}`);
   }, [route, boards]);
 
+  // Throws when the server refuses, so the sidebar's name field can say why.
   const create = (kind: "board" | "doc") => async (name: string) => {
-    try {
-      await (kind === "board" ? api.createBoard(name) : api.createDoc(name));
-      await refresh();
-      location.hash = `#/${kind}s/${name}`;
-    } catch (err) {
-      window.alert((err as Error).message);
-    }
+    await (kind === "board" ? api.createBoard(name) : api.createDoc(name));
+    await refresh();
+    location.hash = `#/${kind}s/${name}`;
   };
 
   // The sessions view takes the panel's room too; the panel stays mounted, so
