@@ -79,11 +79,13 @@ export function ClaudePanel({
   const atBottom = useRef(true);
   const input = useRef<HTMLTextAreaElement>(null);
 
-  // The live row counts from the moment the session starts working.
+  // The live row counts from the moment a turn starts; a permission ask in the
+  // middle of it does not restart the count.
   const working = status.status === "working";
+  const inTurn = working || status.status === "needs_you";
   useEffect(() => {
-    setSince(working ? Date.now() : null);
-  }, [working]);
+    setSince((s) => (inTurn ? (s ?? Date.now()) : null));
+  }, [inTurn]);
 
   // A Refine click or a permission ask needs the panel, so a folded one opens.
   useEffect(() => {
@@ -193,6 +195,9 @@ export function ClaudePanel({
   };
 
   const stop = () => {
+    // Send turns into Stop under the pointer, so a double click on Send must
+    // not stop the turn its first click started.
+    if (Date.now() - sendClickedAt.current < 500) return;
     setStopping(true);
     api.agentInterrupt().catch((err: Error) => {
       setStopping(false);
@@ -215,6 +220,7 @@ export function ClaudePanel({
     status.status === "starting" ||
     status.status === "working" ||
     status.status === "needs_you";
+  const sendClickedAt = useRef(0);
   const ask = pending[0];
   const empty = items.length === 0 && !ask;
   const suggest = (prompt: string) => {
@@ -394,7 +400,10 @@ export function ClaudePanel({
                   aria-label="Send"
                   title="Send"
                   disabled={!text.trim()}
-                  onClick={() => void send()}
+                  onClick={() => {
+                    sendClickedAt.current = Date.now();
+                    void send();
+                  }}
                 >
                   <ArrowUp size={16} strokeWidth={2.25} aria-hidden="true" />
                 </button>

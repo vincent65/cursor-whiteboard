@@ -522,3 +522,15 @@ test("a folded panel opens itself for a permission ask, and folds from its Hide 
   await user.keyboard("{Escape}");
   expect(onOpenChange).toHaveBeenLastCalledWith(false);
 });
+
+test("a double click on Send does not stop the turn its first click started", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.agentState).mockResolvedValue(state({ status: "idle" }));
+  renderPanel();
+  const input = await screen.findByRole("textbox", { name: "Message Claude" });
+  await user.type(input, "hello");
+  await user.click(screen.getByRole("button", { name: "Send" }));
+  emit({ type: "agent.status", status: "working" });
+  await user.click(screen.getByRole("button", { name: "Stop" }));
+  expect(api.agentInterrupt).not.toHaveBeenCalled();
+});
