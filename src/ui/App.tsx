@@ -39,10 +39,10 @@ function Shell() {
   const [docs, setDocs] = useState<string[]>([]);
   // The sidebar list whose name field is open, so the welcome page can open it.
   const [creating, setCreating] = useState<"board" | "doc" | null>(null);
-  // Narrow windows start with the rail and the panel folded, so Excalidraw's
-  // toolbar has room on the board.
-  const [railOpen, setRailOpen] = usePaneOpen("(min-width: 1100px)");
-  const [panelOpen, setPanelOpen] = usePaneOpen("(min-width: 860px)");
+  // Narrow windows start with the rail and the panel folded, so the board
+  // stays at least 730 px wide, where Excalidraw keeps its desktop layout.
+  const [railOpen, setRailOpen] = usePaneOpen("(min-width: 1250px)");
+  const [panelOpen, setPanelOpen] = usePaneOpen("(min-width: 1100px)");
 
   const refresh = useCallback(async () => {
     const [b, d] = await Promise.all([api.listBoards(), api.listDocs()]);

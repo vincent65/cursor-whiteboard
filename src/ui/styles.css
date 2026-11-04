@@ -71,8 +71,8 @@
   --strip-width: 48px;
 }
 
-/* Below 1360 px the rail and panel narrow; below 1100 and 860 they fold to
-   strips (App), so the board keeps room for Excalidraw's toolbar. */
+/* Below 1360 px the rail and panel narrow; below 1250 and 1100 they fold to
+   strips (App), so the board keeps room for Excalidraw's desktop layout. */
 @media (max-width: 1359px) {
   :root {
     --rail-width: 200px;
@@ -1569,7 +1569,50 @@ pre {
   padding: 0;
 }
 
-/* Excalidraw's phone footer stands taller, so the bar clears it. */
+/* Excalidraw's phone layout puts its undo and redo in a bar across the
+   bottom. Here they stack in a small column at the board's left edge, under
+   the tools, as the desktop layout keeps them out of the way. While its shape
+   sheet is open the bar keeps Excalidraw's own full-width layout. */
+.board .excalidraw--mobile .App-bottom-bar:not(:has(.App-mobile-menu)) {
+  inset: 76px auto auto 0;
+  pointer-events: none;
+}
+
+.board
+  .excalidraw--mobile
+  .App-bottom-bar:not(:has(.App-mobile-menu))
+  > .Island {
+  width: auto;
+  min-width: 0;
+}
+
+.board
+  .excalidraw--mobile
+  .App-bottom-bar:not(:has(.App-mobile-menu))
+  .App-toolbar {
+  width: auto;
+}
+
+.board
+  .excalidraw--mobile
+  .App-bottom-bar:not(:has(.App-mobile-menu))
+  .App-toolbar-content {
+  flex-direction: column;
+  gap: calc(var(--space) / 2);
+  padding: calc(var(--space) / 2);
+}
+
+.board
+  .excalidraw--mobile
+  .App-bottom-bar:not(:has(.App-mobile-menu))
+  .App-toolbar-content
+  > div {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) / 2);
+}
+
+/* With the phone footer moved, the proposals bar can sit low on the board. */
 .board:has(.excalidraw--mobile) .proposals-bar {
-  bottom: 76px;
+  bottom: calc(var(--space) * 2);
 }
