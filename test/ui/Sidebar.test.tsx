@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Sidebar } from "../../src/ui/nav/Sidebar";
 
-test("lists boards and docs, marks the active one, and creates a board from its name field", async () => {
+test("lists boards and documents, marks the active one, and creates a board from its name field", async () => {
   const user = userEvent.setup();
   const onCreateBoard = vi.fn();
   render(
@@ -43,11 +43,11 @@ test("turns a typed name into a slug, says so inline when none remains, and canc
       onCreateDoc={onCreateDoc}
     />,
   );
-  expect(screen.getByText("No docs yet")).toBeInTheDocument();
+  expect(screen.getByText("No documents yet")).toBeInTheDocument();
   const create = async (typed: string) => {
-    await user.click(screen.getByRole("button", { name: "New doc" }));
+    await user.click(screen.getByRole("button", { name: "New document" }));
     await user.type(
-      screen.getByRole("textbox", { name: "New doc name" }),
+      screen.getByRole("textbox", { name: "New document name" }),
       typed,
     );
   };
@@ -60,10 +60,12 @@ test("turns a typed name into a slug, says so inline when none remains, and canc
   expect(screen.getByRole("alert")).toHaveTextContent(
     "Use at least one letter or digit.",
   );
-  const field = screen.getByRole("textbox", { name: "New doc name" });
+  const field = screen.getByRole("textbox", { name: "New document name" });
   expect(field).toHaveAttribute("aria-invalid", "true");
   await user.keyboard("{Escape}");
-  expect(screen.queryByRole("textbox", { name: "New doc name" })).toBeNull();
+  expect(
+    screen.queryByRole("textbox", { name: "New document name" }),
+  ).toBeNull();
   expect(onCreateDoc).toHaveBeenCalledTimes(2);
 });
 
@@ -130,6 +132,6 @@ test("the sidebar shows Spec, Tasks, and Sessions links", () => {
   expect(screen.getAllByRole("heading").map((h) => h.textContent)).toEqual([
     "Plan",
     "Boards",
-    "Docs",
+    "Documents",
   ]);
 });

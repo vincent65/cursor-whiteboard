@@ -17,6 +17,8 @@ import type { Route } from "../hooks/useHashRoute";
 type Kind = "board" | "doc";
 
 const ICON = { board: Shapes, doc: FileText } as const;
+// What the interface calls each kind; routes and files keep the short "doc".
+const NOUN = { board: "board", doc: "document" } as const;
 const PLAN: [kind: "spec" | "tasks" | "sessions", label: string, LucideIcon][] =
   [
     ["spec", "Spec", ScrollText],
@@ -67,10 +69,10 @@ function CreateRow({
         <input
           ref={input}
           className="nav-input"
-          aria-label={`New ${kind} name`}
+          aria-label={`New ${NOUN[kind]} name`}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `new-${kind}-error` : undefined}
-          placeholder={kind === "board" ? "Board name" : "Doc name"}
+          placeholder={kind === "board" ? "Board name" : "Document name"}
           value={text}
           onChange={(e) => {
             setText(e.target.value);
@@ -108,8 +110,8 @@ function NavSection(props: {
         <button
           type="button"
           className="icon-button nav-add"
-          aria-label={`New ${kind}`}
-          title={`New ${kind}`}
+          aria-label={`New ${NOUN[kind]}`}
+          title={`New ${NOUN[kind]}`}
           onClick={() => onCreatingChange(true)}
         >
           <Plus size={16} aria-hidden="true" />
@@ -146,7 +148,7 @@ function NavSection(props: {
           </li>
         ))}
         {names.length === 0 && !creating && (
-          <li className="nav-none">No {kind}s yet</li>
+          <li className="nav-none">No {NOUN[kind]}s yet</li>
         )}
       </ul>
     </section>
@@ -208,7 +210,7 @@ export function Sidebar({
         <span className="rail-rule" />
         {(["board", "doc"] as const).map((kind) => {
           const Icon = ICON[kind];
-          const label = kind === "board" ? "Boards" : "Docs";
+          const label = kind === "board" ? "Boards" : "Documents";
           return (
             <button
               key={kind}
@@ -270,7 +272,7 @@ export function Sidebar({
         onCreate={onCreateBoard}
       />
       <NavSection
-        title="Docs"
+        title="Documents"
         kind="doc"
         names={docs}
         active={active}

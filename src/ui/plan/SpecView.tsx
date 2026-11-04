@@ -91,7 +91,7 @@ export function SpecView() {
           }
         >
           <p>
-            Compiling turns your boards and docs into a spec that cites the
+            Compiling turns your boards and documents into a spec that cites the
             shapes and headings it came from.
             {compiling && " Claude is writing it in the panel."}
           </p>

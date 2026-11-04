@@ -144,7 +144,7 @@ function Shell() {
             <ol className="steps">
               <li>
                 <strong>Sketch</strong> boxes, arrows, and notes on a board, or
-                write a doc.
+                write a document.
               </li>
               <li>
                 <strong>Ask Claude</strong> about what you selected. Its ideas

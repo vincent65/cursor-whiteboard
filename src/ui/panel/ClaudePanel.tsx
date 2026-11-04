@@ -251,7 +251,7 @@ export function ClaudePanel({
               <p className="empty-body">
                 {onBoard
                   ? "Select shapes to ask about them. Anything Claude draws arrives as dashed shapes you accept, reject, or refine."
-                  : "Claude reads your boards and docs. Open a board to ask about the shapes you select."}
+                  : "Claude reads your boards and documents. Open a board to ask about the shapes you select."}
               </p>
               <p className="suggestions-label" aria-hidden="true">
                 Try
