@@ -4,7 +4,7 @@ Blueprint is a planning whiteboard for Claude Code. It runs locally in one of yo
 
 Sketch on boards and write in documents, ask Claude about what you selected, and accept or reject the shapes it proposes. When the plan is ready, Blueprint turns it into a spec and tasks, then runs one Claude Code session per task in its own git worktree.
 
-![A board with Claude's proposed sign-in flow as dashed shapes, the Accept, Reject, and Refine bar below it, and the Claude panel on the right](docs/design/after-board-proposal.png)
+![A board with two sketched steps, Claude's proposed sign-in flow as dashed shapes beside them, the Accept, Reject, and Refine bar below, and the Claude panel on the right](docs/screenshot.png)
 
 ## Requirements
 
