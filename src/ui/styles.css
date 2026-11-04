@@ -975,19 +975,10 @@ pre {
 .composer-foot {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space);
   padding: 0 calc(var(--space) * 0.75) calc(var(--space) * 0.75)
     calc(var(--space) * 1.5);
-}
-
-.composer-hint {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  font-size: var(--fs-xs);
-  color: var(--faint);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .send-button {

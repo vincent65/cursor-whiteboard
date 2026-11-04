@@ -338,9 +338,6 @@ export function ClaudePanel({
               onKeyDown={onKeyDown}
             />
             <div className="composer-foot">
-              <span className="composer-hint">
-                Enter to send, Shift+Enter for a new line
-              </span>
               {busy ? (
                 // While Claude works, Send becomes Stop; Enter still queues a message.
                 <button
