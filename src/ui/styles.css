@@ -303,11 +303,6 @@ pre {
   overflow: auto;
 }
 
-.empty {
-  margin: calc(var(--space) * 2);
-  color: var(--muted);
-}
-
 .right-pane {
   min-width: 0;
   min-height: 0;
@@ -597,6 +592,152 @@ pre {
 
 .msg-error .msg-icon {
   color: var(--danger);
+}
+
+/* One empty state for every page, centred where the page's content would be. */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space);
+  min-height: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: calc(var(--space) * 6) calc(var(--space) * 3) 12vh;
+  text-align: center;
+}
+
+.empty-state-compact {
+  min-height: 0;
+  padding: calc(var(--space) * 6) calc(var(--space) * 3);
+}
+
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: calc(var(--space) / 2);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--muted);
+}
+
+.empty-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.empty-body {
+  color: var(--muted);
+}
+
+.empty-body > * {
+  margin: 0;
+}
+
+.empty-body > * + * {
+  margin-top: calc(var(--space) * 1.5);
+}
+
+.empty-action {
+  margin-top: var(--space);
+}
+
+/* The welcome page's three steps: a numbered list in small cards. */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) / 2);
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  text-align: left;
+}
+
+.steps li {
+  position: relative;
+  padding: calc(var(--space) * 1.25) calc(var(--space) * 1.5)
+    calc(var(--space) * 1.25) calc(var(--space) * 5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  counter-increment: step;
+}
+
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  top: calc(var(--space) * 1.25);
+  left: calc(var(--space) * 1.5);
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.steps strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The panel before its first message: what it is for, and prompts to start. */
+.panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space);
+  margin: auto 0;
+  padding: calc(var(--space) * 2) var(--space) calc(var(--space) * 6);
+  text-align: center;
+}
+
+.panel-empty .empty-body {
+  max-width: 280px;
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) / 2);
+  width: 100%;
+  margin: calc(var(--space) * 1.5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.suggestion {
+  width: 100%;
+  padding: calc(var(--space) * 0.75) calc(var(--space) * 1.5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 120ms var(--ease),
+    border-color 120ms var(--ease);
+}
+
+.suggestion:hover {
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+
+.suggestion:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* Claude's Markdown, sized for a narrow column. Margins come only from the
@@ -1040,6 +1181,10 @@ pre {
   padding: calc(var(--space) * 5) calc(var(--space) * 4);
 }
 
+.plan-page > .empty-state {
+  flex: 1;
+}
+
 .task-card,
 .run-card {
   border: 1px solid var(--border);
@@ -1105,6 +1250,10 @@ pre {
   min-height: 100%;
   margin: 0 auto;
   padding: calc(var(--space) * 5) calc(var(--space) * 4);
+}
+
+.sessions-page > .empty-state:not(.empty-state-compact) {
+  flex: 1;
 }
 
 .run-grid {

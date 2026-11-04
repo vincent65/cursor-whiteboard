@@ -1,6 +1,8 @@
+import { ScrollText } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { citationKey } from "../../export/citations";
 import * as api from "../api";
+import { EmptyState } from "../EmptyState";
 import { Markdown } from "../markdown";
 import { useServerEvent } from "../server-events";
 import { CitationLink } from "./citations";
@@ -12,6 +14,8 @@ export function SpecView() {
   const [splitting, setSplitting] = useState(false);
   // A failed load or split, until the next split status or successful load.
   const [error, setError] = useState<string | null>(null);
+  // Compile was pressed here; the spec's file-changed event replaces this page.
+  const [compiling, setCompiling] = useState(false);
 
   const load = useCallback(
     () =>
@@ -60,12 +64,40 @@ export function SpecView() {
     });
   };
 
+  const compile = () => {
+    setCompiling(true);
+    setError(null);
+    api.agentCompile().catch((err: Error) => {
+      setCompiling(false);
+      setError(err.message);
+    });
+  };
+
   // The spec can cite one gone element many times; name it once.
   const dropped = [...new Set((spec?.dropped ?? []).map((c) => c.raw))];
   return (
     <div className="spec">
       {spec && !hasText && (
-        <p className="empty">No spec yet. Press Compile in the Claude panel.</p>
+        <EmptyState
+          icon={ScrollText}
+          title="No spec yet"
+          action={
+            <button
+              type="button"
+              className="button button-primary"
+              disabled={compiling}
+              onClick={compile}
+            >
+              {compiling ? "Compiling…" : "Compile the plan"}
+            </button>
+          }
+        >
+          <p>
+            Compiling turns your boards and docs into a spec that cites the
+            shapes and headings it came from.
+            {compiling && " Claude is writing it in the panel."}
+          </p>
+        </EmptyState>
       )}
       {hasText && (
         <div className="notice">

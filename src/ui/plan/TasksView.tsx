@@ -1,9 +1,11 @@
+import { ListChecks } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { citationKey, parseCitations } from "../../export/citations";
 import type { GateResult } from "../../shared/runs";
 import type { TaskFile } from "../../shared/tasks";
 import type { RunPermissionMode } from "../../shared/types";
 import * as api from "../api";
+import { EmptyState } from "../EmptyState";
 import { routeHash } from "../hooks/useHashRoute";
 import { Inline } from "../markdown";
 import { useServerEvent } from "../server-events";
@@ -140,7 +142,20 @@ export function TasksView({ cost }: { cost: number | null }) {
         </p>
       )}
       {tasks?.length === 0 && (
-        <p className="muted">No tasks yet. Split the spec first.</p>
+        <EmptyState
+          icon={ListChecks}
+          title="No tasks yet"
+          action={
+            <a className="button" href={routeHash({ kind: "spec" })}>
+              Open the spec
+            </a>
+          }
+        >
+          <p>
+            Split the spec into tasks, each with its dependencies, files, and
+            acceptance criteria. Then launch a Claude Code session for each one.
+          </p>
+        </EmptyState>
       )}
       {tasks?.map(({ file, task }) => (
         <article key={file} className="task-card">

@@ -1,7 +1,9 @@
+import { DraftingCompass } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as api from "./api";
 import { BoardView } from "./board/BoardView";
 import { DocView } from "./docs/DocView";
+import { EmptyState } from "./EmptyState";
 import { useHashRoute } from "./hooks/useHashRoute";
 import { Sidebar } from "./nav/Sidebar";
 import { ClaudePanel } from "./panel/ClaudePanel";
@@ -34,6 +36,8 @@ function Shell() {
   }, []);
   const [boards, setBoards] = useState<string[] | null>(null);
   const [docs, setDocs] = useState<string[]>([]);
+  // The sidebar list whose name field is open, so the welcome page can open it.
+  const [creating, setCreating] = useState<"board" | "doc" | null>(null);
 
   const refresh = useCallback(async () => {
     const [b, d] = await Promise.all([api.listBoards(), api.listDocs()]);
@@ -83,6 +87,8 @@ function Shell() {
         active={route}
         onCreateBoard={create("board")}
         onCreateDoc={create("doc")}
+        creating={creating}
+        onCreatingChange={setCreating}
       />
       <main className="main">
         {route?.kind === "board" && (
@@ -105,7 +111,35 @@ function Shell() {
         {route?.kind === "tasks" && <TasksView cost={splitCost} />}
         {route?.kind === "sessions" && <SessionsView />}
         {!route && boards?.length === 0 && (
-          <p className="empty">No boards yet. Create one from the sidebar.</p>
+          <EmptyState
+            icon={DraftingCompass}
+            title="Welcome to Blueprint"
+            action={
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={() => setCreating("board")}
+              >
+                Create your first board
+              </button>
+            }
+          >
+            <p>Plan on a whiteboard, then hand the plan to Claude Code.</p>
+            <ol className="steps">
+              <li>
+                <strong>Sketch</strong> boxes, arrows, and notes on a board, or
+                write a doc.
+              </li>
+              <li>
+                <strong>Ask Claude</strong> about what you selected. Its ideas
+                arrive as dashed shapes you accept or reject.
+              </li>
+              <li>
+                <strong>Compile</strong> the plan into a spec and tasks, then
+                launch a Claude Code session for each task.
+              </li>
+            </ol>
+          </EmptyState>
         )}
       </main>
       <aside className="right-pane" hidden={wide}>

@@ -64,7 +64,8 @@ const boardElements = (root: string, name: string): Element[] =>
 test("plan, ask, and accept", async ({ page, start }) => {
   const app = await start();
   await page.goto(app.url);
-  await page.getByRole("button", { name: "New board" }).click();
+  // The welcome page's button opens the sidebar's name field.
+  await page.getByRole("button", { name: "Create your first board" }).click();
   await page.getByRole("textbox", { name: "New board name" }).fill("sign-in");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/#\/boards\/sign-in$/);

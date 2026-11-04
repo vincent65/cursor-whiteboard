@@ -67,6 +67,21 @@ test("turns a typed name into a slug, says so inline when none remains, and canc
   expect(onCreateDoc).toHaveBeenCalledTimes(2);
 });
 
+test("a name field the caller opens shows in its list", () => {
+  render(
+    <Sidebar
+      boards={[]}
+      docs={[]}
+      active={null}
+      onCreateBoard={() => {}}
+      onCreateDoc={() => {}}
+      creating="board"
+      onCreatingChange={() => {}}
+    />,
+  );
+  expect(screen.getByRole("textbox", { name: "New board name" })).toHaveFocus();
+});
+
 test("the sidebar shows Spec, Tasks, and Sessions links", () => {
   render(
     <Sidebar

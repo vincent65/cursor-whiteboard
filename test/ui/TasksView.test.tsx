@@ -102,7 +102,7 @@ test("TasksView renders cards with dependencies and source links, and the empty 
   vi.mocked(api.listTasks).mockResolvedValueOnce([]);
   render(<TasksView cost={null} />);
   expect(
-    await screen.findByText("No tasks yet. Split the spec first."),
+    await screen.findByRole("region", { name: "No tasks yet" }),
   ).toBeInTheDocument();
 
   vi.mocked(api.listTasks).mockResolvedValueOnce(files);
@@ -143,7 +143,7 @@ test("the split cost shows even when the split finished on another route", async
 test("TasksView reloads when a task file changes on disk", async () => {
   vi.mocked(api.listTasks).mockResolvedValueOnce([]);
   render(<TasksView cost={null} />);
-  await screen.findByText("No tasks yet. Split the spec first.");
+  await screen.findByRole("region", { name: "No tasks yet" });
 
   vi.mocked(api.listTasks).mockResolvedValueOnce(files);
   await emit({ type: "file-changed", kind: "task", name: "01-db" });
@@ -153,7 +153,7 @@ test("TasksView reloads when a task file changes on disk", async () => {
 test("TasksView shows a split error until the next split", async () => {
   vi.mocked(api.listTasks).mockResolvedValue([]);
   render(<TasksView cost={null} />);
-  await screen.findByText("No tasks yet. Split the spec first.");
+  await screen.findByRole("region", { name: "No tasks yet" });
 
   await emit({ type: "split.status", state: "error", message: "boom" });
   expect(screen.getByRole("alert")).toHaveTextContent("boom");

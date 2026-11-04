@@ -1,7 +1,10 @@
+import { Bot } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PanelEvent } from "../../shared/panel";
 import type { OtherSession, RunView } from "../../shared/runs";
 import * as api from "../api";
+import { EmptyState } from "../EmptyState";
+import { routeHash } from "../hooks/useHashRoute";
 import { TranscriptList } from "../panel/TranscriptList";
 import { reduceTranscript } from "../panel/transcript";
 import { useServerEvent } from "../server-events";
@@ -208,16 +211,32 @@ export function SessionsView() {
 
   return (
     <div className="sessions-page">
-      <p className="muted">
-        Runs share your Claude subscription's rate limits.
-      </p>
+      {runs && runs.length > 0 && (
+        <p className="muted">
+          Runs share your Claude subscription's rate limits.
+        </p>
+      )}
       {error && (
         <p role="alert" className="plan-error">
           {error}
         </p>
       )}
       {runs?.length === 0 && (
-        <p className="muted">No runs yet. Launch one from the tasks view.</p>
+        <EmptyState
+          icon={Bot}
+          title="No runs yet"
+          compact={(others?.length ?? 0) > 0}
+          action={
+            <a className="button" href={routeHash({ kind: "tasks" })}>
+              Open tasks
+            </a>
+          }
+        >
+          <p>
+            Launching a task starts a Claude Code session in its own worktree.
+            Its run shows up here, where you can watch, message, and stop it.
+          </p>
+        </EmptyState>
       )}
       <div className="run-grid">
         {newestFirst.map((run) => (
@@ -235,26 +254,32 @@ export function SessionsView() {
           />
         ))}
       </div>
-      <section className="other-sessions" aria-labelledby="other-sessions">
-        <h2 id="other-sessions" className="nav-title">
-          Other sessions
-        </h2>
-        {othersError && (
-          <p role="alert" className="plan-error">
-            {othersError}
-          </p>
-        )}
-        {others?.length === 0 && (
-          <p className="muted">No other Claude sessions in this repository.</p>
-        )}
-        {others && others.length > 0 && (
-          <ul className="other-list">
-            {others.map((s) => (
-              <OtherSessionRow key={s.sessionId} session={s} />
-            ))}
-          </ul>
-        )}
-      </section>
+      {/* Shown once loaded; with no runs and no other sessions, the empty state is the page. */}
+      {(othersError ||
+        (others !== null && !(runs?.length === 0 && others.length === 0))) && (
+        <section className="other-sessions" aria-labelledby="other-sessions">
+          <h2 id="other-sessions" className="nav-title">
+            Other sessions
+          </h2>
+          {othersError && (
+            <p role="alert" className="plan-error">
+              {othersError}
+            </p>
+          )}
+          {others?.length === 0 && (
+            <p className="muted">
+              No other Claude sessions in this repository.
+            </p>
+          )}
+          {others && others.length > 0 && (
+            <ul className="other-list">
+              {others.map((s) => (
+                <OtherSessionRow key={s.sessionId} session={s} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
     </div>
   );
 }

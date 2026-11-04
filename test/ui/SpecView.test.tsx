@@ -11,6 +11,7 @@ vi.mock("../../src/ui/api", async (orig) => ({
   getSpec: vi.fn(),
   agentSplit: vi.fn(),
   agentState: vi.fn(),
+  agentCompile: vi.fn(),
 }));
 
 const handlers = new Set<(m: ServerMessage) => void>();
@@ -52,7 +53,7 @@ test("SpecView shows the empty state, then the spec with marked citations on fil
   });
   const { container } = render(<SpecView />);
   expect(
-    await screen.findByText("No spec yet. Press Compile in the Claude panel."),
+    await screen.findByRole("region", { name: "No spec yet" }),
   ).toBeInTheDocument();
 
   vi.mocked(api.getSpec).mockResolvedValueOnce({
@@ -279,4 +280,28 @@ test("a split started here wins over a state that arrives after it", async () =>
   );
   await act(async () => answer(agentState(false)));
   expect(screen.getByRole("button", { name: "Splitting…" })).toBeDisabled();
+});
+
+test("the empty spec's Compile asks Claude to compile, and shows a failure", async () => {
+  const user = userEvent.setup();
+  vi.mocked(api.getSpec).mockResolvedValue({
+    text: null,
+    dropped: [],
+    labels: {},
+  });
+  vi.mocked(api.agentCompile).mockRejectedValueOnce(new Error("busy"));
+  render(<SpecView />);
+  const compile = await screen.findByRole("button", {
+    name: "Compile the plan",
+  });
+  await user.click(compile);
+  expect(api.agentCompile).toHaveBeenCalledOnce();
+  expect(await screen.findByRole("alert")).toHaveTextContent("busy");
+  expect(compile).toBeEnabled();
+
+  vi.mocked(api.agentCompile).mockResolvedValueOnce({ id: "u1" });
+  await user.click(compile);
+  expect(
+    await screen.findByRole("button", { name: "Compiling…" }),
+  ).toBeDisabled();
 });

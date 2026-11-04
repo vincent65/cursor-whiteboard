@@ -157,15 +157,22 @@ export function Sidebar({
   active,
   onCreateBoard,
   onCreateDoc,
+  creating = null,
+  onCreatingChange,
 }: {
   boards: string[];
   docs: string[];
   active: Route;
   onCreateBoard(name: string): void;
   onCreateDoc(name: string): void;
+  // The list whose name field is open; owned by the caller so a page can open it.
+  creating?: Kind | null;
+  onCreatingChange?(kind: Kind | null): void;
 }) {
-  // The list whose name field is open.
-  const [open, setOpen] = useState<Kind | null>(null);
+  // Uncontrolled when the caller does not own the name field.
+  const [ownCreating, setOwnCreating] = useState<Kind | null>(null);
+  const open = onCreatingChange ? creating : ownCreating;
+  const setOpen = onCreatingChange ?? setOwnCreating;
 
   return (
     <nav className="sidebar" aria-label="Plan files">

@@ -533,7 +533,7 @@ export function BoardView({
         </div>
       )}
       {error && (
-        <p role="alert" className="empty">
+        <p role="alert" className="plan-error">
           {error}
         </p>
       )}

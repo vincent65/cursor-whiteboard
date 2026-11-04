@@ -1,4 +1,4 @@
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Sparkles } from "lucide-react";
 import {
   type KeyboardEvent,
   useEffect,
@@ -29,6 +29,17 @@ const LABELS: Record<AgentStatus, string> = {
 
 const statusText = ({ status, message }: Status): string =>
   status === "error" && message ? `Error: ${message}` : LABELS[status];
+
+// Prompts a first-time user can start from; a click puts one in the composer.
+const BOARD_SUGGESTIONS = [
+  "Describe what I selected",
+  "Draw a flowchart for a sign-in flow",
+  "What is missing from this plan?",
+];
+const SUGGESTIONS = [
+  "Summarize my plan so far",
+  "What is missing from this plan?",
+];
 
 // onBoard: a board is the open route, so "this board" means something.
 export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
@@ -158,6 +169,11 @@ export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
     status.status === "working" ||
     status.status === "needs_you";
   const ask = pending[0];
+  const empty = items.length === 0 && !ask;
+  const suggest = (prompt: string) => {
+    setText(prompt);
+    input.current?.focus();
+  };
 
   return (
     <section className="panel" aria-label="Claude">
@@ -189,7 +205,35 @@ export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
         </button>
       </header>
       <div className="transcript" ref={transcript} onScroll={onScroll}>
-        <TranscriptList items={items} />
+        {empty ? (
+          <div className="panel-empty">
+            <span className="empty-icon" aria-hidden="true">
+              <Sparkles size={20} strokeWidth={1.75} />
+            </span>
+            <h3 className="empty-title">Ask Claude about your plan</h3>
+            <p className="empty-body">
+              {onBoard
+                ? "Select shapes to ask about them. Anything Claude draws arrives as dashed shapes you accept, reject, or refine."
+                : "Claude reads your boards and docs. Open a board to ask about the shapes you select."}
+            </p>
+            <ul className="suggestions" aria-label="Suggestions">
+              {(onBoard ? BOARD_SUGGESTIONS : SUGGESTIONS).map((prompt) => (
+                <li key={prompt}>
+                  <button
+                    type="button"
+                    className="suggestion"
+                    disabled={status.status === "starting"}
+                    onClick={() => suggest(prompt)}
+                  >
+                    {prompt}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <TranscriptList items={items} />
+        )}
       </div>
       {ask && (
         <PermissionDialog key={ask.id} ask={ask} onDecide={decide(ask.id)} />

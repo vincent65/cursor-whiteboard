@@ -78,7 +78,9 @@ test("SessionsView routes run.event and run.status to the matching card only", a
   render(<SessionsView />);
 
   expect(
-    screen.getByText("Runs share your Claude subscription's rate limits."),
+    await screen.findByText(
+      "Runs share your Claude subscription's rate limits.",
+    ),
   ).toBeInTheDocument();
   // Newest first; a run whose task file is gone is titled by its slug.
   await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(2));
@@ -198,7 +200,7 @@ test("SessionsView lists other sessions with a read-only transcript, or says the
   const { unmount } = render(<SessionsView />);
 
   expect(
-    await screen.findByText("No runs yet. Launch one from the tasks view."),
+    await screen.findByRole("region", { name: "No runs yet" }),
   ).toBeInTheDocument();
   const list = screen.getByRole("region", { name: "Other sessions" });
   const row = await within(list).findByRole("button", {
@@ -216,11 +218,19 @@ test("SessionsView lists other sessions with a read-only transcript, or says the
   expect(within(list).queryByRole("textbox")).toBeNull();
   unmount();
 
+  // With no runs and no other sessions, the empty state is the whole page.
   vi.mocked(api.listSessions).mockResolvedValue([]);
   render(<SessionsView />);
   expect(
-    await screen.findByText("No other Claude sessions in this repository."),
+    await screen.findByRole("region", { name: "No runs yet" }),
   ).toBeInTheDocument();
+  await waitFor(() =>
+    expect(screen.queryByRole("region", { name: "Other sessions" })).toBeNull(),
+  );
+  expect(screen.getByRole("link", { name: "Open tasks" })).toHaveAttribute(
+    "href",
+    "#/tasks",
+  );
 });
 
 test("SessionsView clears a failed load on the next good one and shows a failed transcript in its card", async () => {
@@ -303,7 +313,7 @@ test("a good runs load keeps the other sessions' failure, and an outdated runs f
     }),
   );
   render(<SessionsView />);
-  const others = screen.getByRole("region", { name: "Other sessions" });
+  const others = await screen.findByRole("region", { name: "Other sessions" });
   expect(await within(others).findByRole("alert")).toHaveTextContent(
     "sessions unreadable",
   );
@@ -311,7 +321,7 @@ test("a good runs load keeps the other sessions' failure, and an outdated runs f
   // The runs arrive after the sessions failed; that failure stays.
   await act(async () => first([]));
   expect(
-    await screen.findByText("No runs yet. Launch one from the tasks view."),
+    await screen.findByRole("region", { name: "No runs yet" }),
   ).toBeInTheDocument();
   expect(within(others).getByRole("alert")).toHaveTextContent(
     "sessions unreadable",
