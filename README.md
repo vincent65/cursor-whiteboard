@@ -1,4 +1,4 @@
-# Blueprint
+# <img src="src/ui/public/favicon.svg" alt="" width="32" height="40"> Blueprint
 
 Blueprint is a planning whiteboard for Claude Code. It runs locally in one of your repositories and opens in your browser.
 
