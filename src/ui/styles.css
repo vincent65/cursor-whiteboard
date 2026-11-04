@@ -506,6 +506,11 @@ pre {
   margin: 0;
 }
 
+/* Compile sits right, whether or not the status beside the title is showing. */
+.panel-header > .button {
+  margin-left: auto;
+}
+
 .panel-header .button {
   padding: 0 calc(var(--space) * 1.25);
 }
@@ -1009,6 +1014,76 @@ pre {
 .send-button:disabled {
   background: var(--border-strong);
   cursor: default;
+}
+
+/* Stop, while a turn runs: ink, so it reads as a different button from Send. */
+.send-button-stop {
+  background: var(--text);
+}
+
+.send-button-stop:hover {
+  background: #000000;
+}
+
+.send-button-stop:disabled {
+  opacity: 0.45;
+  background: var(--text);
+}
+
+/* The live row at the foot of a working turn: Pip hopping, a shimmering
+   label, and the turn's running time. */
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  font-size: var(--fs-sm);
+  color: var(--muted);
+}
+
+.thinking-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thinking-time {
+  flex: none;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .thinking-text {
+    background:
+      linear-gradient(90deg, var(--muted) 35%, var(--ai) 50%, var(--muted) 65%)
+      0 0 / 250% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: shimmer 2.4s linear infinite;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .run-input {

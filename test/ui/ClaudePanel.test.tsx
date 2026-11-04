@@ -151,8 +151,9 @@ test("panel renders restored transcript, sends on Enter with the current selecti
   expect(screen.getByRole("status")).toHaveTextContent("Idle");
   expect(screen.getByText("2 selected: Auth, DB")).toBeVisible();
 
-  const stop = screen.getByRole("button", { name: "Stop" });
-  expect(stop).toBeDisabled();
+  // Idle: the composer offers Send, not Stop.
+  expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
 
   const input = screen.getByRole("textbox", { name: "Message Claude" });
   await userEvent.type(input, "first{Shift>}{Enter}{/Shift}second");
@@ -190,6 +191,10 @@ test("panel renders restored transcript, sends on Enter with the current selecti
   expect(screen.getByText("Streaming")).toBeVisible();
   expect(screen.queryByText("Str")).toBeNull();
   expect(screen.getByRole("status")).toHaveTextContent("Working");
+  // While working, Send becomes Stop and the live row counts the turn.
+  expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
+  expect(screen.getByText("0s")).toBeInTheDocument();
+  const stop = screen.getByRole("button", { name: "Stop" });
   expect(stop).toBeEnabled();
   await userEvent.click(stop);
   expect(api.agentInterrupt).toHaveBeenCalledOnce();
@@ -429,17 +434,19 @@ test("Stop reads Stopping… from the click until a status other than working or
 
   emit({ type: "agent.status", status: "needs_you" });
   expect(stop).toHaveTextContent("Stopping…");
+  // Once the turn ends, the button is Send again.
   emit({ type: "agent.status", status: "idle" });
-  expect(stop).toHaveTextContent("Stop");
-  expect(stop).toBeDisabled();
+  expect(screen.queryByRole("button", { name: /Stop/ })).toBeNull();
+  expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
 
   // A Stop that fails says why and gives the button back.
   emit({ type: "agent.status", status: "working" });
   vi.mocked(api.agentInterrupt).mockRejectedValueOnce(new Error("no session"));
-  await userEvent.click(stop);
+  const again = screen.getByRole("button", { name: "Stop" });
+  await userEvent.click(again);
   expect(await screen.findByText("no session")).toBeVisible();
-  expect(stop).toHaveTextContent("Stop");
-  expect(stop).toBeEnabled();
+  expect(again).toHaveTextContent("Stop");
+  expect(again).toBeEnabled();
 });
 
 test("citations in Claude's replies render as chips that link to the board or doc", async () => {
@@ -463,4 +470,17 @@ test("citations in Claude's replies render as chips that link to the board or do
   expect(
     screen.getByRole("link", { name: "notes.md#sign-in" }),
   ).toHaveAttribute("href", "#/docs/notes?focus=sign-in");
+});
+
+test("the header names only the states that need a look", async () => {
+  vi.mocked(api.agentState).mockResolvedValue(state({ status: "idle" }));
+  renderPanel();
+  const status = await screen.findByRole("status");
+  await waitFor(() => expect(status).toHaveTextContent("Idle"));
+  expect(status).toHaveClass("sr-only");
+  emit({ type: "agent.status", status: "working" });
+  expect(status).toHaveClass("sr-only");
+  emit({ type: "agent.status", status: "needs_you" });
+  expect(status).not.toHaveClass("sr-only");
+  expect(status).toHaveTextContent("Needs you");
 });

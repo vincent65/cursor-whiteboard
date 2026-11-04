@@ -1,4 +1,4 @@
-import { ArrowUp, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { ArrowUp, PanelRightClose, PanelRightOpen, Square } from "lucide-react";
 import {
   type KeyboardEvent,
   useEffect,
@@ -13,6 +13,7 @@ import { useSelection } from "../selection";
 import { useServerEvent } from "../server-events";
 import { PermissionDialog } from "./PermissionDialog";
 import { useRefine } from "./refine";
+import { runningTool, Thinking } from "./Thinking";
 import { TranscriptList } from "./TranscriptList";
 import { reduceTranscript, type TranscriptItem } from "./transcript";
 
@@ -29,6 +30,10 @@ const LABELS: Record<AgentStatus, string> = {
 
 const statusText = ({ status, message }: Status): string =>
   status === "error" && message ? `Error: ${message}` : LABELS[status];
+
+// Idle goes without saying, and a working turn shows its own live row, so the
+// header names only the states that need a look.
+const QUIET: AgentStatus[] = ["idle", "working"];
 
 // Prompts a first-time user can start from; a click puts one in the composer.
 const BOARD_SUGGESTIONS = [
@@ -60,6 +65,8 @@ export function ClaudePanel({
   const [failure, setFailure] = useState<string | null>(null);
   // Set from a Stop click until the session leaves working; an interrupt takes seconds.
   const [stopping, setStopping] = useState(false);
+  // When the session last started working, for the live row's timer.
+  const [since, setSince] = useState<number | null>(null);
   const selection = useSelection();
   const { target, setTarget } = useRefine();
   // A live status heard before the restored state arrives is the newer one.
@@ -67,6 +74,12 @@ export function ClaudePanel({
   const transcript = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const input = useRef<HTMLTextAreaElement>(null);
+
+  // The live row counts from the moment the session starts working.
+  const working = status.status === "working";
+  useEffect(() => {
+    setSince(working ? Date.now() : null);
+  }, [working]);
 
   // A Refine click on the board puts the cursor where the instruction goes.
   useEffect(() => {
@@ -210,7 +223,9 @@ export function ClaudePanel({
           <h2 className="panel-title">Claude</h2>
           <span
             role="status"
-            className="status"
+            className={
+              QUIET.includes(status.status) ? "status sr-only" : "status"
+            }
             data-status={status.status}
             title={statusText(status)}
           >
@@ -224,14 +239,7 @@ export function ClaudePanel({
           >
             Compile
           </button>
-          <button
-            type="button"
-            className="button button-quiet"
-            disabled={!busy || stopping}
-            onClick={stop}
-          >
-            {stopping ? "Stopping…" : "Stop"}
-          </button>
+
           {onOpenChange && (
             <button
               type="button"
@@ -273,6 +281,9 @@ export function ClaudePanel({
             </div>
           ) : (
             <TranscriptList items={items} />
+          )}
+          {working && since !== null && (
+            <Thinking since={since} activity={runningTool(items)} />
           )}
         </div>
         {ask && (
@@ -330,16 +341,37 @@ export function ClaudePanel({
               <span className="composer-hint">
                 Enter to send, Shift+Enter for a new line
               </span>
-              <button
-                type="button"
-                className="send-button"
-                aria-label="Send"
-                title="Send"
-                disabled={!text.trim() || status.status === "starting"}
-                onClick={() => void send()}
-              >
-                <ArrowUp size={16} strokeWidth={2.25} aria-hidden="true" />
-              </button>
+              {busy ? (
+                // While Claude works, Send becomes Stop; Enter still queues a message.
+                <button
+                  type="button"
+                  className="send-button send-button-stop"
+                  title="Stop"
+                  disabled={stopping}
+                  onClick={stop}
+                >
+                  <Square
+                    size={12}
+                    fill="currentColor"
+                    strokeWidth={0}
+                    aria-hidden="true"
+                  />
+                  <span className="sr-only">
+                    {stopping ? "Stopping…" : "Stop"}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="send-button"
+                  aria-label="Send"
+                  title="Send"
+                  disabled={!text.trim()}
+                  onClick={() => void send()}
+                >
+                  <ArrowUp size={16} strokeWidth={2.25} aria-hidden="true" />
+                </button>
+              )}
             </div>
           </div>
         </div>
