@@ -1,4 +1,5 @@
 import "@excalidraw/excalidraw/index.css";
+import "./icons.css";
 import {
   bumpVersion,
   CaptureUpdateAction,

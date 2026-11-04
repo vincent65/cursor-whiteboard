@@ -5,6 +5,7 @@
       "**",
       "!!**/dist",
       "!!test/export/fixtures",
+      "!!src/ui/board/icons.css",
       "!!docs",
       "!!.superpowers",
       "!!test-results",

@@ -9,6 +9,7 @@ import { SelectionProvider } from "../../src/ui/selection";
 // before any scene exists, so the editor renders nothing.
 vi.mock("@excalidraw/excalidraw", () => ({ Excalidraw: () => null }));
 vi.mock("@excalidraw/excalidraw/index.css", () => ({}));
+vi.mock("../../src/ui/board/icons.css", () => ({}));
 vi.mock("../../src/ui/api", () => ({
   getBoard: vi.fn(() => new Promise(() => {})),
   listProposals: vi.fn(async () => []),
