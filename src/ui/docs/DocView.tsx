@@ -143,6 +143,8 @@ export function DocView({
           ],
         });
         view.current = v;
+        // A new, empty document is ready to type into.
+        if (text === "") v.focus();
         setLoaded(true);
       },
       (err: Error) => setError(err.message),
