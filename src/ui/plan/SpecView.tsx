@@ -47,6 +47,12 @@ export function SpecView() {
 
   useServerEvent((m) => {
     if (m.type === "file-changed" && m.kind === "spec") void load();
+    // A compile turn that ends without writing a spec gives the button back.
+    if (
+      m.type === "agent.status" &&
+      !["starting", "working", "needs_you"].includes(m.status)
+    )
+      setCompiling(false);
     if (m.type !== "split.status") return;
     heardSplit.current = true;
     setSplitting(m.state === "running");
