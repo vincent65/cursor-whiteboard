@@ -205,15 +205,6 @@ pre {
   letter-spacing: -0.01em;
 }
 
-.brand .icon-button {
-  opacity: 0;
-}
-
-.sidebar:hover .brand .icon-button,
-.brand .icon-button:focus-visible {
-  opacity: 1;
-}
-
 .nav-section + .nav-section {
   margin-top: calc(var(--space) * 2.5);
 }
