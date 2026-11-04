@@ -1,107 +1,77 @@
 # Blueprint
 
-Blueprint is a local planning whiteboard that runs beside Claude Code in one of your repositories and opens in your browser.
-You plan on whiteboards and in Markdown documents, ask Claude from a panel beside the board, and accept, reject, or refine the shapes it proposes before they become part of the board.
-When the plan is ready, Blueprint compiles it into a spec and tasks that cite the board, launches one Claude Code session per task in its own git worktree, and shows those sessions on one page where you can watch, message, and stop them.
+Blueprint is a planning whiteboard for Claude Code. It runs locally in one of your repositories and opens in your browser.
 
-![A board with Claude's proposed sign-in flow drawn as dashed ghost shapes beside the Login box, the Accept, Reject, and Refine bar below it, and the Claude panel on the right](docs/design/after-board-proposal.png)
+Sketch on boards and write in documents, ask Claude about what you selected, and accept or reject the shapes it proposes. When the plan is ready, Blueprint turns it into a spec and tasks, then runs one Claude Code session per task in its own git worktree.
+
+![A board with Claude's proposed sign-in flow as dashed shapes, the Accept, Reject, and Refine bar below it, and the Claude panel on the right](docs/design/after-board-proposal.png)
 
 ## Requirements
 
-- macOS or Linux.
-- Node 22.1 or later, and pnpm (`corepack enable` provides the version `package.json` pins).
-- git.
-- Claude Code installed and logged in once by running `claude`.
-- Optionally, the GitHub CLI `gh`, logged in, so a run can open its pull request.
+- macOS or Linux (Windows is untested)
+- Node 22.1+ and pnpm (`corepack enable` installs the pinned version)
+- git
+- Claude Code, logged in once with `claude`
+- Optional: the GitHub CLI `gh`, logged in, so runs can open pull requests
 
-## Install and run
-
-Clone the repository and build it; the rest of this README assumes the clone is at `~/blueprint`:
+## Install
 
 ```sh
 git clone https://github.com/vincent65/cursor-whiteboard.git ~/blueprint
 cd ~/blueprint
 pnpm install
 pnpm build
+pnpm link --global   # adds a `blueprint` command; run `pnpm setup` first if pnpm asks
 ```
 
-Then start Blueprint from the root of the repository you want to plan in:
+## Run
+
+From the root of the repository you want to plan in:
 
 ```sh
-cd ~/code/your-project
-node ~/blueprint/dist/cli/index.js
+blueprint
 ```
 
-It creates `.blueprint/`, adds its ignored paths to `.gitignore`, serves the UI at http://localhost:4242, and opens it in your browser.
-`--port <n>` picks another port, `--no-open` skips the browser, and `init` creates `.blueprint/` without serving.
+Blueprint creates `.blueprint/`, adds its ignored paths to `.gitignore`, and opens http://localhost:4242.
 
-For a `blueprint` command on your PATH, link the clone once:
+| Option       | Does                                  |
+| ------------ | ------------------------------------- |
+| `--port <n>` | Serves on another port                |
+| `--no-open`  | Skips opening the browser             |
+| `init`       | Creates `.blueprint/` without serving |
 
-```sh
-cd ~/blueprint
-pnpm link --global
-```
+Without the global link, run `node ~/blueprint/dist/cli/index.js` instead.
 
-If pnpm reports that it has no global bin directory, run `pnpm setup`, open a new shell, and link again.
-After that, `blueprint` in any repository does the same as the `node` command above.
+## How it works
 
-## The login caveat
+1. **Sketch.** Press **+** next to Boards or Documents, name it, and start drawing or writing. Pasted images are saved in `.blueprint/assets/`.
+2. **Ask.** Select shapes and type in the Claude panel. Claude answers in text, or proposes shapes that appear as dashed outlines next to your selection.
+3. **Decide.** **Accept** keeps the proposal, **Reject** removes it, and **Refine** asks Claude to change it. Nothing Claude proposes stays on the board until you accept it.
+4. **Compile.** **Compile** writes `.blueprint/spec.md` from your boards and documents. Each citation in the spec opens the shape or heading it came from.
+5. **Split.** **Split into tasks** writes one file per task in `.blueprint/tasks/`, with dependencies, files, and acceptance criteria.
+6. **Launch.** **Launch** on a task starts a Claude Code session on a new branch, `blueprint/<slug>`, in its own worktree. A task whose dependencies are not merged yet needs **Launch anyway**.
+7. **Watch.** **Sessions** shows a card per run with its status, transcript, and a message box. When a run asks to use a tool, its card reads **Needs you** until you allow or deny it. Each run commits, pushes, and opens a pull request with `gh` when it can; otherwise its work stays committed on its branch. **Mark done** finishes a run.
 
-Blueprint holds no credentials and calls no API.
-Every model call runs in Claude Code, which Blueprint drives through Anthropic's Agent SDK on your own Claude Code login, so it spends your plan's usage like a terminal session does.
-Anthropic's terms, as the Agent SDK documentation states them, reserve claude.ai login for first-party products, and Blueprint is not one.
-Blueprint is a personal tool built for its author's own use; it is not offered as a service, and if you run it on your login you take that on yourself.
+Recorded walkthroughs, made with the fake SDK: [plan, ask, and accept](docs/demo/01-plan-ask-accept.webm), [compile and split](docs/demo/02-compile-split.webm), [launch a run](docs/demo/03-launch-run.webm).
 
-## The loop
+## Your Claude login
 
-1. **Board.**
-   Press **New board** in the left rail, name it, and draw.
-   Docs work the same way with **New doc**, and pasted images are stored under `.blueprint/assets/`.
-2. **Ask.**
-   Select shapes and type in the Claude panel.
-   Claude sees what you selected and answers with text, or proposes shapes that appear as dashed ghosts beside the selection.
-3. **Accept or refine.**
-   **Accept** keeps the ghosts as ordinary shapes, **Reject** removes them, and **Refine** lets you tell Claude what to change so it revises the ghosts in place.
-   Nothing Claude proposes stays on the board until you accept it.
-4. **Compile.**
-   **Compile** in the Claude panel writes `.blueprint/spec.md` from your boards and docs.
-   Under **Spec**, each citation is a chip that opens the board with the cited shape selected.
-5. **Split.**
-   **Split into tasks** on the spec writes one file per task under `.blueprint/tasks/`, with its dependencies, files, acceptance criteria, and sources.
-6. **Launch.**
-   Under **Tasks**, **Launch** starts a Claude Code session for that task on a new branch `blueprint/<slug>` in its own worktree, in the permission mode you pick.
-   A task whose dependencies have not finished and merged into your current branch needs **Launch anyway**.
-7. **Watch.**
-   **Sessions** shows a card per run with its status, transcript, and a message box.
-   A run that asks to use a tool reads **Needs you** until you allow or deny it on its card.
-   Each run is told to commit on its branch, push, and open a pull request with `gh` if it can, then print the pull request's URL, which its card shows as a link.
-   Without `gh`, or without a remote, a run ends **Idle** with its work committed on its branch.
-   **Mark done** on its card marks it finished; once you merge its branch into your current branch, the tasks that depend on it launch without **Launch anyway**.
+Blueprint holds no credentials and calls no API itself. It drives Claude Code through Anthropic's Agent SDK on your own login, so it uses your plan like a terminal session does.
 
-The three recorded flows show this loop end to end against the fake SDK:
+Anthropic's Agent SDK terms reserve claude.ai login for first-party products, and Blueprint is not one. It is a personal tool, not a service; if you run it on your login, that is your call.
 
-- [Plan, ask, and accept](docs/demo/01-plan-ask-accept.webm)
-- [Compile and split](docs/demo/02-compile-split.webm)
-- [Launch a run](docs/demo/03-launch-run.webm)
+## Try it without Claude
 
-## Try it without a subscription
-
-`BLUEPRINT_FAKE_SDK` points Blueprint at a scenario file that a fake SDK replays instead of running Claude.
-`e2e/scenario.json` in the clone is the scenario the tests and demo videos use.
-A relative path is resolved from the directory Blueprint runs in, so the simplest place to try it is the clone itself:
+The fake SDK replays a scripted scenario instead of calling Claude. From the clone:
 
 ```sh
 cd ~/blueprint
 BLUEPRINT_FAKE_SDK=e2e/scenario.json node dist/cli/index.js
 ```
 
-The server prints `Using the fake SDK from` and the scenario's full path before its address.
-From another repository, give the full path instead, as in `BLUEPRINT_FAKE_SDK="$HOME/blueprint/e2e/scenario.json" blueprint`.
+From another repository, pass the full path: `BLUEPRINT_FAKE_SDK="$HOME/blueprint/e2e/scenario.json" blueprint`.
 
-The scenario answers every question with the same Login and Home flowchart, compiles a fixed spec, splits it into two tasks, and has each run write `src/login.ts`, ask to push, and print an example PR link.
-The spec cites the first labelled shape on a board named `main`, so name your board `main` and the spec's citation chip opens that shape.
-Allowing the push runs nothing, but a launched run does make a real branch and worktree.
-When you are done, remove what the walkthrough made in the clone:
+The scenario always proposes the same Login and Home flowchart, compiles a fixed spec, and splits it into two tasks. Name your board `main` so the spec's citation opens the right shape. A launched run creates a real branch and worktree, so clean up afterwards:
 
 ```sh
 git worktree remove --force .blueprint/worktrees/login-page
@@ -109,46 +79,42 @@ git branch -D blueprint/login-page
 rm -rf .blueprint
 ```
 
-## What lives in `.blueprint/`
+## What's in `.blueprint/`
 
-| Path                            | What it holds                                          | In git    |
-| ------------------------------- | ------------------------------------------------------ | --------- |
-| `boards/<name>.excalidraw.json` | Board scenes, with images stored separately            | Committed |
-| `assets/<sha256>.<ext>`         | Pasted images and files                                | Committed |
-| `docs/<name>.md`                | Markdown docs                                          | Committed |
-| `spec.md`                       | The compiled spec                                      | Committed |
-| `tasks/<nn>-<slug>.md`          | One task per file, with frontmatter                    | Committed |
-| `sessions.json`                 | Blueprint's index of the plan session and its runs     | Committed |
-| `proposals.jsonl`               | Every proposal and whether it was accepted or rejected | Committed |
-| `export/`                       | Board Markdown and PNG regenerated for Claude to read  | Ignored   |
-| `worktrees/<slug>/`             | One worktree per run                                   | Ignored   |
+| Path                            | Holds                                   | In git    |
+| ------------------------------- | --------------------------------------- | --------- |
+| `boards/<name>.excalidraw.json` | Board scenes (images stored separately) | Committed |
+| `assets/<sha256>.<ext>`         | Pasted images and files                 | Committed |
+| `docs/<name>.md`                | Documents                               | Committed |
+| `spec.md`                       | The compiled spec                       | Committed |
+| `tasks/<nn>-<slug>.md`          | One task per file                       | Committed |
+| `sessions.json`                 | The plan session and its runs           | Committed |
+| `proposals.jsonl`               | Every proposal and its outcome          | Committed |
+| `export/`                       | Board exports Claude reads              | Ignored   |
+| `worktrees/<slug>/`             | One worktree per run                    | Ignored   |
 
-Blueprint writes the files and you commit them like any other change; it never commits plan files for you.
+Blueprint writes these files but never commits them; commit them like any other change.
 
 ## Known limitations
 
-- Claude Code approves read-only Bash commands, such as `ls` or `git status`, without asking, so they never show an ask in Blueprint.
-- A task runs once: a second launch fails because its branch and worktree already exist.
-  To retry a run that failed, send it a message on its card instead.
-- The dependency check asks git whether a dependency's branch is an ancestor of your current branch, so a dependency merged by squash or rebase reads as not merged, and its dependents need **Launch anyway**.
-- Blueprint never removes a worktree or branch.
-  A run whose session cannot resume and whose worktree is unusable needs manual cleanup: `git worktree remove --force .blueprint/worktrees/<slug>` and `git branch -D blueprint/<slug>`, after which the task can launch again.
-- Windows is untested.
-- One Blueprint per repository: a second Blueprint process on the same repository is not supported.
+- Claude Code runs read-only commands like `ls` without asking, so they never show up as a request.
+- Each task launches once; to retry a failed run, message it on its card.
+- Dependencies count as merged only when their branch is an ancestor of yours, so squash or rebase merges need **Launch anyway**.
+- Blueprint never deletes worktrees or branches. To relaunch a broken run: `git worktree remove --force .blueprint/worktrees/<slug>` and `git branch -D blueprint/<slug>`.
+- Run one Blueprint per repository.
 
 ## Development
 
 ```sh
-pnpm dev     # the server on port 4242 with reload, and the UI at http://localhost:5173
-pnpm check   # type checks, Biome, and the unit tests
-pnpm exec playwright install chromium   # once, before the first e2e or demo run
-pnpm e2e     # Playwright flows against the fake SDK
-pnpm demo    # the same flows, recorded into docs/demo/
+pnpm dev                               # server on :4242 with reload, UI on :5173
+pnpm check                             # type checks, Biome, unit tests
+pnpm exec playwright install chromium  # once, before e2e
+pnpm e2e                               # end-to-end flows against the fake SDK
+pnpm demo                              # the same flows, recorded to docs/demo/
 ```
 
-`pnpm dev` serves the repository you run it in, which is the clone itself.
-The design notes behind the MVP are in [docs/build-plan.md](docs/build-plan.md), and the UI's design system is in [DESIGN.md](DESIGN.md).
+`pnpm dev` plans in the clone itself. The original design notes are in [docs/build-plan.md](docs/build-plan.md); the UI's design system is in [DESIGN.md](DESIGN.md).
 
 ## Acknowledgments
 
-Boards are drawn with [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT), and the interface icons are [Lucide](https://lucide.dev) (ISC).
+Boards are drawn with [Excalidraw](https://github.com/excalidraw/excalidraw) (MIT). Icons are from [Lucide](https://lucide.dev) (ISC).

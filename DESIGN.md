@@ -1,228 +1,138 @@
 # Blueprint design
 
-## Feel
+Blueprint should feel like a quiet, warm workspace (in the spirit of Notion) with a drafting table in the middle.
 
-Blueprint is a drafting table set in a warm, quiet workspace in the spirit of Notion: white paper, warm grey rails, soft ink, and controls that only show their edges when you reach for them.
-Your actions are in Prussian blue, the pigment a real blueprint is printed in, and Claude's work is in non-photo blue, the pencil a draftsman sketches with because it does not reproduce until someone inks it.
-The chrome stays quiet so the hand-drawn board carries the personality, and the one bold move is that dashed, light-blue line meaning "Claude proposed this and it is not yours yet".
+- **Your actions are Prussian blue**, the ink a real blueprint is printed in.
+- **Claude's work is non-photo blue**, the pencil a draftsman sketches with before inking. A dashed light-blue line means "Claude proposed this; it isn't yours yet."
+- **The chrome stays quiet** so the hand-drawn board carries the personality.
 
-The tokens live at the top of [`src/ui/styles.css`](src/ui/styles.css).
-Every color, font size, radius, and shadow in that file comes from one of them.
+All tokens live at the top of [`src/ui/styles.css`](src/ui/styles.css). Every color, size, radius, and shadow in that file comes from a token.
 
 ## Type
 
-The interface is set in Inter, bundled from `@fontsource-variable/inter` and imported in `src/ui/main.tsx`, so it ships with the app and nothing loads from the network.
-Code, branch names, task file names, and citation chips are set in Cascadia Code, served from `/fonts` after being copied in from Excalidraw's package at build time.
-Text is antialiased and uses Inter's `cv11` single-storey a.
+- **Inter** for the interface, bundled from `@fontsource-variable/inter`, so nothing loads from the network.
+- **Cascadia Code** for code, branch names, task files, and citation chips, copied from Excalidraw's package at build time.
 
-| Token             | Size   | Use                                                                         |
-| ----------------- | ------ | --------------------------------------------------------------------------- |
-| `--fs-xs`         | 12px   | Meta lines, sidebar section names, the composer hint, the turn's end        |
-| `--fs-sm`         | 13px   | Tool rows, the status strip, inline errors                                  |
-| `--fs-md`         | 14px   | Body text, buttons, inputs, sidebar links                                   |
-| `--fs-doc`        | 15px   | Reading text in the spec and the doc editor                                 |
-| `--fs-lg`         | 16px   | Card titles, empty-state titles, a third-level heading in the spec and docs |
-| `--fs-xl`         | 20px   | A second-level heading in the spec and docs                                 |
-| `--fs-2xl`        | 28px   | The top-level heading in the spec and docs                                  |
-| `--fs-code-ratio` | 0.86em | Code inside text, relative to the text around it                            |
+| Token             | Size   | Use                                              |
+| ----------------- | ------ | ------------------------------------------------ |
+| `--fs-xs`         | 12px   | Meta lines, sidebar section names, a turn's cost |
+| `--fs-sm`         | 13px   | Tool rows, status, inline errors, prompt pills   |
+| `--fs-md`         | 14px   | Body text, buttons, inputs, sidebar rows         |
+| `--fs-doc`        | 15px   | Reading text in the spec and document editor     |
+| `--fs-lg`         | 16px   | Card and empty-state titles, third-level heads   |
+| `--fs-xl`         | 20px   | Second-level headings in the spec and documents  |
+| `--fs-2xl`        | 28px   | Top-level headings in the spec and documents     |
+| `--fs-code-ratio` | 0.86em | Inline code, relative to the text around it      |
 
-Body text uses a line height of 1.5, and reading text 1.65 at a 72-character measure.
-Weights are 400 for text, 500 for buttons, links, and labels, 600 for titles, and 700 only for a document's top-level heading.
-Headings of 20px and up are tracked in slightly, by 0.01em to 0.02em.
-Section names in the sidebar are sentence case, not tracked capitals.
+- Line height is 1.5 for UI text and 1.65 for reading text, at a 72-character measure.
+- Weights: 400 text, 500 buttons and labels, 600 titles, 700 only for a document's top heading.
+- Section names are sentence case, never tracked capitals.
 
 ## Color
 
-| Token             | Value                     | Role                                                              |
-| ----------------- | ------------------------- | ----------------------------------------------------------------- |
-| `--bg`            | `#ffffff`                 | Paper: the main area, the Claude panel, cards, inputs             |
-| `--surface`       | `#f7f7f5`                 | The sidebar, folded strips, code blocks, a run's transcript       |
-| `--hover`         | `rgb(55 53 47 / 0.06)`    | A row or quiet control under the pointer                          |
-| `--selected`      | `rgb(55 53 47 / 0.09)`    | The open page in the sidebar, the selection chip                  |
-| `--border`        | `#ebeae6`                 | Rules between regions and around cards                            |
-| `--border-strong` | `#dcdad5`                 | Controls: buttons, inputs, the composer                           |
-| `--text`          | `#37352f`                 | Ink for all body text                                             |
-| `--muted`         | `#6b6a65`                 | Secondary text: descriptions, tool rows, icons, meta lines        |
-| `--faint`         | `#9b9a97`                 | Hints only: placeholders, the composer hint, the turn's end       |
-| `--on-accent`     | `#ffffff`                 | Text on an accent fill                                            |
-| `--accent`        | `#1d4f8c`                 | Prussian blue: primary buttons, Send, focus rings, the brand mark |
-| `--accent-hover`  | `#163f71`                 | A primary button under the pointer                                |
-| `--accent-tint`   | `#e8eef6`                 | The focus halo around the composer, the citation chip             |
-| `--ghost`         | `#5aaed8`                 | Non-photo blue line: the dashed edge of anything Claude proposed  |
-| `--ghost-tint`    | `#edf6fb`                 | The fill behind a ghost line on the refine chip                   |
-| `--ai`            | `#136f96`                 | AI-made: the proposal summary and the Working dot                 |
-| `--ok`            | `#2c7a4b`                 | Idle in the panel, a run that is Done                             |
-| `--warn`          | `#9a5c08`                 | Needs you, and a citation the spec dropped                        |
-| `--warn-tint`     | `#fbf3e6`                 | The fill of a permission dialog                                   |
-| `--danger`        | `#bd3a2a`                 | Errors and a failed run                                           |
-| `--code-bg`       | `rgb(135 131 120 / 0.15)` | Inline code and branch tags                                       |
-| `--bubble`        | `#f1f1ef`                 | Your messages in the transcript                                   |
+| Token                          | Value                             | Use                                             |
+| ------------------------------ | --------------------------------- | ----------------------------------------------- |
+| `--bg`                         | `#ffffff`                         | Paper: main area, Claude panel, cards, inputs   |
+| `--surface`                    | `#f7f7f5`                         | Sidebar, code blocks, insets                    |
+| `--hover` / `--selected`       | ink at 6% / 9%                    | Row under the pointer / the open page           |
+| `--border` / `--border-strong` | `#ebeae6` / `#dcdad5`             | Dividers and cards / controls                   |
+| `--text`                       | `#37352f`                         | Body text                                       |
+| `--muted`                      | `#6b6a65`                         | Secondary text and icons                        |
+| `--faint`                      | `#9b9a97`                         | Hints only, such as placeholders                |
+| `--accent` / `--accent-hover`  | `#1d4f8c` / `#163f71`             | Primary buttons, Send, focus rings              |
+| `--accent-tint`                | `#e8eef6`                         | Focus halo, citation chips, selected tools      |
+| `--ghost` / `--ghost-tint`     | `#5aaed8` / `#edf6fb`             | Dashed edge of Claude's proposals; Pip          |
+| `--ai`                         | `#136f96`                         | Claude's own text, such as the proposal summary |
+| `--ok` / `--warn` / `--danger` | `#2c7a4b` / `#9a5c08` / `#bd3a2a` | Done / needs you / errors                       |
+| `--warn-tint`                  | `#fbf3e6`                         | Permission dialog fill                          |
+| `--code-bg`                    | warm grey at 15%                  | Inline code and branch tags                     |
+| `--bubble`                     | `#f1f1ef`                         | Your messages                                   |
 
-Text colors meet a 4.5 to 1 contrast ratio on the surfaces they sit on, except `--faint`, which is kept to hints that also have a label or are repeated elsewhere.
-`--ghost` is a line color only; text in the ghost family uses `--ai`.
-Excalidraw's own toolbar keeps its own colors, and the canvas draws ghosts itself (see below).
+Text meets 4.5:1 contrast on its surface. `--faint` is the exception and is used only for hints that are labelled elsewhere. `--ghost` is a line color; text in that family uses `--ai`.
 
-## Spacing, radius, and shadow
+## Spacing, radius, shadow, motion
 
-Spacing is a multiple of `--space`, which is 8px: 4, 8, 12, 16, 20, 24, 32, and 40 pixels.
-Rows inside a region are 8px apart, regions are padded 16px, and full pages are padded 40px on top and 32px at the sides.
-
-| Token           | Value | Use                                                               |
-| --------------- | ----- | ----------------------------------------------------------------- |
-| `--radius-sm`   | 4px   | Inline code, branch tags, citation chips                          |
-| `--radius`      | 6px   | Buttons, inputs, sidebar rows, icon buttons, the selection chip   |
-| `--radius-lg`   | 10px  | Cards, suggestions, the welcome steps, the floating proposals bar |
-| `--radius-xl`   | 14px  | The composer and your message bubble                              |
-| `--radius-pill` | 999px | Status dots, status pills, the Send button                        |
-
-`--shadow-sm` lifts cards and the composer off the paper by a hair; `--shadow-float` is only for the proposals bar, because only it floats over the canvas.
-Hover and press changes ease over 120ms with `--ease`.
+- Spacing is a multiple of 8px. Rows are 8px apart, regions are padded 16px, pages 40px on top and 32px at the sides.
+- Radius: `--radius-sm` 4px (code, chips), `--radius` 6px (buttons, inputs, rows), `--radius-lg` 10px (cards, bars), `--radius-xl` 14px (composer, message bubbles), `--radius-pill` for dots, pills, and round buttons.
+- Shadow: `--shadow-sm` lifts cards and the composer slightly. `--shadow-float` is only for the proposals bar, which floats over the canvas.
+- Motion: hovers and presses take 120ms with `--ease`. Side panels slide in over 180ms. Everything that moves holds still under reduced motion.
 
 ## Layout
 
-The layout is built for a window at least 1280 by 800.
-From 1360 px wide the rail is 240px and the Claude panel 360px; below that they narrow to 200px and 320px, so at 1280 the board is 760px wide.
-Excalidraw keeps its desktop toolbar only while the board is at least 730px wide, so narrower windows fold the side columns into 48px strips: the rail below 1250px and the panel below 1100px.
-When the board still drops under 730px, in a window under about 830px or with a column opened by hand, Excalidraw's phone layout puts its undo and redo in a bar across the bottom; Blueprint stacks them in a small column at the board's left edge instead, under the tools, and the proposals bar moves down to the board's foot.
-Either side can also be folded or opened by hand, from the button in its header or strip; that choice holds until the window crosses its breakpoint again.
-The folded rail is an icon strip; the folded panel takes no column at all and is a round 56px Pip button floating over the board's bottom-right corner, where Pip hops while Claude works.
-A side opened by hand in a narrow window floats over the board's edge, sliding in over 180ms, instead of taking a column, so the board and Excalidraw's toolbar never move under the pointer.
-The folded panel stays mounted, so a half-typed message and the transcript survive.
+- Built for 1280×800 and up. From 1360px the sidebar is 240px and the Claude panel 360px; below that, 200px and 320px.
+- Excalidraw keeps its desktop toolbar only while the board is at least 730px wide. To protect that, the sidebar folds to a 48px icon strip below 1250px, and the Claude panel folds away below 1100px.
+- A folded Claude panel is a round 56px Pip button at the board's bottom-right corner. Pip hops on it while Claude works.
+- Opening a folded side by hand in a narrow window slides it over the board instead of taking a column, so the board and toolbar don't move. Picking a page from the floating sidebar, or pressing Escape in either floating side, folds it again.
+- Folding or unfolding moves keyboard focus to the control that replaced the one you pressed. A folded panel opens by itself for Refine and for permission asks.
+- A choice to fold or open holds until the window crosses that side's breakpoint. The folded panel stays mounted, so half-typed messages survive.
+- In Excalidraw's phone layout (very narrow windows), undo and redo stack in a small column on the board's left instead of a bar across the bottom.
 
 ## Components
 
 ### Sidebar
 
-The rail opens with Pip and the Blueprint name, with its fold button always at the right.
-Each row is a Lucide icon at 16px in `--muted` and a label, 30px tall, on `--hover` under the pointer and `--selected` with a 600 weight when it is the open page.
-Spec, Tasks, and Sessions sit under Plan, then Boards and Documents, each section name with a `+` icon button on its right.
-The `+` opens a name field at the top of its list instead of a browser prompt: Enter creates, Escape or leaving it empty cancels, and a name with no letter or digit says so in `--danger` under the field.
-An empty list reads "No boards yet" or "No documents yet" in `--faint`.
-The interface always says "document" in full; routes and files keep the short `doc`.
-Folded, the rail is a strip of the same icons, with Boards and Documents opening the rail.
+- Pip and the Blueprint name at the top, with the fold button always visible.
+- Plan (Spec, Tasks, Sessions), then Boards and Documents. Rows are 30px with a 16px Lucide icon.
+- **+** next to Boards or Documents opens a name field in the list: Enter creates, Escape or an empty field cancels. A taken name, a name without a letter or digit, or a server error shows under the field.
+- Empty lists read "No boards yet" and "No documents yet".
+- The interface always spells out "document"; routes and files keep `doc`.
 
 ### Empty states
 
-Every page that can be empty uses one component, [`src/ui/EmptyState.tsx`](src/ui/EmptyState.tsx): a title in `--fs-lg`, a short description in `--muted` that says what the page is for, and the one step that fills it, with no icon.
-It sits centred in the page, a little above the middle, so the welcome page, the spec, the tasks, and the sessions read the same.
-The first run gets a welcome page with three numbered steps and Create your first board, which opens the sidebar's name field.
-The Claude panel's own empty state names what Claude can do here and offers two or three starting prompts as small grey pills under a faint Try label, quieter than the text above them; a click puts one in the composer rather than sending it.
+- One component, [`src/ui/EmptyState.tsx`](src/ui/EmptyState.tsx): a title, one line on what the page is for, and the action that fills it. No icons.
+- Centered a little above the middle, so every empty page looks the same.
+- First run shows a welcome page with three numbered steps and **Create your first board**.
+- The Claude panel's empty state offers two or three starting prompts as small grey pills under a faint "Try" label. Clicking one fills the composer; it doesn't send.
 
 ### Composer and transcript
 
-The composer is a white card with a `--radius-xl` corner, a 2-line field, and a round Send button at its foot, which is `--accent` when there is something to send; Enter sends and Shift+Enter starts a new line, without a hint to say so.
-While Claude works the button becomes Stop, in ink with a square; Enter still queues a message.
-On focus the card's edge turns `--accent` with an `--accent-tint` halo.
-The placeholder is "Ask Claude anything", or "Ask Claude anything about this board" on a board, in `--faint`.
-Your messages are `--bubble` grey with ink text, Claude's are plain text, and tool activity is a run of small `--muted` rows set close together, each led by a 14px icon: a dot for a call, a check for a result, and a red cross for a failure.
-A turn ends with its cost in `--faint` followed by a hairline, so turns read as sections.
-While a turn runs, a live row sits at its foot: Pip hopping, a label that shimmers from `--muted` to `--ai`, and the turn's running time in `--faint`, as 9s, 4m 30s, or 1h 5m.
-The label is the tool that is running, such as "Reading the board…", or a drafting verb that changes every four seconds, such as "Sketching…" or "Squaring the corners…".
-With reduced motion set, Pip and the label hold still.
+- The composer is a white card with a round Send button. Enter sends; Shift+Enter adds a line. While Claude works, Send becomes Stop.
+- Placeholder: "Ask Claude anything" (or "…about this board" on a board).
+- Your messages are grey bubbles; Claude's are plain text. Tool activity is small grey rows with a dot (call), check (result), or red cross (failure).
+- Each turn ends with its cost and a hairline.
+- While a turn runs, a live row shows Pip hopping, a shimmering label (the running tool, or a drafting verb such as "Sketching…"), and elapsed time (9s, 4m 30s, 1h 5m).
+- The header shows status only when it needs attention: Needs you, Error, Starting, Stopped. Idle and Working are announced to screen readers only.
 
 ### Pip
 
-Pip is Blueprint's mascot and mark: a little sheet of blueprint paper in `--ghost` with a folded corner, a faint white grid, dark `--accent` dot eyes, pink cheeks, and a small smile, drawn by [`src/ui/Pip.tsx`](src/ui/Pip.tsx).
-It is the sidebar's logo and the favicon, blinks every few seconds, and hops while Claude works: a crouch, a leap of about a quarter of its height, and a squash on landing.
-With reduced motion set it neither blinks nor hops.
+Pip is Blueprint's mascot and logo ([`src/ui/Pip.tsx`](src/ui/Pip.tsx)): a small sheet of blueprint paper in `--ghost` with a folded corner, a faint grid, dot eyes, pink cheeks, and a smile. It's the sidebar logo and the favicon, blinks every few seconds, and hops while Claude works.
 
-### Excalidraw's chrome
+### The board (Excalidraw)
 
-Excalidraw's toolbar, properties panel, menus, dialogs, zoom, and undo take Blueprint's type and colors through Excalidraw's own CSS variables, set at the end of `styles.css`: Inter, warm greys for its lavender surfaces, and Prussian blue for its violet, with `--accent-tint` behind the selected tool and option.
-Its icons, in the toolbar, the More tools menu, and the zoom and undo buttons, are drawn over with Lucide icons at 20px by [`src/ui/board/icons.css`](src/ui/board/icons.css), which `scripts/board-icons.mjs` generates; Excalidraw keeps the buttons and their behavior.
-More tools lists the frame and laser pointer first, then Web Embed, then Generate with its Mermaid import; menu icons are 16px.
-The properties panel has a lighter lift (`0 2px 6px` at 5 percent), no scrollbar, and no Sloppiness section.
-Its color presets are Blueprint's own, through a pnpm patch to Excalidraw (`patches/`): ink `#1e1e1e`, Prussian `#1d4f8c`, green `#448361`, orange `#d9730d`, and red `#d44c47` for strokes, and transparent with soft blue, green, yellow, and red tints for fills.
-The same patch steps opacity by 1 percent; the slider fills in Prussian blue with a 14px ring thumb and its value as a percentage at its right end.
-The selection outline is `#3b7ddd`, a brighter blue than the ink, so it reads as interface rather than drawing.
-Moving a shape snaps it to line up with its neighbors, and a rotation of one shape that ends within 5 degrees of a quarter turn lands on it ([`src/ui/board/snap.ts`](src/ui/board/snap.ts)).
-Where Excalidraw's own strings name it, as in "Mermaid to Excalidraw", [`src/ui/board/rebrand.ts`](src/ui/board/rebrand.ts) rewrites them to say Blueprint, in the editor and in its dialogs and tooltips; nothing outside Excalidraw's containers is touched.
-The tools drop their number badges, since each tooltip still names its shortcut.
-Blueprint keeps boards itself and is not Excalidraw, so Excalidraw's main menu, its Library of excalidraw.com shapes, and its Help button are hidden, and its file actions (open, save to a file, reset) and theme switch are turned off; find (Cmd+F) and image export (Cmd+Shift+E) still work.
-The help dialog that `?` still opens leaves out its links to Excalidraw's docs and socials and is at most 760px wide, with its keys set as grey keycaps in Cascadia Code.
+Blueprint draws boards with Excalidraw but presents them as its own:
 
-### Ghost styling and the proposals bar
+- **Look:** Excalidraw's CSS variables are set to Blueprint's type and colors: Inter, warm greys, Prussian blue, a lighter panel shadow, and a brighter `#3b7ddd` selection outline.
+- **Icons:** Lucide icons replace Excalidraw's in the toolbar (20px), menus (16px), zoom, and undo. [`src/ui/board/icons.css`](src/ui/board/icons.css) is generated by `scripts/board-icons.mjs`. Tool number badges are hidden; tooltips still show shortcuts.
+- **Removed:** the main menu, Library, Help button, dark mode, and file actions (open, save to file, reset). Find (Cmd+F) and image export (Cmd+Shift+E) still work. The properties panel has no Sloppiness section and no scrollbar.
+- **Wording:** [`src/ui/board/rebrand.ts`](src/ui/board/rebrand.ts) rewrites "Excalidraw" to "Blueprint" in Excalidraw's own text, such as "Mermaid to Blueprint". It never touches text outside Excalidraw's containers, find results, or link addresses.
+- **Colors and opacity:** a pnpm patch (`patches/`) sets the quick-pick colors (ink, Prussian blue, green, orange, red, and soft tints for fills) and steps opacity by 1%. The slider shows its value as a percentage.
+- **More tools:** frame and laser pointer, then Web Embed, then Mermaid import (reordered in the patch, so keyboard order matches).
+- **Snapping:** moved shapes snap to their neighbors (Alt+S toggles it), and a single shape rotated to within 5° of a quarter turn lands on it ([`src/ui/board/snap.ts`](src/ui/board/snap.ts)). Arrows, lines, and shapes with arrows attached keep the exact angle you leave them at.
 
-On the canvas a proposal is drawn as ghosts: added and changed elements at 40 percent opacity with a dashed stroke, and removed ones in red.
-That is Excalidraw element styling, set in [`src/ui/board/ghosts.ts`](src/ui/board/ghosts.ts), and this design pass leaves it alone.
-The proposals bar repeats the ghost's language around it: a paper fill with a dashed `--ghost` border, the summary in `--ai`, and the floating shadow.
-Accept is the one primary button, because it is the action that turns a ghost into ink.
-Reject and Refine are plain buttons beside it.
+### Proposals
 
-### Selection and refine chips
-
-The selection chip is a solid `--selected` grey with ink text, because the selection is yours.
-The refine chip is dashed in `--ghost` on `--ghost-tint` with `--ai` text, because it names one of Claude's proposals.
-Both sit above the composer, wrap when they run out of room, and truncate a long label with an ellipsis.
+- Proposed shapes are ghosts: 40% opacity with dashed strokes, and removals in red ([`src/ui/board/ghosts.ts`](src/ui/board/ghosts.ts)).
+- The proposals bar floats above the board's footer with a dashed `--ghost` border and Claude's summary in `--ai`. It sizes to its content, stays clear of the properties panel, the Pip button, and a floating panel, and shows its full summary as a tooltip when squeezed. **Accept** is the only primary button.
+- The selection chip above the composer is solid grey (it's yours). The refine chip is dashed light blue (it names Claude's proposal).
 
 ### Permission dialog
 
-Claude is waiting on you, so the dialog wears `--warn`: a `--warn-tint` fill inside a faint warn border with a `--radius-lg` corner.
-The tool name is bold and the summary follows it on the same line.
-It offers Allow once and Deny, plus Allow always when Claude Code suggested a rule to keep, so two or three choices.
-They are plain buttons of equal weight, so neither Allow nor Deny is the easy default.
-The same component appears in the panel, inset from its edges, and in a run card.
+Shown in the panel and on run cards when Claude needs approval: a warm amber card with the tool name and summary, and equal-weight buttons for Allow once, Deny, and Allow always (when Claude Code suggests a rule).
 
-### Status strip
+### Spec, tasks, and sessions
 
-The panel header pairs the title with a dot and a word, but only for the states that need a look: Needs you is `--warn` in bold, Error is `--danger`, and Starting and Stopped have a neutral dot.
-Idle goes without saying and Working has the transcript's live row, so for those the word is kept for screen readers only.
-The folded panel's Pip button names the state in its tooltip and hops while Claude works.
+- **Spec:** read-only Markdown at a 72-character measure. Citations are small blue chips that open the cited shape or heading; citations that no longer resolve are listed in amber. **Split into tasks** is the page's primary button.
+- **Tasks:** cards with the file name, title, dependencies, acceptance criteria, and source chips. **Launch** opens an inline dialog with a permission mode select styled like the other controls.
+- **Sessions:** run cards in a grid (400px minimum) with a status pill, branch, cost, and PR link. A run that needs you gets an amber pill. Other Claude Code sessions in the repository are listed below.
 
-### Run cards
+### Documents
 
-A run card is a paper card with a `--radius-lg` corner, its title in `--fs-lg`, and a status pill on the right.
-The card has `--shadow-sm`. The pill uses the same dot colors as the status strip; Done is `--ok`, Failed is `--danger`, an idle run is `--muted` because it waits on you without being finished, and Interrupted is a hollow ring.
-A run that needs you also gets a `--warn` pill border and fill, so it stands out in a grid.
-The meta line holds the slug, the branch as a code tag, the running cost, and the PR link.
-The sessions page is one column up to 1120px wide; cards fill it in a grid with a 400px minimum, so a lone card takes the whole width and two sit side by side.
-The rate-limit note and the other sessions list share the grid's edges.
-
-### Spec view and its citations
-
-The spec is read-only, so it reads as a document, not an editor: the same Markdown renderer as the panel, on paper, centred at a 72-character measure, in `--fs-doc` with a line height of 1.65.
-Its top-level heading is `--fs-2xl`, a second-level heading is `--fs-xl`, a third-level one `--fs-lg`, and blocks are 12px apart with 24px above each heading.
-A citation such as `[[board:main#login]]` is a small link chip labelled `main#login`: Cascadia Code at `--fs-xs`, `--accent` on `--accent-tint`, a `--radius-sm` corner, and the raw citation as its tooltip.
-A chip gains an `--accent` border on hover and opens the board element or doc heading it names.
-A citation that no longer resolves is listed in the header in `--warn`.
-Split into tasks is the one primary button, in the same header.
-
-### Doc editor
-
-Docs stay editable in CodeMirror, with a highlight style of its own in place of CodeMirror's default.
-Text is `--fs-doc` at a 72-character measure with 48px side margins; headings are not underlined, and the first three levels are `--fs-2xl`, `--fs-xl`, and `--fs-lg`.
-Markdown marks such as `#` and `**` are `--muted`, links are `--accent`, and code is Cascadia Code.
-The gutter sits on `--surface` behind a `--border` rule.
-
-### Tasks view cards
-
-A task card has the same paper, border, and corner as a run card.
-The file name sits on top in Cascadia Code at `--fs-xs`, then the title in `--fs-lg`, the dependencies, the acceptance list, and the sources as the same citation chips as the spec.
-Launch opens its dialog inline in the card on a `--surface` inset, and the dialog's Launch is the primary button.
+CodeMirror with Blueprint's own highlighting: `--fs-doc` text at a 72-character measure, unstyled headings at the three heading sizes, muted Markdown marks, and Cascadia Code for code. A new, empty document opens with the cursor in it.
 
 ### Claude's Markdown
 
-Assistant text is rendered by [`src/ui/markdown.tsx`](src/ui/markdown.tsx) into React elements, so HTML in Claude's text is shown as text.
-Paragraphs, headings, emphasis, inline code, fenced code, lists, links, and block quotes are rendered; anything else stays as written.
-A single newline is a line break, because Claude often writes a sentence per line.
-Headings start at `h3` below the panel's own `h2`, and a top-level heading is `--fs-lg`.
-Code blocks scroll sideways rather than wrap.
-Inline code has less padding after than before, so punctuation that follows sits close.
-An item indented two or more spaces under a list item starts a nested list.
-Links are ink with a soft underline that darkens on hover, and open in a new tab with `rel="noreferrer"`, and only `http`, `https`, and `mailto` links become links.
-A citation stays text unless the caller passes `renderCitation`, which the spec view uses for its chips.
+[`src/ui/markdown.tsx`](src/ui/markdown.tsx) renders Claude's text as React elements, so HTML shows as text. It supports paragraphs, headings (from `h3`), emphasis, code, lists (including nested), links (`http`, `https`, `mailto` only, opening in a new tab), and quotes. A single newline is a line break. Code blocks scroll sideways.
 
-## Before and after
+## Screenshots
 
-Each pair was taken at 1280 by 800 with the built app on the fake SDK.
-
-| View                               | Before                                          | After                                         |
-| ---------------------------------- | ----------------------------------------------- | --------------------------------------------- |
-| The board with a pending proposal  | [before](docs/design/before-board-proposal.png) | [after](docs/design/after-board-proposal.png) |
-| The panel mid-answer with Markdown | [before](docs/design/before-panel-markdown.png) | [after](docs/design/after-panel-markdown.png) |
-| The spec view                      | [before](docs/design/before-spec.png)           | [after](docs/design/after-spec.png)           |
-| The tasks view                     | [before](docs/design/before-tasks.png)          | [after](docs/design/after-tasks.png)          |
-| The sessions view                  | [before](docs/design/before-sessions.png)       | [after](docs/design/after-sessions.png)       |
-| A doc in the editor                | (none taken)                                    | [after](docs/design/after-doc.png)            |
-
-![The board with a pending proposal, after](docs/design/after-board-proposal.png)
+The images in [`docs/design/`](docs/design/) predate the current look; retake them before relying on them.
