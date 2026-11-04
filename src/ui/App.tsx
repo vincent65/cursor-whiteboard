@@ -1,4 +1,3 @@
-import { DraftingCompass } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as api from "./api";
 import { BoardView } from "./board/BoardView";
@@ -127,7 +126,6 @@ function Shell() {
         {route?.kind === "sessions" && <SessionsView />}
         {!route && boards?.length === 0 && (
           <EmptyState
-            icon={DraftingCompass}
             title="Welcome to Blueprint"
             action={
               <button

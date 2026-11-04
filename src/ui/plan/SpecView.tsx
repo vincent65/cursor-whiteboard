@@ -1,4 +1,3 @@
-import { ScrollText } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { citationKey } from "../../export/citations";
 import * as api from "../api";
@@ -79,7 +78,6 @@ export function SpecView() {
     <div className="spec">
       {spec && !hasText && (
         <EmptyState
-          icon={ScrollText}
           title="No spec yet"
           action={
             <button

@@ -1,9 +1,4 @@
-import {
-  ArrowUp,
-  PanelRightClose,
-  PanelRightOpen,
-  Sparkles,
-} from "lucide-react";
+import { ArrowUp, PanelRightClose, PanelRightOpen } from "lucide-react";
 import {
   type KeyboardEvent,
   useEffect,
@@ -252,9 +247,6 @@ export function ClaudePanel({
         <div className="transcript" ref={transcript} onScroll={onScroll}>
           {empty ? (
             <div className="panel-empty">
-              <span className="empty-icon" aria-hidden="true">
-                <Sparkles size={20} strokeWidth={1.75} />
-              </span>
               <h3 className="empty-title">Ask Claude about your plan</h3>
               <p className="empty-body">
                 {onBoard

@@ -1,4 +1,3 @@
-import { Bot } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PanelEvent } from "../../shared/panel";
 import type { OtherSession, RunView } from "../../shared/runs";
@@ -223,7 +222,6 @@ export function SessionsView() {
       )}
       {runs?.length === 0 && (
         <EmptyState
-          icon={Bot}
           title="No runs yet"
           compact={(others?.length ?? 0) > 0}
           action={

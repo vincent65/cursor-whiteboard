@@ -676,18 +676,6 @@ pre {
   padding: calc(var(--space) * 6) calc(var(--space) * 3);
 }
 
-.empty-icon {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  margin-bottom: calc(var(--space) / 2);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  box-shadow: inset 0 0 0 1px var(--border);
-  color: var(--muted);
-}
-
 .empty-title {
   margin: 0;
   font-size: var(--fs-lg);

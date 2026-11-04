@@ -1,4 +1,3 @@
-import { ListChecks } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { citationKey, parseCitations } from "../../export/citations";
 import type { GateResult } from "../../shared/runs";
@@ -143,7 +142,6 @@ export function TasksView({ cost }: { cost: number | null }) {
       )}
       {tasks?.length === 0 && (
         <EmptyState
-          icon={ListChecks}
           title="No tasks yet"
           action={
             <a className="button" href={routeHash({ kind: "spec" })}>
