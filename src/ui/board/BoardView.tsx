@@ -216,6 +216,14 @@ function snapRotation(ex: ExcalidrawImperativeAPI): void {
   );
   if (shapes.length !== 1) return;
   const [shape] = shapes;
+  // Arrows and lines keep their angle, and a shape with arrows bound to it is
+  // left alone, since only Excalidraw's own rotation moves their ends with it.
+  if (
+    shape.type === "arrow" ||
+    shape.type === "line" ||
+    shape.boundElements?.some((b) => b.type === "arrow")
+  )
+    return;
   const angle = snapAngle(shape.angle);
   if (angle === shape.angle) return;
   ex.updateScene({
