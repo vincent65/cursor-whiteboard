@@ -1,29 +1,8 @@
 /* Tokens: DESIGN.md names each one's role. Every color, font size, radius,
-   and shadow below comes from here. */
-
-/* Excalidraw's own UI face and its code face, served from /fonts (copied in
-   by scripts/copy-excalidraw-assets.mjs), so the chrome matches the canvas
-   toolbar and nothing loads from the network. */
-@font-face {
-  font-family: "Assistant";
-  src: url("/fonts/Assistant/Assistant-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Assistant";
-  src: url("/fonts/Assistant/Assistant-SemiBold.woff2") format("woff2");
-  font-weight: 600;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "Assistant";
-  src: url("/fonts/Assistant/Assistant-Bold.woff2") format("woff2");
-  font-weight: 700;
-  font-display: swap;
-}
+   and shadow below comes from here. Inter is bundled from
+   @fontsource-variable/inter (imported in main.tsx); Cascadia Code is copied in
+   from Excalidraw's package by scripts/copy-excalidraw-assets.mjs. Nothing
+   loads from the network. */
 
 @font-face {
   font-family: "Cascadia Code";
@@ -33,49 +12,59 @@
 }
 
 :root {
-  --font: "Assistant", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font:
+    "Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Cascadia Code", ui-monospace, "SF Mono", Menlo, monospace;
   --fs-xs: 12px;
   --fs-sm: 13px;
-  --fs-md: 15px;
-  --fs-lg: 17px;
-  --fs-xl: 22px;
-  /* Code inside text: Cascadia Code runs large beside Assistant. */
-  --fs-code-ratio: 0.9em;
+  --fs-md: 14px;
+  --fs-doc: 15px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 28px;
+  --fs-code-ratio: 0.86em;
   --line-height: 1.5;
+  --measure: 72ch;
   --space: 8px;
 
-  /* Paper and rules. */
+  /* Paper: warm white, warm grey rails. */
   --bg: #ffffff;
-  --surface: #f3f5f7;
-  --border: #dbe1e7;
-  --border-strong: #b6c0ca;
+  --surface: #f7f7f5;
+  --hover: rgb(55 53 47 / 0.06);
+  --selected: rgb(55 53 47 / 0.09);
+  --border: #ebeae6;
+  --border-strong: #dcdad5;
   /* Ink. */
-  --text: #17212b;
-  --muted: #5a6774;
+  --text: #37352f;
+  --muted: #6b6a65;
+  --faint: #9b9a97;
   --on-accent: #ffffff;
-  /* Prussian blue, the cyanotype's own pigment: your actions. */
+  /* Prussian blue: your actions. */
   --accent: #1d4f8c;
   --accent-hover: #163f71;
-  --accent-tint: #e7eef7;
-  /* Non-photo blue: Claude's work. Ghost is a proposal not yet yours; AI-made
-     is the solid ink of Claude's own words and state. */
+  --accent-tint: #e8eef6;
+  /* Non-photo blue: Claude's work. */
   --ghost: #5aaed8;
   --ghost-tint: #edf6fb;
   --ai: #136f96;
   /* Status. */
   --ok: #2c7a4b;
   --warn: #9a5c08;
-  --warn-tint: #fdf4e7;
+  --warn-tint: #fbf3e6;
   --danger: #bd3a2a;
-  --code-bg: #eef1f4;
+  --code-bg: rgb(135 131 120 / 0.15);
+  --bubble: #f1f1ef;
 
   --radius-sm: 4px;
   --radius: 6px;
   --radius-lg: 10px;
+  --radius-xl: 14px;
   --radius-pill: 999px;
+  --shadow-sm: 0 0 0 1px rgb(15 15 15 / 0.04), 0 2px 4px rgb(15 15 15 / 0.04);
   --shadow-float:
-    0 6px 20px rgb(23 33 43 / 0.14), 0 1px 3px rgb(23 33 43 / 0.08);
+    0 0 0 1px rgb(15 15 15 / 0.05), 0 3px 6px rgb(15 15 15 / 0.08),
+    0 9px 24px rgb(15 15 15 / 0.12);
+  --ease: cubic-bezier(0.2, 0, 0, 1);
 
   --rail-width: 240px;
   --pane-width: 360px;
@@ -109,11 +98,20 @@ body {
   line-height: var(--line-height);
   color: var(--text);
   background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv11";
 }
 
 code,
 pre {
   font-family: var(--font-mono);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .shell {
@@ -209,7 +207,7 @@ pre {
 .right-pane {
   min-width: 0;
   min-height: 0;
-  background: var(--surface);
+  background: var(--bg);
   border-left: 1px solid var(--border);
 }
 
@@ -236,8 +234,9 @@ pre {
   display: flex;
   align-items: center;
   gap: var(--space);
+  min-height: 48px;
   padding: var(--space) calc(var(--space) * 2);
-  background: var(--surface);
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
 
@@ -246,20 +245,34 @@ pre {
 }
 
 .button {
-  padding: calc(var(--space) / 2) calc(var(--space) * 1.5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--space) * 0.75);
+  height: 30px;
+  padding: 0 calc(var(--space) * 1.5);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: var(--bg);
   color: var(--text);
   font: inherit;
-  font-weight: 600;
-  line-height: 1.4;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
   cursor: pointer;
+  transition:
+    background-color 120ms var(--ease),
+    border-color 120ms var(--ease);
 }
 
 .button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--surface);
+}
+
+.button:active {
+  background: var(--selected);
 }
 
 .button-primary {
@@ -271,26 +284,16 @@ pre {
 .button-primary:hover {
   border-color: var(--accent-hover);
   background: var(--accent-hover);
-  color: var(--on-accent);
 }
 
-.button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.button:disabled {
+.button:disabled,
+.button:disabled:hover {
   opacity: 0.45;
   cursor: default;
-  border-color: var(--border-strong);
-  background: var(--bg);
-  color: var(--text);
 }
 
-.button-primary:disabled {
-  border-color: var(--accent);
+.button-primary:disabled:hover {
   background: var(--accent);
-  color: var(--on-accent);
 }
 
 .panel {
@@ -302,25 +305,24 @@ pre {
 .panel-header {
   display: flex;
   align-items: center;
-  gap: var(--space);
-  padding: var(--space) calc(var(--space) * 2);
-  background: var(--bg);
+  gap: calc(var(--space) / 2);
+  min-height: 48px;
+  padding: 0 var(--space) 0 calc(var(--space) * 2);
   border-bottom: 1px solid var(--border);
 }
 
 .panel-title {
   margin: 0;
   font-size: var(--fs-md);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* The status strip: a dot and a word, the dot's color from the status tokens. */
 .status {
-  display: flex;
+  display: block;
   flex: 1;
-  align-items: center;
-  gap: calc(var(--space) * 0.75);
   min-width: 0;
+  margin-left: calc(var(--space) / 2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -330,11 +332,17 @@ pre {
 
 .status::before {
   content: "";
-  flex: none;
-  width: 8px;
-  height: 8px;
+  display: inline-block;
+  margin-right: calc(var(--space) * 0.75);
+  vertical-align: 1px;
+  width: 7px;
+  height: 7px;
   border-radius: var(--radius-pill);
   background: var(--border-strong);
+}
+
+.panel-header .button {
+  padding: 0 calc(var(--space) * 1.25);
 }
 
 .status[data-status="idle"]::before,
@@ -438,7 +446,7 @@ pre {
 
 .md :is(h3, h4, h5, h6) {
   font-size: var(--fs-md);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
 }
 
@@ -458,22 +466,30 @@ pre {
   margin-top: calc(var(--space) / 4);
 }
 
+.md strong {
+  font-weight: 600;
+}
+
 /* Less padding after than before, so punctuation that follows sits close.
    A tool row's command (.cmd) and code in a one-line field are the same chip. */
 .md code,
 .md-inline code,
 .cmd {
-  padding: 0 calc(var(--space) / 4) 0 calc(var(--space) / 2);
+  padding: 0.1em calc(var(--space) / 4) 0.1em calc(var(--space) / 2);
   border-radius: var(--radius-sm);
   background: var(--code-bg);
+  color: #c4554d;
   font-size: var(--fs-code-ratio);
 }
 
+.cmd {
+  color: inherit;
+}
+
 .md pre {
-  padding: var(--space) calc(var(--space) * 1.5);
-  border: 1px solid var(--border);
+  padding: calc(var(--space) * 1.5) calc(var(--space) * 2);
   border-radius: var(--radius);
-  background: var(--bg);
+  background: var(--surface);
   font-size: var(--fs-xs);
   line-height: 1.6;
   overflow-x: auto;
@@ -483,13 +499,13 @@ pre {
 .md pre code {
   padding: 0;
   background: none;
+  color: inherit;
   font-size: inherit;
 }
 
 .md blockquote {
   padding-left: calc(var(--space) * 1.5);
-  border-left: 3px solid var(--border-strong);
-  color: var(--muted);
+  border-left: 3px solid var(--text);
 }
 
 /* :where keeps these at one class, below the card rules that follow. */
@@ -502,8 +518,13 @@ pre {
 }
 
 .md a {
-  color: var(--accent);
+  color: inherit;
+  text-decoration-color: rgb(55 53 47 / 0.4);
   text-underline-offset: 2px;
+}
+
+.md a:hover {
+  text-decoration-color: currentColor;
 }
 
 .md a:focus-visible {
@@ -519,9 +540,8 @@ pre {
   align-items: center;
   gap: var(--space);
   padding: calc(var(--space) * 1.5);
-  border: 1px solid var(--warn);
-  border-left-width: 4px;
-  border-radius: var(--radius);
+  border: 1px solid rgb(154 92 8 / 0.3);
+  border-radius: var(--radius-lg);
   background: var(--warn-tint);
 }
 
@@ -530,18 +550,23 @@ pre {
   overflow-wrap: anywhere;
 }
 
+.ask-text strong {
+  font-weight: 600;
+}
+
 /* An ask shows the whole command, keeping its line breaks. */
 .ask .cmd {
   white-space: pre-wrap;
 }
 
 .panel .ask {
-  margin: 0 var(--space) var(--space);
+  margin: 0 calc(var(--space) * 2) var(--space);
 }
 
 .panel-failure {
   margin: 0;
-  padding: var(--space) calc(var(--space) * 2);
+  padding: 0 calc(var(--space) * 2) var(--space);
+  font-size: var(--fs-sm);
   color: var(--danger);
 }
 
@@ -587,11 +612,11 @@ pre {
 /* Your selection: solid, in ink. */
 .chip {
   max-width: 100%;
-  padding: 1px var(--space);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-pill);
-  background: var(--bg);
-  font-size: var(--fs-sm);
+  padding: 2px var(--space);
+  border-radius: var(--radius);
+  background: var(--selected);
+  font-size: var(--fs-xs);
+  font-weight: 500;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -621,7 +646,7 @@ pre {
   height: 18px;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   background: none;
   color: inherit;
   font: inherit;
@@ -630,7 +655,7 @@ pre {
 }
 
 .chip-clear:hover {
-  background: var(--bg);
+  background: var(--hover);
 }
 
 .chip-clear:focus-visible {
@@ -652,7 +677,7 @@ pre {
   max-width: calc(100% - var(--bar-inset, 0px) - var(--space) * 2);
   padding: var(--space) var(--space) var(--space) calc(var(--space) * 2);
   transform: translateX(-50%);
-  background: var(--ghost-tint);
+  background: var(--bg);
   border: 1.5px dashed var(--ghost);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-float);
@@ -661,7 +686,7 @@ pre {
 .proposals-row {
   display: flex;
   align-items: center;
-  gap: var(--space);
+  gap: calc(var(--space) * 0.75);
 }
 
 .proposals-text {
@@ -669,7 +694,7 @@ pre {
   min-width: 0;
   margin-right: var(--space);
   color: var(--ai);
-  font-weight: 600;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -691,12 +716,14 @@ pre {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: calc(var(--space) * 3) calc(var(--space) * 4) calc(var(--space) * 6);
+  padding: calc(var(--space) * 5) calc(var(--space) * 6) calc(var(--space) * 10);
 }
 
 .spec-doc .md {
-  max-width: 72ch;
-  line-height: 1.6;
+  max-width: var(--measure);
+  margin: 0 auto;
+  font-size: var(--fs-doc);
+  line-height: 1.65;
 }
 
 /* :where keeps this at one class, so later card rules are not outranked. */
@@ -706,20 +733,23 @@ pre {
 
 /* The spec's headings render at their real levels: # is h1. */
 .spec-doc .md :is(h1, h2, h3) {
-  font-weight: 700;
+  font-weight: 650;
   line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 
 .spec-doc .md h1 {
-  font-size: var(--fs-xl);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .spec-doc .md h2 {
-  font-size: var(--fs-lg);
+  font-size: var(--fs-xl);
 }
 
 .spec-doc .md h3 {
-  font-size: var(--fs-md);
+  font-size: var(--fs-lg);
 }
 
 .spec-doc .md > :is(h1, h2, h3, h4, h5, h6):not(:first-child) {
@@ -739,6 +769,7 @@ pre {
   border-radius: var(--radius-sm);
   background: var(--accent-tint);
   color: var(--accent);
+  vertical-align: 0.05em;
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   line-height: 1.6;
@@ -758,6 +789,7 @@ pre {
 .plan-error {
   margin: 0;
   padding: var(--space) calc(var(--space) * 2);
+  font-size: var(--fs-sm);
   color: var(--danger);
 }
 
@@ -766,7 +798,9 @@ pre {
   flex-direction: column;
   gap: calc(var(--space) * 1.5);
   max-width: 820px;
-  padding: calc(var(--space) * 3);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: calc(var(--space) * 5) calc(var(--space) * 4);
 }
 
 .task-card,
@@ -774,6 +808,7 @@ pre {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--bg);
+  box-shadow: var(--shadow-sm);
 }
 
 .task-card {
@@ -800,7 +835,7 @@ pre {
 
 .task-title {
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
 }
 
@@ -830,7 +865,9 @@ pre {
   flex-direction: column;
   gap: calc(var(--space) * 2);
   max-width: 1120px;
-  padding: calc(var(--space) * 3);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: calc(var(--space) * 5) calc(var(--space) * 4);
 }
 
 .run-grid {
@@ -864,7 +901,7 @@ pre {
   min-width: 0;
   margin: 0;
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -907,7 +944,7 @@ pre {
 
 .run-meta a {
   color: var(--accent);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .run-branch {
@@ -1052,17 +1089,24 @@ pre {
 
 .launch-title {
   font-size: var(--fs-md);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .launch-field {
   display: flex;
   flex-direction: column;
   gap: calc(var(--space) / 2);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .launch-field select {
+  height: 30px;
+  padding: 0 var(--space);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
   font-weight: normal;
 }
 

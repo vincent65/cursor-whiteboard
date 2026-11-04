@@ -15,24 +15,39 @@ const theme = EditorView.theme({
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": {
     fontFamily: "var(--font)",
-    lineHeight: "var(--line-height)",
+    fontSize: "var(--fs-doc)",
+    lineHeight: "1.65",
   },
-  ".cm-content": { padding: "calc(var(--space) * 2) 0" },
+  ".cm-content": {
+    maxWidth: "var(--measure)",
+    padding: "calc(var(--space) * 4) 0 calc(var(--space) * 8)",
+  },
   ".cm-gutters": {
     backgroundColor: "var(--surface)",
     borderRight: "1px solid var(--border)",
     color: "var(--muted)",
   },
-  ".cm-line": { padding: "0 calc(var(--space) * 2)" },
+  ".cm-line": { padding: "0 calc(var(--space) * 6)" },
 });
 
 // Markdown sized as DESIGN.md sets it, with no underline under headings. It
 // replaces basicSetup's default style, so it covers every tag a doc uses.
 const highlight = syntaxHighlighting(
   HighlightStyle.define([
-    { tag: tags.heading1, fontSize: "var(--fs-xl)", fontWeight: "700" },
-    { tag: tags.heading2, fontSize: "var(--fs-lg)", fontWeight: "700" },
-    { tag: tags.heading, fontWeight: "700" },
+    {
+      tag: tags.heading1,
+      fontSize: "var(--fs-2xl)",
+      fontWeight: "700",
+      letterSpacing: "-0.02em",
+    },
+    {
+      tag: tags.heading2,
+      fontSize: "var(--fs-xl)",
+      fontWeight: "650",
+      letterSpacing: "-0.01em",
+    },
+    { tag: tags.heading3, fontSize: "var(--fs-lg)", fontWeight: "650" },
+    { tag: tags.heading, fontWeight: "650" },
     { tag: tags.strong, fontWeight: "700" },
     { tag: tags.emphasis, fontStyle: "italic" },
     { tag: tags.strikethrough, textDecoration: "line-through" },
