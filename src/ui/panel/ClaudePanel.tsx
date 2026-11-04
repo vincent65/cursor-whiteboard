@@ -1,3 +1,4 @@
+import { ArrowUp } from "lucide-react";
 import {
   type KeyboardEvent,
   useEffect,
@@ -180,7 +181,7 @@ export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
         </button>
         <button
           type="button"
-          className="button"
+          className="button button-quiet"
           disabled={!busy || stopping}
           onClick={stop}
         >
@@ -226,16 +227,37 @@ export function ClaudePanel({ onBoard }: { onBoard: boolean }) {
             )}
           </div>
         )}
-        <textarea
-          ref={input}
-          aria-label="Message Claude"
-          placeholder={onBoard ? "Ask Claude about this board" : "Ask Claude"}
-          rows={3}
-          value={text}
-          disabled={status.status === "starting"}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={onKeyDown}
-        />
+        <div className="composer-box">
+          <textarea
+            ref={input}
+            aria-label="Message Claude"
+            placeholder={
+              onBoard
+                ? "Ask Claude anything about this board"
+                : "Ask Claude anything"
+            }
+            rows={2}
+            value={text}
+            disabled={status.status === "starting"}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={onKeyDown}
+          />
+          <div className="composer-foot">
+            <span className="composer-hint">
+              Enter to send, Shift+Enter for a new line
+            </span>
+            <button
+              type="button"
+              className="send-button"
+              aria-label="Send"
+              title="Send"
+              disabled={!text.trim() || status.status === "starting"}
+              onClick={() => void send()}
+            >
+              <ArrowUp size={16} strokeWidth={2.25} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   );

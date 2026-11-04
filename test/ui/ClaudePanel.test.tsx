@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import type { ServerMessage } from "../../src/shared/messages";
@@ -127,14 +127,18 @@ test("panel renders restored transcript, sends on Enter with the current selecti
   renderPanel();
 
   expect(await screen.findByText("What is here?")).toHaveClass("msg-user");
-  expect(screen.getByText("reading the board")).toHaveClass("msg-tool");
+  expect(
+    screen.getByText("reading the board").closest(".msg-tool"),
+  ).not.toBeNull();
   // A command row shows its command as code.
   const command = screen.getByText("npm test");
   expect(command.tagName).toBe("CODE");
   expect(command.parentElement).toHaveTextContent(/^running npm test$/);
+  const failed = screen.getByText("no such board").closest(".msg-tool");
+  expect(failed).toHaveClass("msg-tool-failed");
   expect(
-    screen.getByText("no such board").closest(".msg-tool"),
-  ).toHaveTextContent("✗");
+    within(failed as HTMLElement).getByRole("img", { name: "failed" }),
+  ).toBeInTheDocument();
   // Assistant text is Markdown; its line break survives as a <br>.
   expect(screen.getByText(/Two boxes\./).innerHTML).toBe(
     "Two boxes.<br>One arrow.",
@@ -401,7 +405,7 @@ test("the input asks about the board only on a board route", async () => {
     </SelectionProvider>,
   );
   expect(
-    await screen.findByPlaceholderText("Ask Claude about this board"),
+    await screen.findByPlaceholderText("Ask Claude anything about this board"),
   ).toBeInTheDocument();
 
   rerender(
@@ -409,7 +413,9 @@ test("the input asks about the board only on a board route", async () => {
       <ClaudePanel onBoard={false} />
     </SelectionProvider>,
   );
-  expect(screen.getByPlaceholderText("Ask Claude")).toBeInTheDocument();
+  expect(
+    screen.getByPlaceholderText("Ask Claude anything"),
+  ).toBeInTheDocument();
 });
 
 test("Stop reads Stopping… from the click until a status other than working or needs_you arrives", async () => {

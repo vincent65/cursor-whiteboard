@@ -379,6 +379,18 @@ pre {
   background: var(--selected);
 }
 
+/* No border: header actions that should not compete with the content. */
+.button-quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--muted);
+}
+
+.button-quiet:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
 .button-primary {
   border-color: var(--accent);
   background: var(--accent);
@@ -398,6 +410,11 @@ pre {
 
 .button-primary:disabled:hover {
   background: var(--accent);
+}
+
+.button-quiet:disabled:hover {
+  background: none;
+  color: var(--muted);
 }
 
 .panel {
@@ -504,14 +521,14 @@ pre {
   flex-shrink: 0;
 }
 
+/* Your message: a warm grey bubble, like a note you passed across. */
 .msg-user {
   align-self: flex-end;
   max-width: 85%;
-  padding: var(--space) calc(var(--space) * 1.5);
-  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm)
-    var(--radius-lg);
-  background: var(--accent);
-  color: var(--on-accent);
+  padding: calc(var(--space) * 0.75) calc(var(--space) * 1.5);
+  border-radius: var(--radius-xl);
+  background: var(--bubble);
+  color: var(--text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -520,22 +537,66 @@ pre {
   overflow-wrap: anywhere;
 }
 
+/* Tool activity and the turn's end: small grey rows with an icon, set close
+   together so a run of tool calls reads as one block of activity. */
 .msg-tool,
 .msg-result {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(var(--space) * 0.75);
+  min-width: 0;
   font-size: var(--fs-sm);
+  line-height: 20px;
   color: var(--muted);
+}
+
+.msg-tool + .msg-tool {
+  margin-top: calc(var(--space) * -1);
+}
+
+.msg-icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 14px;
+  height: 20px;
+  color: var(--faint);
+}
+
+.msg-tool-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.msg-tool {
-  padding-left: calc(var(--space) * 1.25);
-  border-left: 2px solid var(--border);
+.msg-tool-failed,
+.msg-tool-failed .msg-icon {
+  color: var(--danger);
 }
 
+/* The end of a turn: a hairline and its cost, so turns read as sections. */
 .msg-result {
+  gap: var(--space);
+  font-size: var(--fs-xs);
+  color: var(--faint);
   white-space: pre-wrap;
+}
+
+.msg-result:not(.msg-error)::after {
+  content: "";
+  flex: 1;
+  align-self: center;
+  height: 1px;
+  background: var(--border);
+}
+
+.msg-error {
+  color: var(--danger);
+}
+
+.msg-error .msg-icon {
+  color: var(--danger);
 }
 
 /* Claude's Markdown, sized for a narrow column. Margins come only from the
@@ -678,11 +739,89 @@ pre {
   display: flex;
   flex-direction: column;
   gap: var(--space);
-  padding: var(--space) calc(var(--space) * 2) calc(var(--space) * 2);
-  border-top: 1px solid var(--border);
+  padding: 0 calc(var(--space) * 1.5) calc(var(--space) * 1.5);
 }
 
-.composer textarea,
+/* The message box: a white card that lifts on focus, with its send button
+   inside, as in a chat app. */
+.composer-box {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--bg);
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color 120ms var(--ease),
+    box-shadow 120ms var(--ease);
+}
+
+.composer-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+.composer textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: calc(var(--space) * 1.25) calc(var(--space) * 1.5) var(--space);
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  resize: none;
+}
+
+.composer textarea::placeholder,
+.run-input::placeholder {
+  color: var(--faint);
+}
+
+.composer-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+  padding: 0 calc(var(--space) * 0.75) calc(var(--space) * 0.75)
+    calc(var(--space) * 1.5);
+}
+
+.composer-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-xs);
+  color: var(--faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.send-button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  transition:
+    background-color 120ms var(--ease),
+    opacity 120ms var(--ease);
+}
+
+.send-button:hover {
+  background: var(--accent-hover);
+}
+
+.send-button:disabled {
+  background: var(--border-strong);
+  cursor: default;
+}
+
 .run-input {
   width: 100%;
   padding: var(--space) calc(var(--space) * 1.25);
@@ -694,16 +833,10 @@ pre {
   resize: none;
 }
 
-.composer textarea:focus-visible,
 .run-input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
-  border-color: transparent;
-}
-
-.composer textarea::placeholder,
-.run-input::placeholder {
-  color: var(--muted);
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
 }
 
 .chips {

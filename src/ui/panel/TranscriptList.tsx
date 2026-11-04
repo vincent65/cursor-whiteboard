@@ -1,3 +1,4 @@
+import { Check, CircleAlert, Dot, X } from "lucide-react";
 import type { Citation } from "../../export/citations";
 import { Markdown } from "../markdown";
 import { CitationLink } from "../plan/citations";
@@ -32,18 +33,23 @@ function Item({ item }: { item: TranscriptItem }) {
     case "tool_use":
       return (
         <div className="msg-tool">
-          <ToolSummary summary={item.summary} />
+          <Dot className="msg-icon" size={14} aria-hidden="true" />
+          <span className="msg-tool-text">
+            <ToolSummary summary={item.summary} />
+          </span>
         </div>
       );
     case "tool_result":
       return (
-        <div className="msg-tool">
-          {!item.ok && (
-            <span role="img" aria-label="failed">
-              ✗{" "}
+        <div className={item.ok ? "msg-tool" : "msg-tool msg-tool-failed"}>
+          {item.ok ? (
+            <Check className="msg-icon" size={14} aria-hidden="true" />
+          ) : (
+            <span role="img" aria-label="failed" className="msg-icon">
+              <X size={14} aria-hidden="true" />
             </span>
           )}
-          {item.summary}
+          <span className="msg-tool-text">{item.summary}</span>
         </div>
       );
     case "result": {
@@ -58,7 +64,12 @@ function Item({ item }: { item: TranscriptItem }) {
       );
     }
     case "error":
-      return <div className="msg-result">✗ {item.message}</div>;
+      return (
+        <div className="msg-result msg-error">
+          <CircleAlert className="msg-icon" size={14} aria-hidden="true" />
+          <span>{item.message}</span>
+        </div>
+      );
     case "permission":
       // reduceTranscript keeps asks out; they wait in the dialog.
       return null;
