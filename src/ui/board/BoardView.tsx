@@ -187,7 +187,12 @@ async function load(board: BoardFile): Promise<Scene> {
       board.elements as unknown as readonly ExcalidrawElement[],
       null,
     ),
-    appState: restoreAppState(board.appState as Partial<AppState>, null),
+    // Moving a shape snaps it to line up with its neighbors; Alt+S still
+    // turns that off and on.
+    appState: {
+      ...restoreAppState(board.appState as Partial<AppState>, null),
+      objectsSnapModeEnabled: true,
+    },
     files: files as BinaryFiles,
   };
 }
@@ -601,8 +606,6 @@ export function BoardView({
               });
             }}
             UIOptions={UI_OPTIONS}
-            // Moving a shape snaps it to line up with its neighbors.
-            objectsSnapModeEnabled
           />
         </div>
       )}
