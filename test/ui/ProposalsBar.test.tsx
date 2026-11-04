@@ -25,12 +25,16 @@ test("renders a row per proposal with counts and wires the buttons", async () =>
     <ProposalsBar items={items} onDecide={onDecide} onRefine={onRefine} />,
   );
 
-  const first = screen.getByText("Claude proposed Login flow · 2 added");
-  const second = screen.getByText(
-    "Claude proposed changes · 1 changed, 1 removed",
-  );
-  const row = (el: HTMLElement) =>
-    within(el.closest(".proposals-row") as HTMLElement);
+  // Each row is a group named in full; it shows the name and counts apart.
+  const first = screen.getByRole("group", {
+    name: "Claude proposed Login flow · 2 added",
+  });
+  const second = screen.getByRole("group", {
+    name: "Claude proposed changes · 1 changed, 1 removed",
+  });
+  expect(first).toHaveTextContent("Login flow2 added");
+  expect(second).toHaveTextContent("Changes1 changed, 1 removed");
+  const row = (el: HTMLElement) => within(el);
 
   await userEvent.click(row(first).getByRole("button", { name: "Accept" }));
   expect(onDecide).toHaveBeenLastCalledWith("p_1", "accepted");
@@ -49,8 +53,7 @@ test("a row whose decision is in flight disables its buttons", () => {
       onRefine={vi.fn()}
     />,
   );
-  const row = (text: string) =>
-    within(screen.getByText(text).closest(".proposals-row") as HTMLElement);
+  const row = (name: string) => within(screen.getByRole("group", { name }));
   const busy = row("Claude proposed Login flow · 2 added");
   const idle = row("Claude proposed changes · 1 changed, 1 removed");
   for (const name of ["Accept", "Reject", "Refine"]) {
@@ -72,7 +75,7 @@ test("the bar centers in the board area right of the inset it is given", () => {
   );
   const bar = () =>
     screen
-      .getByText("Claude proposed Login flow · 2 added")
+      .getByRole("group", { name: "Claude proposed Login flow · 2 added" })
       .closest(".proposals-bar") as HTMLElement;
   expect(bar().style.getPropertyValue("--bar-inset")).toBe("0px");
   rerender(

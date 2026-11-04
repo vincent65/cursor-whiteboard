@@ -27,49 +27,52 @@ export function ProposalsBar(props: {
       className="proposals-bar"
       style={{ "--bar-inset": `${props.inset ?? 0}px` } as CSSProperties}
     >
-      {props.items.map(({ id, title, counts, busy }) => (
-        <div className="proposals-row" key={id}>
-          <ProposalText
-            text={[`Claude proposed ${title ?? "changes"}`, summary(counts)]
-              .filter(Boolean)
-              .join(" · ")}
-          />
-          <button
-            type="button"
-            disabled={busy}
-            className="button button-primary"
-            onClick={() => props.onDecide(id, "accepted")}
+      {props.items.map(({ id, title, counts, busy }) => {
+        const name = title ?? "Changes";
+        const counted = summary(counts);
+        // The row reads in full for assistive tech and as its tooltip.
+        const full = [`Claude proposed ${title ?? "changes"}`, counted]
+          .filter(Boolean)
+          .join(" · ");
+        return (
+          <fieldset
+            className="proposals-row"
+            key={id}
+            aria-label={full}
+            title={full}
           >
-            Accept
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            className="button"
-            onClick={() => props.onDecide(id, "rejected")}
-          >
-            Reject
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            className="button"
-            onClick={() => props.onRefine(id)}
-          >
-            Refine
-          </button>
-        </div>
-      ))}
+            <span className="proposals-mark" aria-hidden="true" />
+            <span className="proposals-text" aria-hidden="true">
+              <span className="proposals-title">{name}</span>
+              {counted && <span className="proposals-counts">{counted}</span>}
+            </span>
+            <button
+              type="button"
+              disabled={busy}
+              className="button button-primary"
+              onClick={() => props.onDecide(id, "accepted")}
+            >
+              Accept
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              className="button button-quiet"
+              onClick={() => props.onDecide(id, "rejected")}
+            >
+              Reject
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              className="button button-quiet"
+              onClick={() => props.onRefine(id)}
+            >
+              Refine
+            </button>
+          </fieldset>
+        );
+      })}
     </div>
-  );
-}
-
-// Squeezed beside the properties panel the summary can be cut short, so its
-// tooltip holds the whole of it.
-function ProposalText({ text }: { text: string }) {
-  return (
-    <span className="proposals-text" title={text}>
-      {text}
-    </span>
   );
 }

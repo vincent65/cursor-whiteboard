@@ -54,7 +54,7 @@ Text meets 4.5:1 contrast on its surface. `--faint` is the exception and is used
 
 - Spacing is a multiple of 8px. Rows are 8px apart, regions are padded 16px, pages 40px on top and 32px at the sides.
 - Radius: `--radius-sm` 4px (code, chips), `--radius` 6px (buttons, inputs, rows), `--radius-lg` 10px (cards, bars), `--radius-xl` 14px (composer, message bubbles), `--radius-pill` for dots, pills, and round buttons.
-- Shadow: `--shadow-sm` lifts cards and the composer slightly. `--shadow-float` is only for the proposals bar, which floats over the canvas.
+- Shadow: `--shadow-sm` lifts cards and the composer slightly. `--shadow-float` is for dialogs over the board.
 - Motion: hovers and presses take 120ms with `--ease`. Side panels slide in over 180ms. Claude's handoffs ease in: the proposals bar fades in and rises 8px over 200ms, and a permission request fades in and rises 4px over 160ms. Under reduced motion, nothing moves; entrances only fade.
 
 ## Layout
@@ -112,7 +112,7 @@ Blueprint draws boards with Excalidraw but presents them as its own:
 ### Proposals
 
 - Proposed shapes are ghosts: 40% opacity with dashed strokes, and removals in red ([`src/ui/board/ghosts.ts`](src/ui/board/ghosts.ts)).
-- The proposals bar floats above the board's footer with a dashed `--ghost` border and Claude's summary in `--ai`. It sizes to its content, stays clear of the properties panel, the Pip button, and a floating panel, and shows its full summary as a tooltip when squeezed. **Accept** is the only primary button.
+- The proposals bar floats above the board's footer: a plain white bar with a small dashed `--ghost` swatch, the proposal's name in ink and its counts in grey, and Reject and Refine as quiet buttons. It sizes to its content, stays clear of the properties panel, the Pip button, and a floating panel, and shows its full summary as a tooltip when squeezed. **Accept** is the only primary button.
 - The selection chip above the composer is solid grey (it's yours). The refine chip is dashed light blue (it names Claude's proposal).
 
 ### Permission dialog

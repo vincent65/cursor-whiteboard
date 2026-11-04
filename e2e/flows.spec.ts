@@ -85,9 +85,13 @@ test("plan, ask, and accept", async ({ page, start }) => {
   await expect(message).toBeEnabled();
   await message.fill("Sketch the sign-in flow these two steps make.");
   await message.press("Enter");
-  await expect(page.getByText(/Claude proposed Sign-in flow/)).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: /Claude proposed Sign-in flow/ }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Accept" }).click();
-  await expect(page.getByText(/Claude proposed/)).toBeHidden();
+  await expect(
+    page.getByRole("group", { name: /Claude proposed/ }),
+  ).toBeHidden();
 
   // Accepted elements keep their origin and lose the ghost marker; each label still fits
   // its box on one line.

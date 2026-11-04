@@ -1270,7 +1270,8 @@ pre {
   outline-offset: 1px;
 }
 
-/* Floats over the canvas; dashed and tinted like the ghosts it decides. */
+/* Floats over the canvas: a plain white bar, marked as Claude's by a small
+   dashed swatch in the ghosts' blue. */
 .proposals-bar {
   position: absolute;
   /* Above Excalidraw's footer (zoom, undo, help), which spans 16px to 52px. */
@@ -1289,15 +1290,18 @@ pre {
     var(--space) *
     2
   );
-  padding: var(--space) var(--space) var(--space) calc(var(--space) * 2);
+  padding: calc(var(--space) * 0.75) calc(var(--space) * 0.75)
+    calc(var(--space) * 0.75) calc(var(--space) * 1.5);
   /* Sized to its content: from left: 50% it would otherwise shrink to the
      board's right half and cut its summary short. */
   width: max-content;
   transform: translateX(-50%);
   background: var(--bg);
-  border: 1.5px dashed var(--ghost);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-float);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow:
+    0 1px 2px rgb(15 15 15 / 0.04),
+    0 6px 16px rgb(15 15 15 / 0.08);
 }
 
 /* Claude's proposal arrives: the bar fades in and rises 8px. It uses the
@@ -1329,21 +1333,55 @@ pre {
   }
 }
 
+/* Each proposal is a fieldset, grouping its buttons under its summary; the
+   browser's own fieldset border and padding are dropped. */
 .proposals-row {
   display: flex;
   align-items: center;
-  gap: calc(var(--space) * 0.75);
+  gap: calc(var(--space) / 2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.proposals-row + .proposals-row {
+  padding-top: calc(var(--space) * 0.75);
+  border-top: 1px solid var(--border);
+}
+
+.proposals-mark {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-right: var(--space);
+  border: 1.5px dashed var(--ghost);
+  border-radius: 3px;
+  background: var(--ghost-tint);
 }
 
 .proposals-text {
+  display: flex;
   flex: 1;
+  align-items: baseline;
+  gap: var(--space);
   min-width: 0;
   margin-right: var(--space);
-  color: var(--ai);
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.proposals-title {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  color: var(--text);
+  text-overflow: ellipsis;
+}
+
+.proposals-counts {
+  flex: none;
+  font-size: var(--fs-sm);
+  color: var(--muted);
 }
 
 .spec {
