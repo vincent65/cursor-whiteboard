@@ -54,10 +54,13 @@ export function ClaudePanel({
   onBoard,
   open = true,
   onOpenChange,
+  floating = false,
 }: {
   onBoard: boolean;
   open?: boolean;
   onOpenChange?(open: boolean): void;
+  // Open over the board in a narrow window: Escape folds it again.
+  floating?: boolean;
 }) {
   const [items, setItems] = useState<TranscriptItem[]>([]);
   const [status, setStatus] = useState<Status>({ status: "starting" });
@@ -86,6 +89,21 @@ export function ClaudePanel({
   useEffect(() => {
     if (target) input.current?.focus();
   }, [target]);
+
+  // Folding or unfolding by hand moves focus to the control that took the
+  // pressed one's place: the composer when it opens, the Pip button when it folds.
+  const launcher = useRef<HTMLButtonElement>(null);
+  const toggled = useRef(false);
+  const setOpen = (next: boolean) => {
+    toggled.current = true;
+    onOpenChange?.(next);
+  };
+  useEffect(() => {
+    if (!toggled.current) return;
+    toggled.current = false;
+    if (open) input.current?.focus();
+    else launcher.current?.focus();
+  }, [open]);
 
   useEffect(() => {
     let cancelled = false;
@@ -206,15 +224,26 @@ export function ClaudePanel({
         // Pip hops on it while Claude works.
         <button
           type="button"
+          ref={launcher}
           className="panel-launcher"
           aria-label="Show Claude panel"
           title={`Ask Claude · ${statusText(status)}`}
-          onClick={() => onOpenChange?.(true)}
+          onClick={() => setOpen(true)}
         >
           <Pip size={30} hopping={working} />
         </button>
       )}
-      <section className="panel" aria-label="Claude" hidden={!open}>
+      <section
+        className="panel"
+        aria-label="Claude"
+        hidden={!open}
+        onKeyDown={(e) => {
+          if (floating && e.key === "Escape") {
+            e.stopPropagation();
+            setOpen(false);
+          }
+        }}
+      >
         <header className="panel-header">
           <h2 className="panel-title">Claude</h2>
           <span
@@ -242,7 +271,7 @@ export function ClaudePanel({
               className="icon-button"
               aria-label="Hide Claude panel"
               title="Hide Claude panel"
-              onClick={() => onOpenChange(false)}
+              onClick={() => setOpen(false)}
             >
               <PanelRightClose size={16} aria-hidden="true" />
             </button>

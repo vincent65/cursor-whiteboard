@@ -109,6 +109,7 @@ function Shell() {
         onCreatingChange={setCreating}
         collapsed={!railOpen}
         onCollapsedChange={(c) => setRailOpen(!c)}
+        floating={railOpen && !railWide}
         // Floating over the board, the rail folds again once a page is picked.
         onNavigate={() => {
           if (!railWide) setRailOpen(false);
@@ -173,6 +174,7 @@ function Shell() {
           onBoard={route?.kind === "board"}
           open={panelOpen}
           onOpenChange={setPanelOpen}
+          floating={panelOpen && !panelWide}
         />
       </aside>
     </div>

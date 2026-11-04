@@ -175,6 +175,7 @@ export function Sidebar({
   onCreatingChange,
   collapsed = false,
   onCollapsedChange,
+  floating = false,
   onNavigate,
 }: {
   boards: string[];
@@ -187,6 +188,8 @@ export function Sidebar({
   onCreatingChange?(kind: Kind | null): void;
   collapsed?: boolean;
   onCollapsedChange?(collapsed: boolean): void;
+  // Open over the board in a narrow window: Escape folds it again.
+  floating?: boolean;
   // A page link was followed, including one to the page already open.
   onNavigate?(): void;
 }) {
@@ -195,15 +198,31 @@ export function Sidebar({
   const open = onCreatingChange ? creating : ownCreating;
   const setOpen = onCreatingChange ?? setOwnCreating;
 
+  // Folding or unfolding by hand moves focus to the button that took the
+  // pressed one's place.
+  const expand = useRef<HTMLButtonElement>(null);
+  const collapse = useRef<HTMLButtonElement>(null);
+  const toggled = useRef(false);
+  const setCollapsed = (next: boolean) => {
+    toggled.current = true;
+    onCollapsedChange?.(next);
+  };
+  useEffect(() => {
+    if (!toggled.current) return;
+    toggled.current = false;
+    (collapsed ? expand : collapse).current?.focus();
+  }, [collapsed]);
+
   if (collapsed)
     return (
       <nav className="sidebar sidebar-collapsed" aria-label="Plan files">
         <button
           type="button"
           className="icon-button"
+          ref={expand}
           aria-label="Expand sidebar"
           title="Expand sidebar"
-          onClick={() => onCollapsedChange?.(false)}
+          onClick={() => setCollapsed(false)}
         >
           <PanelLeftOpen size={18} aria-hidden="true" />
         </button>
@@ -232,7 +251,7 @@ export function Sidebar({
               aria-label={label}
               title={label}
               aria-current={active?.kind === kind ? "page" : undefined}
-              onClick={() => onCollapsedChange?.(false)}
+              onClick={() => setCollapsed(false)}
             >
               <Icon size={18} aria-hidden="true" />
             </button>
@@ -242,7 +261,13 @@ export function Sidebar({
     );
 
   return (
-    <nav className="sidebar" aria-label="Plan files">
+    <nav
+      className="sidebar"
+      aria-label="Plan files"
+      onKeyDown={(e) => {
+        if (floating && e.key === "Escape") setCollapsed(true);
+      }}
+    >
       <div className="brand">
         <Pip size={18} />
         <span className="brand-name">Blueprint</span>
@@ -250,9 +275,10 @@ export function Sidebar({
           <button
             type="button"
             className="icon-button"
+            ref={collapse}
             aria-label="Collapse sidebar"
             title="Collapse sidebar"
-            onClick={() => onCollapsedChange(true)}
+            onClick={() => setCollapsed(true)}
           >
             <PanelLeftClose size={16} aria-hidden="true" />
           </button>
