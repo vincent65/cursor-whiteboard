@@ -40,8 +40,10 @@ function Shell() {
   const [creating, setCreating] = useState<"board" | "doc" | null>(null);
   // Narrow windows start with the rail and the panel folded, so the board
   // stays at least 730 px wide, where Excalidraw keeps its desktop layout.
-  const [railOpen, setRailOpen] = usePaneOpen("(min-width: 1250px)");
-  const [panelOpen, setPanelOpen] = usePaneOpen("(min-width: 1100px)");
+  const [railOpen, setRailOpen, railWide] = usePaneOpen("(min-width: 1250px)");
+  const [panelOpen, setPanelOpen, panelWide] = usePaneOpen(
+    "(min-width: 1100px)",
+  );
 
   const refresh = useCallback(async () => {
     const [b, d] = await Promise.all([api.listBoards(), api.listDocs()]);
@@ -87,6 +89,10 @@ function Shell() {
     wide && "shell-wide",
     !railOpen && "shell-rail-closed",
     !panelOpen && "shell-panel-closed",
+    // Opened by hand in a narrow window, a side floats over the board, so the
+    // board and its toolbar stay where they are.
+    railOpen && !railWide && "shell-rail-overlay",
+    panelOpen && !panelWide && "shell-panel-overlay",
   ]
     .filter(Boolean)
     .join(" ");

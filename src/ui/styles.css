@@ -129,6 +129,14 @@ pre {
   --pane-width: 0px;
 }
 
+.shell-rail-overlay {
+  --rail-width: var(--strip-width);
+}
+
+.shell-panel-overlay {
+  --pane-width: 0px;
+}
+
 /* Icon-only controls: the sidebar's + and fold buttons, the panel's fold. */
 .icon-button {
   display: inline-grid;
@@ -332,6 +340,52 @@ pre {
 
 .shell-panel-closed .right-pane {
   border-left: 0;
+}
+
+/* A side opened by hand in a narrow window floats over the board's edge. */
+.shell-rail-overlay .sidebar,
+.shell-panel-overlay .right-pane {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  z-index: 30;
+}
+
+.shell-rail-overlay .sidebar {
+  left: 0;
+  width: 240px;
+  box-shadow: 8px 0 24px rgb(15 15 15 / 0.08);
+}
+
+.shell-panel-overlay .right-pane {
+  right: 0;
+  width: 360px;
+  max-width: 100%;
+  box-shadow: -8px 0 24px rgb(15 15 15 / 0.08);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .shell-rail-overlay .sidebar {
+    animation: slide-from-left 180ms var(--ease);
+  }
+
+  .shell-panel-overlay .right-pane {
+    animation: slide-from-right 180ms var(--ease);
+  }
+}
+
+@keyframes slide-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+@keyframes slide-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
 }
 
 .muted {
